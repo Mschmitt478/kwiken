@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kwiken</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <header class="brand drag-region">
+        <div class="brand-mark">K</div>
+        <div>
+          <strong>Kwiken</strong>
+          <span>Browse in your flow</span>
+        </div>
+      </header>
+
+      <button class="new-tab" id="new-tab" type="button">
+        <span>＋</span>
+        New tab
+        <kbd>Ctrl T</kbd>
+      </button>
+
+      <div class="section-label">SPACES</div>
+      <nav class="tabs" id="tabs" aria-label="Open tabs"></nav>
+
+      <footer class="sidebar-footer">
+        <span class="status-dot"></span>
+        <span>Private on this device</span>
+      </footer>
+    </aside>
+
+    <header class="topbar drag-region">
+      <div class="navigation no-drag">
+        <button id="back" class="icon-button" type="button" title="Back">←</button>
+        <button id="forward" class="icon-button" type="button" title="Forward">→</button>
+        <button id="reload" class="icon-button" type="button" title="Reload">↻</button>
+        <button id="home" class="icon-button" type="button" title="Home">⌂</button>
+      </div>
+
+      <form id="address-form" class="address-shell no-drag">
+        <span class="security-indicator">◆</span>
+        <input
+          id="address"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Search or enter address"
+          placeholder="Search or enter address"
+        />
+        <span class="shortcut">Ctrl L</span>
+      </form>
+
+      <div class="window-controls no-drag">
+        <button id="minimize" type="button" title="Minimize">—</button>
+        <button id="maximize" type="button" title="Maximize">□</button>
+        <button id="close-window" class="close" type="button" title="Close">×</button>
+      </div>
+    </header>
+
+    <script src="app.js"></script>
+  </body>
+</html>
