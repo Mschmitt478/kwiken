@@ -231,7 +231,7 @@ try {
   & cl.exe /nologo /std:c++20 /O2 /MT /EHsc /DUNICODE /D_UNICODE /W4 `
     "/Fe:$(Join-Path $stagingRoot 'Kwiken.exe')" `
     (Join-Path $script:ForkRoot "distribution\launcher\KwikenLauncher.cpp") `
-    "KwikenLauncher.res" shell32.lib ole32.lib user32.lib `
+    "KwikenLauncher.res" shell32.lib ole32.lib propsys.lib user32.lib uuid.lib `
     /link /SUBSYSTEM:WINDOWS /MANIFEST:NO
   if ($LASTEXITCODE -ne 0) {
     throw "cl.exe failed with exit code $LASTEXITCODE."
