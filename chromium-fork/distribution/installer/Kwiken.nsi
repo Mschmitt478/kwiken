@@ -72,6 +72,7 @@ Section "Kwiken" MainSection
   CreateShortcut "$SMPROGRAMS\Kwiken\Kwiken.lnk" "$INSTDIR\Kwiken.exe" "" "$INSTDIR\Kwiken.exe" 0
   CreateShortcut "$SMPROGRAMS\Kwiken\Choose Kwiken as default.lnk" "$SYSDIR\cmd.exe" '/c start ms-settings:defaultapps?registeredAppUser=Kwiken' "$INSTDIR\Kwiken.exe" 0 SW_SHOWNORMAL "" "Open Windows default-app settings for Kwiken"
   CreateShortcut "$DESKTOP\Kwiken.lnk" "$INSTDIR\Kwiken.exe" "" "$INSTDIR\Kwiken.exe" 0
+  ExecWait '"$INSTDIR\Kwiken.exe" --repair-shortcuts'
 
   WriteRegStr HKCU "Software\Kwiken" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\Kwiken.exe" "" "$INSTDIR\Kwiken.exe"
