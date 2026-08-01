@@ -4,6 +4,8 @@ Set-StrictMode -Version Latest
 $script:ForkRoot = Split-Path -Parent $PSScriptRoot
 $script:RepoRoot = Split-Path -Parent $script:ForkRoot
 $script:Version = (Get-Content (Join-Path $script:ForkRoot "VERSION") -Raw).Trim()
+$script:PackageRevision = (Get-Content (Join-Path $script:ForkRoot "PACKAGE_REVISION") -Raw).Trim()
+$script:ReleaseVersion = "$script:Version-r$script:PackageRevision"
 $script:Revision = (Get-Content (Join-Path $script:ForkRoot "REVISION") -Raw).Trim()
 
 function Get-DefaultChromiumRoot {

@@ -13,6 +13,10 @@ namespace {
 constexpr wchar_t kFeatureSwitch[] =
     L"--enable-features=VerticalTabs,VerticalTabsLaunch,"
     L"VerticalTabsExpandOnHover";
+constexpr wchar_t kExtensionMimeSwitch[] =
+    L"--extension-mime-request-handling=always-prompt-for-install";
+constexpr wchar_t kDisableWebStoreSwitch[] =
+    L"--disable-kwiken-web-store";
 
 std::filesystem::path GetExecutableDirectory() {
   std::wstring buffer(32768, L'\0');
@@ -155,11 +159,18 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   }
 
   std::vector<std::wstring> arguments;
-  arguments.reserve(static_cast<size_t>(argument_count) + 3);
+  arguments.reserve(static_cast<size_t>(argument_count) + 5);
   bool has_user_data_directory = false;
   bool disables_vertical_tabs = false;
+  bool disables_extensions = false;
+  bool disables_web_store = false;
+  bool has_extension_mime_switch = false;
   for (int index = 1; index < argument_count; ++index) {
     std::wstring argument = raw_arguments[index];
+    if (argument == kDisableWebStoreSwitch) {
+      disables_web_store = true;
+      continue;
+    }
     if (argument == L"--user-data-dir" ||
         StartsWith(argument, L"--user-data-dir=")) {
       has_user_data_directory = true;
@@ -167,6 +178,12 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     if (StartsWith(argument, L"--disable-features=") &&
         argument.find(L"VerticalTabs") != std::wstring::npos) {
       disables_vertical_tabs = true;
+    }
+    if (argument == L"--disable-extensions") {
+      disables_extensions = true;
+    }
+    if (StartsWith(argument, L"--extension-mime-request-handling=")) {
+      has_extension_mime_switch = true;
     }
     arguments.push_back(std::move(argument));
   }
@@ -184,6 +201,29 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   }
   if (!disables_vertical_tabs) {
     arguments.insert(arguments.begin(), kFeatureSwitch);
+  }
+  const std::filesystem::path web_store_extension =
+      executable_directory / L"extensions" / L"chromium-web-store";
+  std::error_code extension_error;
+  if (!disables_extensions && !disables_web_store &&
+      std::filesystem::exists(web_store_extension / L"manifest.json",
+                              extension_error)) {
+    bool merged_with_existing_switch = false;
+    for (std::wstring& argument : arguments) {
+      if (StartsWith(argument, L"--load-extension=")) {
+        argument.push_back(L',');
+        argument.append(web_store_extension.wstring());
+        merged_with_existing_switch = true;
+        break;
+      }
+    }
+    if (!merged_with_existing_switch) {
+      arguments.insert(arguments.begin(),
+                       L"--load-extension=" + web_store_extension.wstring());
+    }
+    if (!has_extension_mime_switch) {
+      arguments.insert(arguments.begin(), kExtensionMimeSwitch);
+    }
   }
   arguments.insert(arguments.begin(), L"--no-first-run");
 
