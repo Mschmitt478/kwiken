@@ -1,1 +1,5 @@
-node_modules
+browser-app/
+chromium-fork/.cache/
+chromium-fork/release/
+__pycache__/
+*.pyc

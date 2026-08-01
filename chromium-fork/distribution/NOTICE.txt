@@ -1,0 +1,22 @@
+Kwiken is an independent Chromium-based browser distribution.
+
+Browser engine:
+  Chromium 150.0.7871.186
+  Copyright The Chromium Authors
+  https://www.chromium.org/
+
+Bootstrap binary:
+  ungoogled-chromium-windows 150.0.7871.186-1.1
+  Built by the project's GitHub Actions workflow
+  https://github.com/ungoogled-software/ungoogled-chromium-windows
+
+Bootstrap archive SHA-256:
+  7dfb2233de9947f65cfe339ecc61e227fcccebb2e869e9361303ab08483bdc9c
+
+Windows resource editor:
+  Electron rcedit 0.2.0
+  https://github.com/electron/rcedit
+  SHA-256 e2df7b664db830f159d0dc6b3da8a95442cca175b9577f2d19952646d37ac32f
+
+Kwiken is not affiliated with Google, The Chromium Authors, or the
+ungoogled-chromium project. Chromium is a trademark of Google LLC.

@@ -1,0 +1,563 @@
+diff --git a/chrome/app/theme/chromium/BRANDING b/chrome/app/theme/chromium/BRANDING
+index f8363d5b29..e6ccf0d3bf 100644
+--- a/chrome/app/theme/chromium/BRANDING
++++ b/chrome/app/theme/chromium/BRANDING
+@@ -1,10 +1,10 @@
+-COMPANY_FULLNAME=The Chromium Authors
+-COMPANY_SHORTNAME=The Chromium Authors
+-PRODUCT_FULLNAME=Chromium
+-PRODUCT_SHORTNAME=Chromium
+-PRODUCT_INSTALLER_FULLNAME=Chromium Installer
+-PRODUCT_INSTALLER_SHORTNAME=Chromium Installer
++COMPANY_FULLNAME=Kwiken
++COMPANY_SHORTNAME=Kwiken
++PRODUCT_FULLNAME=Kwiken
++PRODUCT_SHORTNAME=Kwiken
++PRODUCT_INSTALLER_FULLNAME=Kwiken Installer
++PRODUCT_INSTALLER_SHORTNAME=Kwiken Installer
+ COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Chromium Authors. All rights reserved.
+-MAC_BUNDLE_ID=org.chromium.Chromium
++MAC_BUNDLE_ID=com.kwiken.browser
+ MAC_CREATOR_CODE=Cr24
+ MAC_TEAM_ID=
+diff --git a/chrome/browser/signin/account_consistency_mode_manager.cc b/chrome/browser/signin/account_consistency_mode_manager.cc
+index f11db47c92..bf766b1131 100644
+--- a/chrome/browser/signin/account_consistency_mode_manager.cc
++++ b/chrome/browser/signin/account_consistency_mode_manager.cc
+@@ -146,7 +146,7 @@ AccountConsistencyModeManager::~AccountConsistencyModeManager() = default;
+ // static
+ void AccountConsistencyModeManager::RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+-  registry->RegisterBooleanPref(prefs::kSigninAllowedOnNextStartup, true);
++  registry->RegisterBooleanPref(prefs::kSigninAllowedOnNextStartup, false);
+ }
+ 
+ // static
+diff --git a/chrome/browser/ui/browser_ui_prefs.cc b/chrome/browser/ui/browser_ui_prefs.cc
+index c5d48d196d..8dff7daca0 100644
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -146,7 +146,7 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacementPopup);
+   registry->RegisterDictionaryPref(prefs::kAppWindowPlacement);
+   registry->RegisterBooleanPref(
+-      prefs::kEnableDoNotTrack, false,
++      prefs::kEnableDoNotTrack, true,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+ #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
+   registry->RegisterBooleanPref(prefs::kPrintPreviewUseSystemDefaultPrinter,
+diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
+index 9dfe5e7cd5..5ee6a5668b 100644
+--- a/chrome/browser/ui/color/chrome_color_mixers.cc
++++ b/chrome/browser/ui/color/chrome_color_mixers.cc
+@@ -23,10 +23,139 @@
+ #include "chrome/browser/ui/color/product_specifications_color_mixer.h"
+ #include "chrome/browser/ui/color/projects_panel_color_mixer.h"
+ #include "chrome/browser/ui/color/tab_strip_color_mixer.h"
++#include "third_party/skia/include/core/SkColor.h"
++#include "ui/color/color_id.h"
++#include "ui/color/color_mixer.h"
++#include "ui/color/color_provider.h"
++#include "ui/color/color_provider_key.h"
+ #include "ui/color/color_provider_utils.h"
+ 
+ namespace {
+ 
++void AddKwikenColorMixer(ui::ColorProvider* provider,
++                         const ui::ColorProviderKey& key) {
++  if (key.contrast_mode == ui::ColorProviderKey::ContrastMode::kHigh ||
++      key.forced_colors != ui::ColorProviderKey::ForcedColors::kNone ||
++      key.custom_theme || key.app_controller) {
++    return;
++  }
++
++  const bool private_palette =
++      key.color_mode == ui::ColorProviderKey::ColorMode::kDark &&
++      key.user_color_source ==
++          ui::ColorProviderKey::UserColorSource::kGrayscale;
++  const SkColor sidebar = private_palette ? SkColorSetRGB(0x17, 0x13, 0x1D)
++                                          : SkColorSetRGB(0x14, 0x18, 0x11);
++  const SkColor sidebar_raised =
++      private_palette ? SkColorSetRGB(0x22, 0x1B, 0x2B)
++                      : SkColorSetRGB(0x1D, 0x23, 0x19);
++  const SkColor accent = private_palette ? SkColorSetRGB(0xC9, 0xAD, 0xFF)
++                                         : SkColorSetRGB(0xC8, 0xFF, 0x5A);
++  const SkColor accent_strong =
++      private_palette ? SkColorSetRGB(0xAD, 0x8C, 0xF1)
++                      : SkColorSetRGB(0xAE, 0xE6, 0x3A);
++  constexpr SkColor text = SkColorSetRGB(0xF2, 0xF5, 0xED);
++  constexpr SkColor muted = SkColorSetRGB(0x8D, 0x96, 0x86);
++  constexpr SkColor paper = SkColorSetRGB(0xF6, 0xF7, 0xF3);
++  constexpr SkColor paper_raised = SK_ColorWHITE;
++  constexpr SkColor paper_text = SkColorSetRGB(0x25, 0x2B, 0x21);
++  constexpr SkColor paper_muted = SkColorSetRGB(0x73, 0x7B, 0x6E);
++  constexpr SkColor paper_line = SkColorSetRGB(0xE2, 0xE5, 0xDE);
++
++  ui::ColorMixer& mixer = provider->AddMixer();
++  mixer[ui::kColorAccent] = {accent_strong};
++  mixer[ui::kColorFocusableBorderFocused] = {accent_strong};
++  mixer[ui::kColorFrameActive] = {sidebar};
++  mixer[ui::kColorFrameInactive] = {sidebar_raised};
++  mixer[ui::kColorSysHeader] = {sidebar};
++  mixer[ui::kColorSysHeaderInactive] = {sidebar_raised};
++  mixer[ui::kColorSysOnHeaderPrimary] = {text};
++  mixer[ui::kColorSysOnHeaderPrimaryInactive] = {muted};
++  mixer[ui::kColorSysOnHeaderDivider] = {
++      SkColorSetARGB(0x20, 0xFF, 0xFF, 0xFF)};
++  mixer[ui::kColorSysOnHeaderDividerInactive] = {
++      SkColorSetARGB(0x18, 0xFF, 0xFF, 0xFF)};
++  mixer[ui::kColorSysStateHeaderHover] = {
++      SkColorSetARGB(0x12, 0xFF, 0xFF, 0xFF)};
++  mixer[ui::kColorSysStateHeaderHoverInactive] = {
++      SkColorSetARGB(0x0D, 0xFF, 0xFF, 0xFF)};
++
++  mixer[kColorTabBackgroundActiveFrameActive] = {sidebar_raised};
++  mixer[kColorTabBackgroundActiveFrameInactive] = {sidebar_raised};
++  mixer[kColorTabBackgroundInactiveFrameActive] = {sidebar};
++  mixer[kColorTabBackgroundInactiveFrameInactive] = {sidebar_raised};
++  mixer[kColorTabBackgroundInactiveHoverFrameActive] = {sidebar_raised};
++  mixer[kColorTabBackgroundInactiveHoverFrameInactive] = {sidebar_raised};
++  mixer[kColorTabBackgroundSelectedFrameActive] = {sidebar_raised};
++  mixer[kColorTabBackgroundSelectedFrameInactive] = {sidebar_raised};
++  mixer[kColorTabBackgroundSelectedHoverFrameActive] = {sidebar_raised};
++  mixer[kColorTabBackgroundSelectedHoverFrameInactive] = {sidebar_raised};
++  mixer[kColorTabForegroundActiveFrameActive] = {text};
++  mixer[kColorTabForegroundActiveFrameInactive] = {text};
++  mixer[kColorTabForegroundInactiveFrameActive] = {muted};
++  mixer[kColorTabForegroundInactiveFrameInactive] = {muted};
++  mixer[kColorTabDividerFrameActive] = {
++      SkColorSetARGB(0x20, 0xFF, 0xFF, 0xFF)};
++  mixer[kColorTabDividerFrameInactive] = {
++      SkColorSetARGB(0x18, 0xFF, 0xFF, 0xFF)};
++  mixer[kColorVerticalTabPinnedOutline] = {accent_strong};
++  mixer[kColorNewTabButtonForegroundFrameActive] = {accent};
++  mixer[kColorNewTabButtonForegroundFrameInactive] = {accent};
++  mixer[kColorNewTabButtonBackgroundFrameActive] = {sidebar_raised};
++  mixer[kColorNewTabButtonBackgroundFrameInactive] = {sidebar_raised};
++  mixer[kColorNewTabButtonCRForegroundFrameActive] = {accent};
++  mixer[kColorNewTabButtonCRForegroundFrameInactive] = {accent};
++  mixer[kColorNewTabButtonCRBackgroundFrameActive] = {sidebar_raised};
++  mixer[kColorNewTabButtonCRBackgroundFrameInactive] = {sidebar_raised};
++  mixer[kColorNewTabButtonFocusRing] = {accent_strong};
++
++  mixer[kColorToolbar] = {paper};
++  mixer[kColorToolbarBackgroundSubtleEmphasis] = {paper_raised};
++  mixer[kColorToolbarBackgroundSubtleEmphasisHovered] = {paper_line};
++  mixer[kColorToolbarButtonIcon] = {paper_muted};
++  mixer[kColorToolbarButtonIconDefault] = {paper_muted};
++  mixer[kColorToolbarButtonIconHovered] = {paper_text};
++  mixer[kColorToolbarButtonIconPressed] = {paper_text};
++  mixer[kColorToolbarButtonText] = {paper_text};
++  mixer[kColorToolbarText] = {paper_text};
++  mixer[kColorToolbarTextDefault] = {paper_text};
++  mixer[kColorToolbarContentAreaSeparator] = {paper_line};
++  mixer[kColorToolbarTopSeparatorFrameActive] = {paper_line};
++  mixer[kColorToolbarTopSeparatorFrameInactive] = {paper_line};
++  mixer[kColorCaptionForegroundActive] = {text};
++  mixer[kColorCaptionForegroundInactive] = {muted};
++  mixer[kColorVerticalTabsCaptionButtonForegroundActive] = {text};
++  mixer[kColorVerticalTabsCaptionButtonForegroundInactive] = {muted};
++
++  mixer[kColorLocationBarBackground] = {paper_raised};
++  mixer[kColorLocationBarBackgroundHovered] = {paper_raised};
++  mixer[kColorLocationBarBorder] = {paper_line};
++  mixer[kColorLocationBarBorderOpaque] = {paper_line};
++  mixer[kColorOmniboxResultsBackground] = {paper_raised};
++  mixer[kColorOmniboxResultsBackgroundHovered] = {paper};
++  mixer[kColorOmniboxResultsBackgroundSelected] = {paper_line};
++  mixer[kColorOmniboxText] = {paper_text};
++  mixer[kColorOmniboxTextDimmed] = {paper_muted};
++  mixer[kColorOmniboxResultsTextSelected] = {paper_text};
++  mixer[kColorOmniboxResultsTextSecondary] = {paper_muted};
++  mixer[kColorOmniboxResultsUrl] = {accent_strong};
++  mixer[kColorOmniboxResultsUrlSelected] = {accent_strong};
++  mixer[kColorOmniboxResultsFocusIndicator] = {accent_strong};
++
++  mixer[kColorNewTabPageBackground] = {paper};
++  mixer[kColorNewTabPageBackgroundOverride] = {paper};
++  mixer[kColorNewTabPageText] = {paper_text};
++  mixer[kColorNewTabPageTextUnthemed] = {paper_text};
++  mixer[kColorNewTabPagePrimaryForeground] = {paper_text};
++  mixer[kColorNewTabPageSecondaryForeground] = {paper_muted};
++  mixer[kColorNewTabPageLink] = {accent_strong};
++  mixer[kColorNewTabPageLogo] = {accent_strong};
++  mixer[kColorNewTabPageSearchBoxBackground] = {paper_raised};
++  mixer[kColorNewTabPageSearchBoxBackgroundHovered] = {paper_raised};
++  mixer[kColorNewTabPageMostVisitedTileBackground] = {paper_raised};
++  mixer[kColorNewTabPageFocusRing] = {accent_strong};
++}
++
+ class ChromeColorProviderUtilsCallbacks
+     : public ui::ColorProviderUtilsCallbacks {
+  public:
+@@ -83,4 +212,6 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
+   if (key.app_controller) {
+     key.app_controller->AddColorMixers(provider, key);
+   }
++
++  AddKwikenColorMixer(provider, key);
+ }
+diff --git a/chrome/browser/ui/startup/infobar_utils.cc b/chrome/browser/ui/startup/infobar_utils.cc
+index 4907b9a951..7603f04a48 100644
+--- a/chrome/browser/ui/startup/infobar_utils.cc
++++ b/chrome/browser/ui/startup/infobar_utils.cc
+@@ -18,7 +18,6 @@
+ #include "chrome/browser/ui/startup/automation_infobar_delegate.h"
+ #include "chrome/browser/ui/startup/bad_flags_prompt.h"
+ #include "chrome/browser/ui/startup/bidding_and_auction_consented_debugging_infobar_delegate.h"
+-#include "chrome/browser/ui/startup/google_api_keys_infobar_delegate.h"
+ #include "chrome/browser/ui/startup/obsolete_system_infobar_delegate.h"
+ #include "chrome/browser/ui/startup/oscryptasync_availability_infobar_delegate.h"
+ #include "chrome/browser/ui/startup/startup_browser_creator.h"
+@@ -29,7 +28,6 @@
+ #include "components/infobars/content/content_infobar_manager.h"
+ #include "components/prefs/pref_service.h"
+ #include "content/public/common/content_switches.h"
+-#include "google_apis/google_api_keys.h"
+ 
+ #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
+ #include "chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt.h"
+@@ -185,10 +183,6 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
+   infobars::ContentInfoBarManager* infobar_manager =
+       infobars::ContentInfoBarManager::FromWebContents(web_contents);
+ 
+-  if (!google_apis::HasAPIKeyConfigured()) {
+-    GoogleApiKeysInfoBarDelegate::Create(infobar_manager);
+-  }
+-
+   if (ObsoleteSystem::IsObsoleteNowOrSoon()) {
+     PrefService* local_state = g_browser_process->local_state();
+     if (!local_state ||
+diff --git a/chrome/browser/ui/tabs/features.cc b/chrome/browser/ui/tabs/features.cc
+index df3758a6a8..3b9e312ea1 100644
+--- a/chrome/browser/ui/tabs/features.cc
++++ b/chrome/browser/ui/tabs/features.cc
+@@ -24,7 +24,7 @@ BASE_FEATURE_PARAM(bool,
+ 
+ BASE_FEATURE(kSplitViewTabRestore, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+-BASE_FEATURE(kVerticalTabs, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kVerticalTabs, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kVerticalTabsLaunch, base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE_PARAM(bool,
+diff --git a/chrome/browser/ui/tabs/tab_strip_prefs.cc b/chrome/browser/ui/tabs/tab_strip_prefs.cc
+index b0d357c347..ad7aabeffe 100644
+--- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
++++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
+@@ -46,7 +46,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+       prefs::kTabSearchPinnedToTabstripMigrationComplete2, false);
+   registry->RegisterBooleanPref(prefs::kProjectsPanelPinnedToTabstrip, true);
+   registry->RegisterBooleanPref(prefs::kEverythingMenuPinnedToTabstrip, true);
+-  registry->RegisterBooleanPref(prefs::kVerticalTabsEnabled, false);
++  registry->RegisterBooleanPref(prefs::kVerticalTabsEnabled, true);
+   registry->RegisterBooleanPref(
+       prefs::kVerticalTabsExpandOnHoverEnabled,
+       tabs::kVerticalTabsExpandOnHoverDefaultEnabled.Get());
+diff --git a/chrome/browser/ui/tabs/vertical_tab_strip_state.h b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
+index b46ad7ecdf..cc236842ac 100644
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state.h
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
+@@ -7,7 +7,7 @@
+ 
+ namespace tabs {
+ 
+-inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 240;
++inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 260;
+ 
+ // Per-window state for the vertical tab strip.
+ struct VerticalTabStripState {
+diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
+index 5de1dce2f4..329e68ee4f 100644
+--- a/chrome/browser/ui/ui_features.cc
++++ b/chrome/browser/ui/ui_features.cc
+@@ -424,7 +424,7 @@ BASE_FEATURE_PARAM(bool,
+                    kSetDefaultToContinueSession,
+                    &kSessionRestoreInfobar,
+                    "continue_session",
+-                   false);
++                   true);
+ #endif
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+diff --git a/chrome/install_static/chromium_install_modes.h b/chrome/install_static/chromium_install_modes.h
+index f29a8228fe..d9fa80f9ea 100644
+--- a/chrome/install_static/chromium_install_modes.h
++++ b/chrome/install_static/chromium_install_modes.h
+@@ -21,7 +21,7 @@ inline constexpr wchar_t kCompanyPathName[] = L"";
+ 
+ // The brand-specific product name to be included as a component of the install
+ // and user data directory paths.
+-inline constexpr wchar_t kProductPathName[] = L"Chromium";
++inline constexpr wchar_t kProductPathName[] = L"Kwiken";
+ 
+ // The brand-specific safe browsing client name.
+ inline constexpr char kSafeBrowsingName[] = "chromium";
+@@ -45,39 +45,39 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
+         .logo_suffix = L"",  // No logo suffix for the primary install mode.
+         .app_guid =
+             L"",  // Empty app_guid since no integration with Google Update.
+-        .base_app_name = L"Chromium",              // A distinct base_app_name.
+-        .base_app_id = L"Chromium",                // A distinct base_app_id.
+-        .browser_prog_id_prefix = L"ChromiumHTM",  // Browser ProgID prefix.
++        .base_app_name = L"Kwiken",              // A distinct base_app_name.
++        .base_app_id = L"Kwiken",                // A distinct base_app_id.
++        .browser_prog_id_prefix = L"KwikenHTM",  // Browser ProgID prefix.
+         .browser_prog_id_description =
+-            L"Chromium HTML Document",  // Browser ProgID description.
+-        .direct_launch_url_scheme = "chromium",
+-        .pdf_prog_id_prefix = L"ChromiumPDF",  // PDF ProgID prefix.
++            L"Kwiken HTML Document",  // Browser ProgID description.
++        .direct_launch_url_scheme = "kwiken",
++        .pdf_prog_id_prefix = L"KwikenPDF",  // PDF ProgID prefix.
+         .pdf_prog_id_description =
+-            L"Chromium PDF Document",  // PDF ProgID description.
++            L"Kwiken PDF Document",  // PDF ProgID description.
+         .active_setup_guid =
+-            L"{7D2B3E1D-D096-4594-9D8F-A6667F12E0AC}",  // Active Setup
++            L"{7A60BFB4-B324-4CF7-834A-BCE66D72B467}",  // Active Setup
+                                                         // GUID.
+-        .toast_activator_clsid = {0x635EFA6F,
+-                                  0x08D6,
+-                                  0x4EC9,
+-                                  {0xBD, 0x14, 0x8A, 0x0F, 0xDE, 0x97, 0x51,
+-                                   0x59}},  // Toast Activator CLSID.
+-        .elevator_clsid = {0xD133B120,
+-                           0x6DB4,
+-                           0x4D6B,
+-                           {0x8B, 0xFE, 0x83, 0xBF, 0x8C, 0xA1, 0xB1,
+-                            0xB0}},  // Elevator CLSID.
++        .toast_activator_clsid = {0x2A55BEAD,
++                                  0xCF0D,
++                                  0x4640,
++                                  {0x9C, 0x7A, 0x95, 0xD1, 0x1D, 0x26, 0xC0,
++                                   0x21}},  // Toast Activator CLSID.
++        .elevator_clsid = {0xA98A7324,
++                           0xDCE2,
++                           0x4EDE,
++                           {0xB3, 0x46, 0xE3, 0xC9, 0x65, 0x19, 0xF7,
++                            0xE1}},  // Elevator CLSID.
+         .elevator_iid = {0xbb19a0e5,
+                          0xc6,
+                          0x4966,
+                          {0x94, 0xb2, 0x5a, 0xfe, 0xc6, 0xfe, 0xd9,
+                           0x3a}},  // IElevator IID and TypeLib
+         // {BB19A0E5-00C6-4966-94B2-5AFEC6FED93A}.
+-        .tracing_service_clsid = {0x83f69367,
+-                                  0x442d,
+-                                  0x447f,
+-                                  {0x8b, 0xcc, 0x0e, 0x3f, 0x97, 0xbe, 0x9c,
+-                                   0xf2}},  // SystemTraceSession CLSID.
++        .tracing_service_clsid = {0x659E8931,
++                                  0x1BF3,
++                                  0x45B3,
++                                  {0x9A, 0x10, 0x9F, 0x52, 0x63, 0x18, 0xE7,
++                                   0xF2}},  // SystemTraceSession CLSID.
+         .tracing_service_iid = {0xa3fd580a,
+                                 0xffd4,
+                                 0x4075,
+diff --git a/chrome/installer/mini_installer/mini_installer_constants.cc b/chrome/installer/mini_installer/mini_installer_constants.cc
+index c2a03ccbb6..e328ba0284 100644
+--- a/chrome/installer/mini_installer/mini_installer_constants.cc
++++ b/chrome/installer/mini_installer/mini_installer_constants.cc
+@@ -67,12 +67,12 @@ const wchar_t kCleanupRegistryKey[] = L"Software\\Chrome for Testing";
+ #else
+ // The path to the key containing each app's Clients registry key.
+ // No trailing slash on this one because the app's GUID is not appended.
+-const wchar_t kClientsKeyBase[] = L"Software\\Chromium";
++const wchar_t kClientsKeyBase[] = L"Software\\Kwiken";
+ // The path to the key containing each app's Client State registry key.
+ // No trailing slash on this one because the app's GUID is not appended.
+-const wchar_t kClientStateKeyBase[] = L"Software\\Chromium";
++const wchar_t kClientStateKeyBase[] = L"Software\\Kwiken";
+ // The path to the key in which kCleanupRegistryValue is found.
+-const wchar_t kCleanupRegistryKey[] = L"Software\\Chromium";
++const wchar_t kCleanupRegistryKey[] = L"Software\\Kwiken";
+ #endif
+ 
+ }  // namespace mini_installer
+diff --git a/chrome/installer/setup/setup_util.cc b/chrome/installer/setup/setup_util.cc
+index 623618d3b7..c0cfb70db4 100644
+--- a/chrome/installer/setup/setup_util.cc
++++ b/chrome/installer/setup/setup_util.cc
+@@ -76,7 +76,7 @@ void RemoveBinariesVersionKey(const InstallerState& installer_state) {
+       L"{4DC8B4CA-1BDA-483e-B5FA-D3C12E15B62D}"));
+ #else
+   // Assume that non-Google is Chromium branding.
+-  std::wstring path(L"Software\\Chromium Binaries");
++  std::wstring path(L"Software\\Kwiken Binaries");
+ #endif
+   installer::DeleteRegistryKey(installer_state.root_key(), path,
+                                KEY_WOW64_32KEY);
+diff --git a/components/search_engines/default_search_manager_unittest.cc b/components/search_engines/default_search_manager_unittest.cc
+index 132813d0ef..977c8d7502 100644
+--- a/components/search_engines/default_search_manager_unittest.cc
++++ b/components/search_engines/default_search_manager_unittest.cc
+@@ -178,9 +178,9 @@ TEST_F(DefaultSearchManagerTest, DefaultSearchSetByUserPref) {
+   std::unique_ptr<TemplateURLData> fallback_t_url_data =
+       prepopulate_data_resolver().GetFallbackSearch();
+   EXPECT_EQ(fallback_t_url_data->keyword(),
+-            TemplateURLPrepopulateData::google.keyword);
++            TemplateURLPrepopulateData::duckduckgo.keyword);
+   EXPECT_EQ(fallback_t_url_data->prepopulate_id,
+-            TemplateURLPrepopulateData::google.id);
++            TemplateURLPrepopulateData::duckduckgo.id);
+   DefaultSearchManager::Source source = DefaultSearchManager::FROM_POLICY;
+   // If no user pref is set, we should use the pre-populated values.
+   ExpectSimilar(fallback_t_url_data.get(),
+@@ -233,19 +233,19 @@ TEST_F(DefaultSearchManagerTest, DefaultSearchOverridesIgnoredWhenFlagEnabled) {
+   SetOverrides(pref_service(), false);
+   auto manager = create_manager();
+ 
+-  // The fallback engine should be the default prepopulated one (Google), not
++  // The fallback engine should be the default prepopulated one, not
+   // the one from overrides.
+   std::unique_ptr<TemplateURLData> fallback_t_url_data =
+       prepopulate_data_resolver().GetFallbackSearch();
+   EXPECT_EQ(fallback_t_url_data->keyword(),
+-            TemplateURLPrepopulateData::google.keyword);
++            TemplateURLPrepopulateData::duckduckgo.keyword);
+   EXPECT_EQ(fallback_t_url_data->prepopulate_id,
+-            TemplateURLPrepopulateData::google.id);
++            TemplateURLPrepopulateData::duckduckgo.id);
+ 
+   DefaultSearchManager::Source source = DefaultSearchManager::FROM_POLICY;
+   const TemplateURLData* engine = manager->GetDefaultSearchEngine(&source);
+   ASSERT_TRUE(engine);
+-  EXPECT_EQ(engine->keyword(), TemplateURLPrepopulateData::google.keyword);
++  EXPECT_EQ(engine->keyword(), TemplateURLPrepopulateData::duckduckgo.keyword);
+   EXPECT_EQ(DefaultSearchManager::FROM_FALLBACK, source);
+ }
+ 
+diff --git a/components/search_engines/template_url_prepopulate_data.cc b/components/search_engines/template_url_prepopulate_data.cc
+index 23c3c13f2f..482727afa4 100644
+--- a/components/search_engines/template_url_prepopulate_data.cc
++++ b/components/search_engines/template_url_prepopulate_data.cc
+@@ -276,7 +276,7 @@ std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(
+     const std::vector<const PrepopulatedEngine*>&
+         regional_prepopulated_engines) {
+   return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,
+-                                        google.id,
++                                        duckduckgo.id,
+                                         /*use_first_as_fallback=*/true);
+ }
+ 
+diff --git a/components/search_engines/template_url_prepopulate_data.h b/components/search_engines/template_url_prepopulate_data.h
+index 898ab232ec..ce620e93bb 100644
+--- a/components/search_engines/template_url_prepopulate_data.h
++++ b/components/search_engines/template_url_prepopulate_data.h
+@@ -112,7 +112,7 @@ std::vector<std::unique_ptr<TemplateURLData>> GetLocalPrepopulatedEngines(
+ void ClearPrepopulatedEnginesInPrefs(PrefService* prefs);
+ 
+ // Returns the fallback default search provider, currently hardcoded to be
+-// Google, or whichever one is the first of the list if Google is not in the
++// DuckDuckGo, or whichever one is first if DuckDuckGo is not in the
+ // list of prepopulated search engines.
+ // Search provider overrides are read from `prefs`.
+ // The region-specific list is used to ensure we prioritise returning a search
+diff --git a/components/search_engines/template_url_prepopulate_data_unittest.cc b/components/search_engines/template_url_prepopulate_data_unittest.cc
+index 74e14a9110..09d242183a 100644
+--- a/components/search_engines/template_url_prepopulate_data_unittest.cc
++++ b/components/search_engines/template_url_prepopulate_data_unittest.cc
+@@ -481,16 +481,13 @@ TEST_F(TemplateURLPrepopulateDataTest, ClearProvidersFromPrefs) {
+     EXPECT_NE(1001, t_urls[i]->prepopulate_id);
+   }
+ 
+-  // Ensures the fallback URL is Google and has the optional fields filled.
++  // Ensures the fallback URL is DuckDuckGo.
+   std::unique_ptr<TemplateURLData> fallback_t_url =
+       prepopulate_data_resolver().GetFallbackSearch();
+-  EXPECT_EQ(TemplateURLPrepopulateData::google.name,
++  EXPECT_EQ(TemplateURLPrepopulateData::duckduckgo.name,
+             fallback_t_url->short_name());
+   EXPECT_FALSE(fallback_t_url->suggestions_url.empty());
+-  EXPECT_FALSE(fallback_t_url->image_url.empty());
+-  EXPECT_FALSE(fallback_t_url->contextual_search_url.empty());
+-  EXPECT_FALSE(fallback_t_url->image_url_post_params.empty());
+-  EXPECT_EQ(TemplateURLPrepopulateData::google.type,
++  EXPECT_EQ(TemplateURLPrepopulateData::duckduckgo.type,
+             TemplateURL(*fallback_t_url).GetEngineType(SearchTermsData()));
+ }
+ 
+@@ -515,22 +512,13 @@ TEST_F(TemplateURLPrepopulateDataTest, ProvidersFromPrepopulated) {
+     EXPECT_TRUE(t_urls[0]->last_modified.is_null());
+   }
+ 
+-  // Ensures the fallback URL is Google and has the optional fields filled.
++  // Ensures the fallback URL is DuckDuckGo.
+   std::unique_ptr<TemplateURLData> fallback_t_url =
+       prepopulate_data_resolver().GetFallbackSearch();
+-  EXPECT_EQ(TemplateURLPrepopulateData::google.name,
++  EXPECT_EQ(TemplateURLPrepopulateData::duckduckgo.name,
+             fallback_t_url->short_name());
+   EXPECT_FALSE(fallback_t_url->suggestions_url.empty());
+-  EXPECT_FALSE(fallback_t_url->image_url.empty());
+-  EXPECT_FALSE(fallback_t_url->contextual_search_url.empty());
+-  EXPECT_FALSE(fallback_t_url->image_url_post_params.empty());
+-  // Expect at least 2 alternate_urls.
+-  // This caught a bug with static initialization of arrays, so leave this in.
+-  EXPECT_GT(fallback_t_url->alternate_urls.size(), 1u);
+-  for (size_t i = 0; i < fallback_t_url->alternate_urls.size(); ++i) {
+-    EXPECT_FALSE(fallback_t_url->alternate_urls[i].empty());
+-  }
+-  EXPECT_EQ(TemplateURLPrepopulateData::google.type,
++  EXPECT_EQ(TemplateURLPrepopulateData::duckduckgo.type,
+             TemplateURL(*fallback_t_url).GetEngineType(SearchTermsData()));
+ }
+ 
+@@ -770,35 +758,28 @@ TEST_F(TemplateURLPrepopulateDataTest, HttpsUrls) {
+   }
+ }
+ 
+-TEST_F(TemplateURLPrepopulateDataTest, FindGoogleAsFallback) {
++TEST_F(TemplateURLPrepopulateDataTest, FindDuckDuckGoAsFallback) {
+   std::unique_ptr<TemplateURLData> fallback_url;
+ 
+-  // Google is first in US, so confirm index 0.
+   CountryId us_country_id("US");
+   OverrideCountryId(us_country_id);
+-  EXPECT_EQ(TemplateURLPrepopulateData::kRegionalSettings.find(us_country_id)
++  EXPECT_NE(TemplateURLPrepopulateData::kRegionalSettings.find(us_country_id)
+                 ->second->search_engines[0]
+                 ->id,
+-            TemplateURLPrepopulateData::google.id);
++            TemplateURLPrepopulateData::duckduckgo.id);
+ 
+   fallback_url = prepopulate_data_resolver().GetFallbackSearch();
+   EXPECT_EQ(fallback_url->prepopulate_id,
+-            TemplateURLPrepopulateData::google.id);
++            TemplateURLPrepopulateData::duckduckgo.id);
+ 
+-  // Google is not first in CN; confirm it is found at index > 0.
+-  // If Google ever does reach top in China, this test will need to be adjusted:
+-  // check template_url_prepopulate_data.cc reference orders (engines_CN, etc.)
+-  // to find a suitable country and index.
+   CountryId cn_country_id("CN");
+   OverrideCountryId(cn_country_id);
+   fallback_url = prepopulate_data_resolver().GetFallbackSearch();
+-  EXPECT_NE(TemplateURLPrepopulateData::kRegionalSettings.find(cn_country_id)
+-                ->second->search_engines[0]
+-                ->id,
+-            TemplateURLPrepopulateData::google.id);
+   EXPECT_TRUE(fallback_url);
+   EXPECT_EQ(fallback_url->prepopulate_id,
+-            TemplateURLPrepopulateData::google.id);
++            TemplateURLPrepopulateData::kRegionalSettings.find(cn_country_id)
++                ->second->search_engines[0]
++                ->id);
+ }
+ 
+ // Regression test for https://crbug.com/1500526.
+diff --git a/components/signin/internal/identity_manager/primary_account_manager.cc b/components/signin/internal/identity_manager/primary_account_manager.cc
+index e6ef4ee147..24f0041a12 100644
+--- a/components/signin/internal/identity_manager/primary_account_manager.cc
++++ b/components/signin/internal/identity_manager/primary_account_manager.cc
+@@ -368,7 +368,7 @@ void PrimaryAccountManager::RegisterProfilePrefs(PrefRegistrySimple* registry) {
+       prefs::kGoogleServicesSyncingUsernameMigratedToSignedIn, std::string());
+   registry->RegisterIntegerPref(prefs::kGoogleServicesSyncingUserMigrationType,
+                                 /*SyncToSigninMigrationType::kUnknown=*/0);
+-  registry->RegisterBooleanPref(prefs::kSigninAllowed, true);
++  registry->RegisterBooleanPref(prefs::kSigninAllowed, false);
+   registry->RegisterBooleanPref(prefs::kSignedInWithCredentialProvider, false);
+   registry->RegisterBooleanPref(prefs::kExplicitBrowserSignin, false);
+   registry->RegisterBooleanPref(
