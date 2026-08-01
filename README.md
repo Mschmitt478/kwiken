@@ -13,7 +13,7 @@
 
 ## Install
 
-Download `Kwiken-Setup-150.0.7871.186.exe` from the latest GitHub release.
+Download `Kwiken-Setup-150.0.7871.186-r2.exe` from the latest GitHub release.
 Kwiken installs per-user, creates Start menu and desktop shortcuts, registers
 itself with Windows Default Apps, and keeps its profile in
 `%LOCALAPPDATA%\Kwiken\User Data`.
@@ -27,6 +27,7 @@ unknown-publisher warning. The release notes include its SHA-256 checksum.
 - Native vertical tabs enabled on first launch
 - Local profiles, history, bookmarks, passwords, passkeys, downloads, and DevTools
 - Chromium extension support and normal website permissions
+- Chrome, Edge, and Opera extension-store installation through a bundled open-source bridge
 - Session restoration and Do Not Track enabled by default
 - Kwiken product branding, iconography, and lime/olive color system
 - Windows registration for HTTP, HTTPS, HTML, and PDF defaults
@@ -40,13 +41,25 @@ The packaged build loads the Google Accounts sign-in page without Electron's
 and remains unavailable because Google does not issue private Chrome API
 credentials for independent Chromium distributions.
 
+## Extensions
+
+Ungoogled Chromium intentionally cannot install directly from the Chrome Web
+Store interface. Kwiken bundles the open-source Chromium Web Store compatibility
+extension recommended by the ungoogled-chromium project and enables its CRX
+installation mode. It works with the Chrome Web Store, Microsoft Edge Add-ons,
+and Opera Add-ons. The bridge uses extension-management and download permissions
+to install and update other extensions; its source is available at
+[`NeverDecaf/chromium-web-store`](https://github.com/NeverDecaf/chromium-web-store).
+Launch with `--disable-kwiken-web-store` to opt out.
+
 ## Reproducibility
 
 The installable distribution uses the matching
 `ungoogled-chromium-windows` GitHub Actions build of Chromium
 `150.0.7871.186`. Its archive SHA-256 is pinned and verified before packaging.
 Kwiken then compiles its native Win32 launcher, rebrands Chromium resource
-packs, applies first-run preferences, and creates the NSIS installer.
+packs and window icon, installs the pinned extension-store bridge, applies
+first-run preferences, and creates the NSIS installer.
 
 ```powershell
 .\chromium-fork\scripts\build-distribution.ps1

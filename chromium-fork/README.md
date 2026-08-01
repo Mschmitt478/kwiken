@@ -14,7 +14,11 @@ For everyday installation, `scripts/build-distribution.ps1` packages the
 matching GitHub Actions build of ungoogled-chromium-windows with Kwiken's
 native launcher, vertical-tab defaults, resource branding, isolated profile,
 Windows app registration, and installer. Its SHA-256 is pinned and verified
-before packaging.
+before packaging. The current Manifest V3 Chromium Web Store compatibility
+extension is also checksum-pinned and bundled for Chrome, Edge, and Opera
+extension-store installation. It requires extension-management and download
+permissions to perform those installs and can be disabled with
+`--disable-kwiken-web-store`.
 
 ## Build
 
@@ -36,7 +40,7 @@ The distribution build requires Python 3, Visual Studio C++ build tools, and
 NSIS. It downloads and verifies the pinned Chromium runtime automatically and
 does not require the external Chromium source checkout.
 
-The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186.exe`.
+The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186-r2.exe`.
 
 The packaged runtime is a complete standalone Chromium browser, not Electron,
 CEF, or an embedded webview. Website sign-in therefore uses a normal top-level
@@ -57,5 +61,6 @@ Google website sign-in runs as a normal top-level Chromium navigation, so it doe
 - Do Not Track enabled
 - H.264/AAC/MP4 codec build flags enabled
 - Separate `%LOCALAPPDATA%\Kwiken` install and profile paths
+- Bundled Chromium Web Store compatibility extension; disable with `--disable-kwiken-web-store`
 
 Widevine DRM is not bundled because Google licenses its binary CDM separately from Chromium.

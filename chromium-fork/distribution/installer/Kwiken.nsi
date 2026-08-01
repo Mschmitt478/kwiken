@@ -8,6 +8,9 @@ SetCompressorDictSize 64
 !ifndef VERSION
   !error "VERSION is required"
 !endif
+!ifndef RELEASE_VERSION
+  !define RELEASE_VERSION "${VERSION}"
+!endif
 !ifndef STAGING
   !error "STAGING is required"
 !endif
@@ -29,8 +32,8 @@ VIProductVersion "${VERSION}"
 VIAddVersionKey /LANG=1033 "ProductName" "Kwiken"
 VIAddVersionKey /LANG=1033 "CompanyName" "Kwiken"
 VIAddVersionKey /LANG=1033 "FileDescription" "Kwiken Browser Setup"
-VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
-VIAddVersionKey /LANG=1033 "ProductVersion" "${VERSION}"
+VIAddVersionKey /LANG=1033 "FileVersion" "${RELEASE_VERSION}"
+VIAddVersionKey /LANG=1033 "ProductVersion" "${RELEASE_VERSION}"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "Kwiken contributors and The Chromium Authors"
 
 !define MUI_ABORTWARNING
@@ -102,7 +105,7 @@ Section "Kwiken" MainSection
 
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Kwiken" "DisplayName" "Kwiken"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Kwiken" "DisplayIcon" "$INSTDIR\Kwiken.exe,0"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Kwiken" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Kwiken" "DisplayVersion" "${RELEASE_VERSION}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Kwiken" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Kwiken" "Publisher" "Kwiken"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Kwiken" "UninstallString" '$\"$INSTDIR\Uninstall Kwiken.exe$\"'

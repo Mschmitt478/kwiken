@@ -18,5 +18,12 @@ Windows resource editor:
   https://github.com/electron/rcedit
   SHA-256 e2df7b664db830f159d0dc6b3da8a95442cca175b9577f2d19952646d37ac32f
 
+Extension-store compatibility:
+  Chromium Web Store 1.5.5.3
+  Copyright NeverDecaf
+  https://github.com/NeverDecaf/chromium-web-store
+  Source archive SHA-256:
+  627cb80dd67d16e4d2a9f105c1a1c5adf61dca63202bd577a4e4af84bd07868c
+
 Kwiken is not affiliated with Google, The Chromium Authors, or the
 ungoogled-chromium project. Chromium is a trademark of Google LLC.

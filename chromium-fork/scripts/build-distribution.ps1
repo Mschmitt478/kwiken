@@ -1,5 +1,6 @@
 param(
   [string]$RuntimeArchive = "",
+  [string]$WebStoreArchive = "",
   [string]$RcEditPath = "",
   [string]$MakeNsisPath = "",
   [string]$PythonPath = ""
@@ -124,6 +125,27 @@ if ($actualHash -ne $expectedHash) {
   throw "Runtime archive checksum mismatch. Expected $expectedHash but found $actualHash."
 }
 
+if (-not $WebStoreArchive) {
+  $WebStoreArchive = Join-Path $cacheRoot "chromium-web-store-v1.5.5.3.zip"
+}
+if (-not (Test-Path -LiteralPath $WebStoreArchive)) {
+  $webStoreUrl = "https://codeload.github.com/NeverDecaf/chromium-web-store/zip/refs/tags/v1.5.5.3"
+  $webStoreParent = Split-Path -Parent ([IO.Path]::GetFullPath($WebStoreArchive))
+  New-Item -ItemType Directory -Force -Path $webStoreParent | Out-Null
+  $partialArchive = "$WebStoreArchive.$PID.download"
+  & curl.exe -L --fail --retry 3 --output $partialArchive $webStoreUrl
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to download the Chromium Web Store compatibility extension."
+  }
+  Move-Item -LiteralPath $partialArchive -Destination $WebStoreArchive -Force
+}
+
+$expectedWebStoreHash = "627cb80dd67d16e4d2a9f105c1a1c5adf61dca63202bd577a4e4af84bd07868c"
+$actualWebStoreHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $WebStoreArchive).Hash.ToLowerInvariant()
+if ($actualWebStoreHash -ne $expectedWebStoreHash) {
+  throw "Web Store extension checksum mismatch. Expected $expectedWebStoreHash but found $actualWebStoreHash."
+}
+
 if (-not $RcEditPath) {
   $rcEditCandidates = @(
     (Join-Path $script:ForkRoot ".tools\rcedit.exe"),
@@ -158,6 +180,7 @@ if (-not $MakeNsisPath -or -not (Test-Path -LiteralPath $MakeNsisPath)) {
 
 $stagingRoot = Reset-BuildDirectory -Path (Join-Path $cacheRoot "distribution-staging") -AllowedRoot $cacheRoot
 $archiveRoot = Reset-BuildDirectory -Path (Join-Path $cacheRoot "distribution-archive") -AllowedRoot $cacheRoot
+$webStoreArchiveRoot = Reset-BuildDirectory -Path (Join-Path $cacheRoot "web-store-archive") -AllowedRoot $cacheRoot
 $launcherBuildRoot = Reset-BuildDirectory -Path (Join-Path $cacheRoot "launcher-build") -AllowedRoot $cacheRoot
 $runtimeRoot = Join-Path $stagingRoot "runtime"
 New-Item -ItemType Directory -Path $runtimeRoot | Out-Null
@@ -171,6 +194,24 @@ if (-not $runtimeSource -or -not (Test-Path -LiteralPath (Join-Path $runtimeSour
   throw "The Chromium runtime archive has an unexpected layout."
 }
 Get-ChildItem -LiteralPath $runtimeSource.FullName -Force | Copy-Item -Destination $runtimeRoot -Recurse -Force
+
+& tar.exe -xf $WebStoreArchive -C $webStoreArchiveRoot
+if ($LASTEXITCODE -ne 0) {
+  throw "Failed to extract the Chromium Web Store compatibility extension."
+}
+$webStoreSourceRoot = Get-ChildItem -LiteralPath $webStoreArchiveRoot -Directory | Select-Object -First 1
+$webStoreSource = if ($webStoreSourceRoot) { Join-Path $webStoreSourceRoot.FullName "src" } else { "" }
+$webStoreManifestPath = if ($webStoreSource) { Join-Path $webStoreSource "manifest.json" } else { "" }
+if (-not $webStoreManifestPath -or -not (Test-Path -LiteralPath $webStoreManifestPath)) {
+  throw "The Chromium Web Store extension archive has an unexpected layout."
+}
+$webStoreManifest = Get-Content -LiteralPath $webStoreManifestPath -Raw | ConvertFrom-Json
+if ($webStoreManifest.version -ne "1.5.5.3" -or $webStoreManifest.manifest_version -ne 3) {
+  throw "The Chromium Web Store extension manifest did not match the pinned release."
+}
+$webStoreDestination = Join-Path $stagingRoot "extensions\chromium-web-store"
+New-Item -ItemType Directory -Force -Path $webStoreDestination | Out-Null
+Get-ChildItem -LiteralPath $webStoreSource -Force | Copy-Item -Destination $webStoreDestination -Recurse -Force
 
 $iconPath = Join-Path $script:ForkRoot "assets\kwiken.ico"
 if (-not (Test-Path -LiteralPath $iconPath)) {
@@ -214,7 +255,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Invoke-RcEdit -Target (Join-Path $runtimeRoot "chrome.exe") -Description "Kwiken Browser Engine" -SetIcon
-Invoke-RcEdit -Target (Join-Path $runtimeRoot "chrome.dll") -Description "Kwiken Browser Engine"
+Invoke-RcEdit -Target (Join-Path $runtimeRoot "chrome.dll") -Description "Kwiken Browser Engine" -SetIcon
 Invoke-RcEdit -Target (Join-Path $runtimeRoot "notification_helper.exe") -Description "Kwiken Notifications" -SetIcon
 Invoke-RcEdit -Target (Join-Path $runtimeRoot "chrome_proxy.exe") -Description "Kwiken Launcher Proxy" -SetIcon
 Invoke-RcEdit -Target (Join-Path $runtimeRoot "chrome_pwa_launcher.exe") -Description "Kwiken Web App Launcher" -SetIcon
@@ -222,13 +263,15 @@ Invoke-RcEdit -Target (Join-Path $runtimeRoot "chrome_pwa_launcher.exe") -Descri
 Copy-Item -LiteralPath (Join-Path $script:ForkRoot "distribution\licenses\chromium.txt") -Destination (Join-Path $stagingRoot "LICENSE.chromium.txt") -Force
 Copy-Item -LiteralPath (Join-Path $script:ForkRoot "distribution\licenses\ungoogled-chromium-windows.txt") -Destination (Join-Path $stagingRoot "LICENSE.ungoogled-chromium-windows.txt") -Force
 Copy-Item -LiteralPath (Join-Path $script:ForkRoot "distribution\licenses\rcedit.txt") -Destination (Join-Path $stagingRoot "LICENSE.rcedit.txt") -Force
+Copy-Item -LiteralPath (Join-Path $script:ForkRoot "distribution\licenses\chromium-web-store.txt") -Destination (Join-Path $stagingRoot "LICENSE.chromium-web-store.txt") -Force
 Copy-Item -LiteralPath (Join-Path $script:ForkRoot "distribution\NOTICE.txt") -Destination $stagingRoot -Force
 
 $releaseRoot = Join-Path $script:ForkRoot "release"
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
-$installerPath = Join-Path $releaseRoot "Kwiken-Setup-$script:Version.exe"
+$installerPath = Join-Path $releaseRoot "Kwiken-Setup-$script:ReleaseVersion.exe"
 & $MakeNsisPath `
   "/DVERSION=$script:Version" `
+  "/DRELEASE_VERSION=$script:ReleaseVersion" `
   "/DSTAGING=$stagingRoot" `
   "/DOUTFILE=$installerPath" `
   "/DICON=$iconPath" `
