@@ -9,13 +9,13 @@ $patchPath = Join-Path $script:ForkRoot "patches\0001-kwiken-browser.patch"
 
 Push-Location $sourceRoot
 try {
-  & git apply --reverse --check $patchPath 2>$null
+  & git apply --reverse --check --ignore-space-change $patchPath 2>$null
   if ($LASTEXITCODE -ne 0) {
-    & git apply --check $patchPath
+    & git apply --check --ignore-space-change $patchPath
     if ($LASTEXITCODE -ne 0) {
       throw "The Kwiken source patch does not apply cleanly. Reset the pinned checkout and try again."
     }
-    & git apply $patchPath
+    & git apply --ignore-space-change $patchPath
     if ($LASTEXITCODE -ne 0) {
       throw "Could not apply the Kwiken source patch."
     }

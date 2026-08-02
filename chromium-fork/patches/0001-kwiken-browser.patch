@@ -561,3 +561,78 @@ index e6ef4ee147..24f0041a12 100644
    registry->RegisterBooleanPref(prefs::kSignedInWithCredentialProvider, false);
    registry->RegisterBooleanPref(prefs::kExplicitBrowserSignin, false);
    registry->RegisterBooleanPref(
+diff --git a/chrome/browser/background/extensions/background_mode_manager.cc b/chrome/browser/background/extensions/background_mode_manager.cc
+--- a/chrome/browser/background/extensions/background_mode_manager.cc
++++ b/chrome/browser/background/extensions/background_mode_manager.cc
+@@ -348,7 +348,7 @@ BackgroundModeManager::~BackgroundModeManager() {
+ 
+ // static
+ void BackgroundModeManager::RegisterPrefs(PrefRegistrySimple* registry) {
+-  registry->RegisterBooleanPref(prefs::kBackgroundModeEnabled, true);
++  registry->RegisterBooleanPref(prefs::kBackgroundModeEnabled, false);
+ }
+ 
+ void BackgroundModeManager::RegisterProfile(Profile* profile) {
+diff --git a/chrome/browser/preloading/preloading_prefs.cc b/chrome/browser/preloading/preloading_prefs.cc
+--- a/chrome/browser/preloading/preloading_prefs.cc
++++ b/chrome/browser/preloading/preloading_prefs.cc
+@@ -15,7 +15,7 @@ namespace prefetch {
+ void RegisterPredictionOptionsProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterIntegerPref(
+-      prefs::kNetworkPredictionOptions,
+-      static_cast<int>(NetworkPredictionOptions::kDefault),
++      prefs::kNetworkPredictionOptions,
++      static_cast<int>(NetworkPredictionOptions::kDisabled),
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+ }
+ 
+diff --git a/components/performance_manager/user_tuning/prefs.cc b/components/performance_manager/user_tuning/prefs.cc
+--- a/components/performance_manager/user_tuning/prefs.cc
++++ b/components/performance_manager/user_tuning/prefs.cc
+@@ -33,10 +33,10 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
+       kMemorySaverModeTimeBeforeDiscardInMinutes,
+       kDefaultMemorySaverModeTimeBeforeDiscardInMinutes);
+   registry->RegisterIntegerPref(
+-      kMemorySaverModeState, static_cast<int>(MemorySaverModeState::kDisabled));
++      kMemorySaverModeState, static_cast<int>(MemorySaverModeState::kEnabled));
+   registry->RegisterIntegerPref(
+       kMemorySaverModeAggressiveness,
+-      static_cast<int>(MemorySaverModeAggressiveness::kMedium));
++      static_cast<int>(MemorySaverModeAggressiveness::kAggressive));
+   registry->RegisterIntegerPref(
+       kBatterySaverModeState,
+       static_cast<int>(BatterySaverModeState::kEnabledBelowThreshold));
+diff --git a/components/performance_manager/user_tuning/prefs_unittest.cc b/components/performance_manager/user_tuning/prefs_unittest.cc
+--- a/components/performance_manager/user_tuning/prefs_unittest.cc
++++ b/components/performance_manager/user_tuning/prefs_unittest.cc
+@@ -53,7 +53,7 @@ TEST_F(MemorySaverModePrefMigrationTest,
+   pref_service_.SetBoolean(kMemorySaverModeEnabled, true);
+ 
+   EXPECT_EQ(pref_service_.GetInteger(kMemorySaverModeState),
+-            static_cast<int>(MemorySaverModeState::kDisabled));
++            static_cast<int>(MemorySaverModeState::kEnabled));
+   EXPECT_TRUE(
+       pref_service_.FindPreference(kMemorySaverModeState)->IsDefaultValue());
+ 
+@@ -71,7 +71,7 @@ TEST_F(MemorySaverModePrefMigrationTest,
+   pref_service_.SetBoolean(kMemorySaverModeEnabled, false);
+ 
+   EXPECT_EQ(pref_service_.GetInteger(kMemorySaverModeState),
+-            static_cast<int>(MemorySaverModeState::kDisabled));
++            static_cast<int>(MemorySaverModeState::kEnabled));
+   EXPECT_TRUE(
+       pref_service_.FindPreference(kMemorySaverModeState)->IsDefaultValue());
+ 
+diff --git a/content/public/common/content_features.cc b/content/public/common/content_features.cc
+--- a/content/public/common/content_features.cc
++++ b/content/public/common/content_features.cc
+@@ -1096,7 +1096,7 @@ BASE_FEATURE(kSubframeProcessReuseThresholds,
+ // Controls whether SpareRenderProcessHostManager tries to always have a warm
+ // spare renderer process around for the most recently requested BrowserContext.
+ // This feature is only consulted in site-per-process mode.
+-BASE_FEATURE(kSpareRendererForSitePerProcess, base::FEATURE_ENABLED_BY_DEFAULT);
++BASE_FEATURE(kSpareRendererForSitePerProcess, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // Controls whether site isolation should use origins instead of scheme and
+ // eTLD+1.

@@ -13,7 +13,7 @@
 
 ## Install
 
-Download `Kwiken-Setup-150.0.7871.186-r2.exe` from the latest GitHub release.
+Download `Kwiken-Setup-150.0.7871.186-r4.exe` from the latest GitHub release.
 Kwiken installs per-user, creates Start menu and desktop shortcuts, registers
 itself with Windows Default Apps, and keeps its profile in
 `%LOCALAPPDATA%\Kwiken\User Data`.
@@ -29,6 +29,8 @@ unknown-publisher warning. The release notes include its SHA-256 checksum.
 - Chromium extension support and normal website permissions
 - Chrome, Edge, and Opera extension-store installation through a bundled open-source bridge
 - Session restoration and Do Not Track enabled by default
+- New profiles use aggressive Memory Saver with speculative preloading disabled
+- No idle spare renderer or background browser residency
 - Kwiken product branding, iconography, and lime/olive color system
 - Windows registration for HTTP, HTTPS, HTML, and PDF defaults
 - Clean migration from the earlier Electron prototype
@@ -51,6 +53,19 @@ and Opera Add-ons. The bridge uses extension-management and download permissions
 to install and update other extensions; its source is available at
 [`NeverDecaf/chromium-web-store`](https://github.com/NeverDecaf/chromium-web-store).
 Launch with `--disable-kwiken-web-store` to opt out.
+
+## Lightweight Defaults
+
+Kwiken keeps Chromium's sandbox, site isolation, GPU acceleration, extensions,
+media support, and DevTools intact. To reduce memory without removing browser
+capabilities, it does not keep a spare renderer waiting for the next
+navigation. New profiles enable Chromium's aggressive Memory Saver, disable
+speculative page preloading, and exit instead of keeping extension apps
+resident after the last window closes. Existing profile choices are preserved.
+
+Memory Saver and preloading remain user-configurable under
+`chrome://settings/performance`. Launch with
+`--enable-kwiken-spare-renderer` to restore Chromium's navigation prewarming.
 
 ## Reproducibility
 

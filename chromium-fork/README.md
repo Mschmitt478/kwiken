@@ -40,7 +40,7 @@ The distribution build requires Python 3, Visual Studio C++ build tools, and
 NSIS. It downloads and verifies the pinned Chromium runtime automatically and
 does not require the external Chromium source checkout.
 
-The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186-r2.exe`.
+The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186-r4.exe`.
 
 The packaged runtime is a complete standalone Chromium browser, not Electron,
 CEF, or an embedded webview. Website sign-in therefore uses a normal top-level
@@ -59,6 +59,9 @@ Google website sign-in runs as a normal top-level Chromium navigation, so it doe
 - DuckDuckGo default search
 - Restore the previous session
 - Do Not Track enabled
+- Aggressive Memory Saver enabled for new profiles
+- Speculative page preloading and background residency disabled
+- Idle spare renderer disabled; restore with `--enable-kwiken-spare-renderer`
 - H.264/AAC/MP4 codec build flags enabled
 - Separate `%LOCALAPPDATA%\Kwiken` install and profile paths
 - Bundled Chromium Web Store compatibility extension; disable with `--disable-kwiken-web-store`

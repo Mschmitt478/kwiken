@@ -22,6 +22,13 @@ constexpr wchar_t kExtensionMimeSwitch[] =
     L"--extension-mime-request-handling=always-prompt-for-install";
 constexpr wchar_t kDisableWebStoreSwitch[] =
     L"--disable-kwiken-web-store";
+constexpr wchar_t kEnableSpareRendererSwitch[] =
+    L"--enable-kwiken-spare-renderer";
+constexpr wchar_t kDisableFeaturesSwitchPrefix[] = L"--disable-features=";
+constexpr wchar_t kSpareRendererFeature[] =
+    L"SpareRendererForSitePerProcess";
+constexpr wchar_t kUserDataDirectorySwitch[] = L"--user-data-dir";
+constexpr wchar_t kUserDataDirectorySwitchPrefix[] = L"--user-data-dir=";
 constexpr wchar_t kBrowserModelSuffixSwitch[] =
     L"--register-chrome-browser-suffix=.Kwiken";
 constexpr wchar_t kBrowserModelSuffixPrefix[] =
@@ -84,6 +91,26 @@ std::filesystem::path GetDefaultUserDataDirectory() {
 bool StartsWith(std::wstring_view value, std::wstring_view prefix) {
   return value.size() >= prefix.size() &&
          value.substr(0, prefix.size()) == prefix;
+}
+
+void AddDisabledFeature(std::vector<std::wstring>* arguments,
+                        std::wstring_view feature) {
+  for (std::wstring& argument : *arguments) {
+    if (!StartsWith(argument, kDisableFeaturesSwitchPrefix)) {
+      continue;
+    }
+    if (argument.find(feature) == std::wstring::npos) {
+      if (argument.size() >
+          std::wstring_view(kDisableFeaturesSwitchPrefix).size()) {
+        argument.push_back(L',');
+      }
+      argument.append(feature);
+    }
+    return;
+  }
+  arguments->insert(arguments->begin(),
+                    std::wstring(kDisableFeaturesSwitchPrefix) +
+                        std::wstring(feature));
 }
 
 std::wstring QuoteArgument(std::wstring_view argument) {
@@ -398,6 +425,9 @@ void SeedProfile(const std::filesystem::path& user_data_directory) {
   },
   "homepage": "https://duckduckgo.com/",
   "homepage_is_newtabpage": true,
+  "net": {
+    "network_prediction_options": 2
+  },
   "profile": {
     "exit_type": "Normal",
     "exited_cleanly": true,
@@ -420,6 +450,34 @@ void SeedProfile(const std::filesystem::path& user_data_directory) {
 
   std::ofstream output(preferences, std::ios::binary | std::ios::trunc);
   output.write(kInitialPreferences, sizeof(kInitialPreferences) - 1);
+}
+
+void SeedLocalState(const std::filesystem::path& user_data_directory) {
+  const std::filesystem::path local_state =
+      user_data_directory / L"Local State";
+  std::error_code error;
+  if (std::filesystem::exists(local_state, error)) {
+    return;
+  }
+  std::filesystem::create_directories(user_data_directory, error);
+  if (error) {
+    return;
+  }
+
+  constexpr char kInitialLocalState[] = R"json({
+  "background_mode": {
+    "enabled": false
+  },
+  "performance_tuning": {
+    "high_efficiency_mode": {
+      "aggressiveness": 2,
+      "state": 2
+    }
+  }
+})json";
+
+  std::ofstream output(local_state, std::ios::binary | std::ios::trunc);
+  output.write(kInitialLocalState, sizeof(kInitialLocalState) - 1);
 }
 
 int ShowLaunchError(const std::wstring& message) {
@@ -447,13 +505,15 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   }
 
   std::vector<std::wstring> arguments;
-  arguments.reserve(static_cast<size_t>(argument_count) + 5);
+  arguments.reserve(static_cast<size_t>(argument_count) + 6);
   bool has_user_data_directory = false;
   bool disables_vertical_tabs = false;
   bool disables_extensions = false;
   bool disables_web_store = false;
+  bool enables_spare_renderer = false;
   bool has_extension_mime_switch = false;
   bool repair_shortcuts_only = false;
+  std::filesystem::path requested_user_data_directory;
   for (int index = 1; index < argument_count; ++index) {
     std::wstring argument = raw_arguments[index];
     if (argument == kRepairShortcutsSwitch) {
@@ -464,16 +524,26 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       disables_web_store = true;
       continue;
     }
+    if (argument == kEnableSpareRendererSwitch) {
+      enables_spare_renderer = true;
+      continue;
+    }
     if (argument == kBrowserModelSuffixPrefix ||
         StartsWith(argument,
                    std::wstring(kBrowserModelSuffixPrefix) + L"=")) {
       continue;
     }
-    if (argument == L"--user-data-dir" ||
-        StartsWith(argument, L"--user-data-dir=")) {
+    if (argument == kUserDataDirectorySwitch ||
+        StartsWith(argument, kUserDataDirectorySwitchPrefix)) {
       has_user_data_directory = true;
+      if (argument == kUserDataDirectorySwitch && index + 1 < argument_count) {
+        requested_user_data_directory = raw_arguments[index + 1];
+      } else if (StartsWith(argument, kUserDataDirectorySwitchPrefix)) {
+        requested_user_data_directory = argument.substr(
+            std::wstring_view(kUserDataDirectorySwitchPrefix).size());
+      }
     }
-    if (StartsWith(argument, L"--disable-features=") &&
+    if (StartsWith(argument, kDisableFeaturesSwitchPrefix) &&
         argument.find(L"VerticalTabs") != std::wstring::npos) {
       disables_vertical_tabs = true;
     }
@@ -494,18 +564,27 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     return 0;
   }
 
-  const std::filesystem::path user_data_directory =
-      GetDefaultUserDataDirectory();
+  std::filesystem::path user_data_directory = requested_user_data_directory;
   if (!has_user_data_directory) {
+    user_data_directory = GetDefaultUserDataDirectory();
     if (user_data_directory.empty()) {
       return ShowLaunchError(L"Kwiken could not locate your local app data.");
     }
-    SeedProfile(user_data_directory);
     arguments.insert(arguments.begin(),
                      L"--user-data-dir=" + user_data_directory.wstring());
   }
+  if (!user_data_directory.empty()) {
+    if (user_data_directory.is_relative()) {
+      user_data_directory = browser_path.parent_path() / user_data_directory;
+    }
+    SeedLocalState(user_data_directory);
+    SeedProfile(user_data_directory);
+  }
   if (!disables_vertical_tabs) {
     arguments.insert(arguments.begin(), kFeatureSwitch);
+  }
+  if (!enables_spare_renderer) {
+    AddDisabledFeature(&arguments, kSpareRendererFeature);
   }
   const std::filesystem::path web_store_extension =
       executable_directory / L"extensions" / L"chromium-web-store";

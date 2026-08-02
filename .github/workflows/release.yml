@@ -50,9 +50,11 @@ jobs:
           ## Kwiken $releaseVersion
 
           Native Windows Chromium browser with Kwiken vertical tabs, branding,
-          default-app registration, session restore, and the Google website
-          sign-in compatibility fix. This revision also fixes the blue Chromium
-          window icon and adds Chrome, Edge, and Opera extension-store support.
+          default-app registration, session restore, extension-store support,
+          and lightweight defaults. This revision defaults new profiles to
+          aggressive Memory Saver with no speculative preloading or background
+          residency, and removes Chromium's idle spare renderer without
+          weakening isolation.
 
           **Installer SHA-256:** ``$sha256``
 
