@@ -3,3 +3,4 @@ chromium-fork/.cache/
 chromium-fork/release/
 __pycache__/
 *.pyc
+.codex-tmp-*/

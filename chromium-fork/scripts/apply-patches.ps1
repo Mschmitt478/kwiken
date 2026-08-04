@@ -1,24 +1,37 @@
 param(
-  [string]$ChromiumRoot = "C:\src\kwiken-chromium"
+  [string]$ChromiumRoot
 )
 
 . (Join-Path $PSScriptRoot "common.ps1")
 
+$ChromiumRoot = Resolve-KwikenBuildRoot -Value $ChromiumRoot `
+  -DefaultValue (Get-DefaultChromiumRoot) -Name "ChromiumRoot"
 $sourceRoot = Assert-ChromiumCheckout -ChromiumRoot $ChromiumRoot
-$patchPath = Join-Path $script:ForkRoot "patches\0001-kwiken-browser.patch"
+$patchRoot = Join-Path $script:ForkRoot "patches"
+$patchPaths = @(Get-ChildItem -LiteralPath $patchRoot -Filter "*.patch" -File |
+    Sort-Object -Property Name)
+if ($patchPaths.Count -eq 0) {
+  throw "No Kwiken source patches were found in $patchRoot."
+}
 
 Push-Location $sourceRoot
 try {
-  & git apply --reverse --check --ignore-space-change $patchPath 2>$null
-  if ($LASTEXITCODE -ne 0) {
-    & git apply --check --ignore-space-change $patchPath
-    if ($LASTEXITCODE -ne 0) {
-      throw "The Kwiken source patch does not apply cleanly. Reset the pinned checkout and try again."
+  foreach ($patch in $patchPaths) {
+    & git apply --reverse --check --ignore-space-change $patch.FullName 2>$null
+    if ($LASTEXITCODE -eq 0) {
+      Write-Output "Kwiken source patch is already applied: $($patch.Name)"
+      continue
     }
-    & git apply --ignore-space-change $patchPath
+
+    & git apply --check --ignore-space-change $patch.FullName
     if ($LASTEXITCODE -ne 0) {
-      throw "Could not apply the Kwiken source patch."
+      throw "Kwiken source patch $($patch.Name) does not apply cleanly. Reset the pinned checkout and try again."
     }
+    & git apply --ignore-space-change $patch.FullName
+    if ($LASTEXITCODE -ne 0) {
+      throw "Could not apply Kwiken source patch $($patch.Name)."
+    }
+    Write-Output "Applied Kwiken source patch: $($patch.Name)"
   }
 
   $protectedAuthors = "__KWIKEN_UPSTREAM_AUTHORS__"
@@ -38,4 +51,5 @@ try {
 }
 
 & (Join-Path $PSScriptRoot "generate-brand-assets.ps1") -SourceRoot $sourceRoot
-Write-Output "Kwiken patches are applied to $sourceRoot."
+$sourceDeltaHash = Assert-KwikenSourceDelta -SourceRoot $sourceRoot
+Write-Output "Kwiken patches are applied to $sourceRoot (source delta $sourceDeltaHash)."

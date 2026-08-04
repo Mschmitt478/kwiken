@@ -1,71 +1,730 @@
-name: Build release
+name: Build unsigned Kwiken candidate
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
-    paths:
-      - chromium-fork/VERSION
-      - chromium-fork/PACKAGE_REVISION
+    inputs:
+      build_jobs:
+        description: Concurrent native Chromium build jobs
+        required: true
+        default: "2"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "4"
 
-permissions:
-  contents: write
+# This workflow deliberately cannot create tags, releases, attestations, or
+# signatures. A separately reviewed environment-gated workflow must consume
+# the immutable unsigned-candidate artifact by ID/digest before publication.
+permissions: {}
+
+concurrency:
+  # The controlled runners share persistent Chromium/depot_tools roots, so
+  # every ref must serialize through one global source/build lock.
+  group: kwiken-unsigned-candidate
+  cancel-in-progress: false
+
+env:
+  KWIKEN_CHROMIUM_ROOT: ${{ vars.KWIKEN_CHROMIUM_ROOT }}
+  KWIKEN_DEPOT_TOOLS_ROOT: ${{ vars.KWIKEN_DEPOT_TOOLS_ROOT }}
+  KWIKEN_VISUAL_STUDIO_ROOT: ${{ vars.KWIKEN_VISUAL_STUDIO_ROOT }}
+  KWIKEN_WEB_STORE_ARCHIVE: ${{ vars.KWIKEN_WEB_STORE_ARCHIVE }}
+  KWIKEN_NSIS_RUNTIME_ROOT: ${{ vars.KWIKEN_NSIS_RUNTIME_ROOT }}
+  KWIKEN_NSIS_EXE_SHA256: ${{ vars.KWIKEN_NSIS_EXE_SHA256 }}
+  KWIKEN_NSIS_RUNTIME_TREE_SHA256: ${{ vars.KWIKEN_NSIS_RUNTIME_TREE_SHA256 }}
+  KWIKEN_WEB_STORE_SHA256: 627cb80dd67d16e4d2a9f105c1a1c5adf61dca63202bd577a4e4af84bd07868c
 
 jobs:
-  release:
-    runs-on: windows-latest
-    timeout-minutes: 45
+  native-runtime:
+    name: Produce authenticated native runtime
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: [self-hosted, Windows, X64, kwiken-chromium]
+    timeout-minutes: 480
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.upload-handoff.outputs.artifact-id }}
+      artifact-digest: ${{ steps.upload-handoff.outputs.artifact-digest }}
+      artifact-name: ${{ steps.stage-handoff.outputs.artifact-name }}
+      ready-sha256: ${{ steps.stage-handoff.outputs.ready-sha256 }}
+      release-version: ${{ steps.stage-handoff.outputs.release-version }}
+      source-revision: ${{ steps.stage-handoff.outputs.source-revision }}
 
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Check out exact workflow commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: "3.x"
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+          show-progress: false
 
-      - name: Install NSIS
+      - name: Validate controlled native runner
         shell: pwsh
-        run: choco install nsis --yes --no-progress
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-StrictMode -Version Latest
 
-      - name: Build installer
+          if ($env:GITHUB_SHA -cnotmatch '^[0-9a-f]{40}$') {
+            throw "GITHUB_SHA is not an immutable commit revision."
+          }
+          foreach ($name in @(
+              "KWIKEN_CHROMIUM_ROOT",
+              "KWIKEN_DEPOT_TOOLS_ROOT",
+              "KWIKEN_VISUAL_STUDIO_ROOT"
+            )) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ([string]::IsNullOrWhiteSpace($value) -or
+                -not [IO.Path]::IsPathRooted($value) -or
+                $value.IndexOfAny(@([char]0, [char]10, [char]13)) -ge 0) {
+              throw "Required controlled-runner variable $name is missing or unsafe."
+            }
+          }
+          if (-not (Test-Path -LiteralPath $env:KWIKEN_VISUAL_STUDIO_ROOT -PathType Container)) {
+            throw "KWIKEN_VISUAL_STUDIO_ROOT is not provisioned on this runner."
+          }
+          foreach ($name in @(
+              "KWIKEN_WEB_STORE_ARCHIVE",
+              "KWIKEN_NSIS_RUNTIME_ROOT",
+              "KWIKEN_NSIS_EXE_SHA256",
+              "KWIKEN_NSIS_RUNTIME_TREE_SHA256"
+            )) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ([string]::IsNullOrWhiteSpace($value) -or
+                $value.IndexOfAny(@([char]0, [char]10, [char]13)) -ge 0) {
+              throw "Required packaging variable $name is missing or unsafe."
+            }
+          }
+          if ($env:KWIKEN_NSIS_EXE_SHA256 -cnotmatch '^[0-9A-Fa-f]{64}$' -or
+              $env:KWIKEN_NSIS_RUNTIME_TREE_SHA256 -cnotmatch '^[0-9A-Fa-f]{64}$' -or
+              -not [IO.Path]::IsPathRooted($env:KWIKEN_WEB_STORE_ARCHIVE) -or
+              -not [IO.Path]::IsPathRooted($env:KWIKEN_NSIS_RUNTIME_ROOT) -or
+              -not (Test-Path -LiteralPath $env:KWIKEN_WEB_STORE_ARCHIVE -PathType Leaf) -or
+              -not (Test-Path -LiteralPath $env:KWIKEN_NSIS_RUNTIME_ROOT -PathType Container)) {
+            throw "Packaging tools are not fully provisioned before native production."
+          }
+          $earlyNsisPath = Join-Path $env:KWIKEN_NSIS_RUNTIME_ROOT "makensis.exe"
+          $earlyWebStoreHash = (
+            Get-FileHash -LiteralPath $env:KWIKEN_WEB_STORE_ARCHIVE -Algorithm SHA256
+          ).Hash.ToLowerInvariant()
+          $earlyNsisHash = (
+            Get-FileHash -LiteralPath $earlyNsisPath -Algorithm SHA256
+          ).Hash.ToLowerInvariant()
+          if ($earlyWebStoreHash -cne $env:KWIKEN_WEB_STORE_SHA256 -or
+              $earlyNsisHash -cne $env:KWIKEN_NSIS_EXE_SHA256.ToLowerInvariant()) {
+            throw "Packaging inputs do not match independent hashes before native production."
+          }
+
+          $actualRevision = (& git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $actualRevision -cne $env:GITHUB_SHA) {
+            throw "Checkout revision does not equal the workflow commit."
+          }
+          $status = @(& git status --porcelain=v1 --untracked-files=all)
+          if ($LASTEXITCODE -ne 0 -or $status.Count -ne 0) {
+            throw "Workflow checkout must be clean before native production."
+          }
+
+      - name: Bootstrap preflight
         shell: pwsh
-        run: .\chromium-fork\scripts\build-distribution.ps1
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\chromium-fork\scripts\preflight.ps1 `
+            -ChromiumRoot $env:KWIKEN_CHROMIUM_ROOT `
+            -DepotToolsRoot $env:KWIKEN_DEPOT_TOOLS_ROOT `
+            -VisualStudioRoot $env:KWIKEN_VISUAL_STUDIO_ROOT `
+            -Stage Bootstrap
 
-      - name: Publish GitHub release
+      - name: Bootstrap pinned Chromium checkout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\chromium-fork\scripts\bootstrap.ps1 `
+            -ChromiumRoot $env:KWIKEN_CHROMIUM_ROOT `
+            -DepotToolsRoot $env:KWIKEN_DEPOT_TOOLS_ROOT `
+            -VisualStudioRoot $env:KWIKEN_VISUAL_STUDIO_ROOT `
+            -SyncJobs 4 `
+            -SyncAttempts 4
+
+      - name: Native build preflight
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\chromium-fork\scripts\preflight.ps1 `
+            -ChromiumRoot $env:KWIKEN_CHROMIUM_ROOT `
+            -DepotToolsRoot $env:KWIKEN_DEPOT_TOOLS_ROOT `
+            -VisualStudioRoot $env:KWIKEN_VISUAL_STUDIO_ROOT `
+            -Stage Build
+
+      - name: Export native runtime
+        id: export-runtime
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          BUILD_JOBS: ${{ inputs.build_jobs }}
         run: |
-          $version = (Get-Content .\chromium-fork\VERSION -Raw).Trim()
-          $packageRevision = (Get-Content .\chromium-fork\PACKAGE_REVISION -Raw).Trim()
-          $releaseVersion = "$version-r$packageRevision"
-          $tag = "v$releaseVersion"
-          $installer = ".\chromium-fork\release\Kwiken-Setup-$releaseVersion.exe"
-          $sha256 = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          $ErrorActionPreference = "Stop"
+          Set-StrictMode -Version Latest
 
-          @"
-          ## Kwiken $releaseVersion
-
-          Native Windows Chromium browser with Kwiken vertical tabs, branding,
-          default-app registration, session restore, extension-store support,
-          and lightweight defaults. This revision defaults new profiles to
-          aggressive Memory Saver with no speculative preloading or background
-          residency, and removes Chromium's idle spare renderer without
-          weakening isolation.
-
-          **Installer SHA-256:** ``$sha256``
-
-          The installer is currently unsigned, so Windows SmartScreen may show
-          an unknown-publisher warning.
-          "@ | Set-Content .\release-notes.md
-
-          gh release view $tag *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $installer --clobber
-            gh release edit $tag --title "Kwiken $releaseVersion" --notes-file .\release-notes.md
-          } else {
-            gh release create $tag $installer --target $env:GITHUB_SHA --title "Kwiken $releaseVersion" --notes-file .\release-notes.md
+          $outputRoot = Join-Path $env:RUNNER_TEMP (
+            "kwiken-runtime-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          )
+          if (Test-Path -LiteralPath $outputRoot) {
+            throw "Refusing to reuse runtime export output: $outputRoot"
           }
+          $exportOutput = @(
+            .\chromium-fork\scripts\export-runtime.ps1 `
+              -ChromiumRoot $env:KWIKEN_CHROMIUM_ROOT `
+              -DepotToolsRoot $env:KWIKEN_DEPOT_TOOLS_ROOT `
+              -VisualStudioRoot $env:KWIKEN_VISUAL_STUDIO_ROOT `
+              -OutputDirectory $outputRoot `
+              -Jobs ([int]$env:BUILD_JOBS)
+          )
+          $runtime = @($exportOutput | Where-Object {
+              $null -ne $_.PSObject.Properties["ReadyPath"]
+            }) | Select-Object -Last 1
+          if ($null -eq $runtime) {
+            throw "export-runtime.ps1 did not return its release handoff."
+          }
+          foreach ($message in @($exportOutput | Where-Object { $_ -ne $runtime })) {
+            Write-Host $message
+          }
+          "release-directory=$($runtime.ReleaseDirectory)" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          "ready-path=$($runtime.ReadyPath)" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          "archive-path=$($runtime.ArchivePath)" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          "manifest-path=$($runtime.ManifestPath)" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+
+      - name: Stage immutable native handoff
+        id: stage-handoff
+        shell: pwsh
+        env:
+          RELEASE_DIRECTORY: ${{ steps.export-runtime.outputs.release-directory }}
+          READY_PATH: ${{ steps.export-runtime.outputs.ready-path }}
+          ARCHIVE_PATH: ${{ steps.export-runtime.outputs.archive-path }}
+          MANIFEST_PATH: ${{ steps.export-runtime.outputs.manifest-path }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-StrictMode -Version Latest
+
+          function Get-LowerSha256([string]$Path) {
+            return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          function Assert-RegularTree([string]$Root) {
+            $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+            foreach ($item in Get-ChildItem -LiteralPath $rootPath -Recurse -Force) {
+              if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Release handoff cannot contain a reparse point: $($item.FullName)"
+              }
+            }
+          }
+
+          function Get-ToolTreeSha256([string]$Root) {
+            Assert-RegularTree -Root $Root
+            $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+            $paths = @(
+              Get-ChildItem -LiteralPath $rootPath -File -Recurse -Force |
+                ForEach-Object {
+                  $_.FullName.Substring($rootPath.Length + 1).Replace('\', '/')
+                }
+            )
+            [Array]::Sort($paths, [StringComparer]::Ordinal)
+            if ($paths.Count -gt 50000) {
+              throw "Tool runtime contains more than 50000 files."
+            }
+            $totalBytes = [long]0
+            foreach ($path in $paths) {
+              $totalBytes += (Get-Item -LiteralPath (
+                Join-Path $rootPath $path.Replace('/', '\')
+              ) -Force).Length
+              if ($totalBytes -gt 2147483648) {
+                throw "Tool runtime exceeds the 2 GiB input limit."
+              }
+            }
+            $records = [IO.MemoryStream]::new()
+            $sha256 = [Security.Cryptography.SHA256]::Create()
+            try {
+              foreach ($path in $paths) {
+                $file = Get-Item -LiteralPath (
+                  Join-Path $rootPath $path.Replace('/', '\')
+                ) -Force
+                $hash = Get-LowerSha256 -Path $file.FullName
+                $record = "$path$([char]0)$($file.Length)$([char]0)$hash`n"
+                $bytes = [Text.UTF8Encoding]::new($false, $true).GetBytes($record)
+                $records.Write($bytes, 0, $bytes.Length)
+              }
+              $records.Position = 0
+              return -join ($sha256.ComputeHash($records) | ForEach-Object {
+                  $_.ToString("x2")
+                })
+            } finally {
+              $sha256.Dispose()
+              $records.Dispose()
+            }
+          }
+
+          foreach ($path in @(
+              $env:RELEASE_DIRECTORY,
+              $env:READY_PATH,
+              $env:ARCHIVE_PATH,
+              $env:MANIFEST_PATH
+            )) {
+            if ([string]::IsNullOrWhiteSpace($path) -or
+                -not (Test-Path -LiteralPath $path)) {
+              throw "Native export output is missing: $path"
+            }
+          }
+          Assert-RegularTree -Root $env:RELEASE_DIRECTORY
+
+          $readySha256 = Get-LowerSha256 -Path $env:READY_PATH
+          $ready = Get-Content -LiteralPath $env:READY_PATH -Raw | ConvertFrom-Json
+          $manifestSha256 = Get-LowerSha256 -Path $env:MANIFEST_PATH
+          $archiveSha256 = Get-LowerSha256 -Path $env:ARCHIVE_PATH
+          if ($ready.schemaVersion -ne 1 -or
+              $ready.releaseVersion -cnotmatch '^[0-9]+(?:\.[0-9]+){3}-r[0-9]+$' -or
+              $ready.archive.sha256 -cne $archiveSha256 -or
+              $ready.manifest.sha256 -cne $manifestSha256) {
+            throw "Native export READY does not bind the supplied archive and manifest."
+          }
+          $expectedRuntimeNames = @(
+            "RELEASE.READY.json",
+            [string]$ready.archive.fileName,
+            [string]$ready.manifest.fileName
+          ) | Sort-Object
+          $actualRuntimeNames = @(
+            Get-ChildItem -LiteralPath $env:RELEASE_DIRECTORY -Force |
+              ForEach-Object { $_.Name }
+          ) | Sort-Object
+          if ($expectedRuntimeNames.Count -ne $actualRuntimeNames.Count -or
+              (Compare-Object -CaseSensitive -ReferenceObject $expectedRuntimeNames `
+                -DifferenceObject $actualRuntimeNames)) {
+            throw "Native export directory has an unexpected file set."
+          }
+          $manifest = Get-Content -LiteralPath $env:MANIFEST_PATH -Raw |
+            ConvertFrom-Json
+          if ($manifest.source.kwiken.revision -cne $env:GITHUB_SHA -or
+              [bool]$manifest.source.kwiken.dirty -or
+              $manifest.product.releaseVersion -cne $ready.releaseVersion) {
+            throw "Native provenance is not bound to this clean workflow commit."
+          }
+
+          $depotRoot = [IO.Path]::GetFullPath(
+            $env:KWIKEN_DEPOT_TOOLS_ROOT
+          ).TrimEnd('\')
+          $pythonRelative = [string]$manifest.nativeBuild.toolchain.pythonPath
+          if ([string]::IsNullOrWhiteSpace($pythonRelative) -or
+              [IO.Path]::IsPathRooted($pythonRelative) -or
+              $pythonRelative -match '(^|/)\.\.?(/|$)') {
+            throw "Native provenance contains an unsafe Python path."
+          }
+          $pythonPath = [IO.Path]::GetFullPath(
+            (Join-Path $depotRoot $pythonRelative.Replace('/', '\'))
+          )
+          if (-not $pythonPath.StartsWith(
+              $depotRoot + '\',
+              [StringComparison]::OrdinalIgnoreCase
+            ) -or
+              -not (Test-Path -LiteralPath $pythonPath -PathType Leaf)) {
+            throw "Pinned Python runtime is not present under depot_tools."
+          }
+          $pythonRoot = Split-Path -Parent $pythonPath
+          $pythonTreeSha256 = Get-ToolTreeSha256 -Root $pythonRoot
+          if ((Get-LowerSha256 -Path $pythonPath) -cne
+                $manifest.nativeBuild.toolchain.pythonSha256 -or
+              $pythonTreeSha256 -cne
+                $manifest.nativeBuild.toolchain.pythonRuntimeTreeSha256) {
+            throw "Installed Python runtime does not match native provenance."
+          }
+
+          $handoffRoot = Join-Path $env:RUNNER_TEMP (
+            "kwiken-native-handoff-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          )
+          if (Test-Path -LiteralPath $handoffRoot) {
+            throw "Refusing to reuse native handoff staging: $handoffRoot"
+          }
+          $runtimeDestination = Join-Path $handoffRoot "runtime"
+          $pythonDestination = Join-Path $handoffRoot "python-runtime"
+          [void][IO.Directory]::CreateDirectory($runtimeDestination)
+          [void][IO.Directory]::CreateDirectory($pythonDestination)
+          foreach ($item in Get-ChildItem -LiteralPath $env:RELEASE_DIRECTORY -Force) {
+            Copy-Item -LiteralPath $item.FullName -Destination $runtimeDestination `
+              -Recurse -ErrorAction Stop
+          }
+          foreach ($item in Get-ChildItem -LiteralPath $pythonRoot -Force) {
+            Copy-Item -LiteralPath $item.FullName -Destination $pythonDestination `
+              -Recurse -ErrorAction Stop
+          }
+          Assert-RegularTree -Root $handoffRoot
+          if ((Get-ToolTreeSha256 -Root $pythonDestination) -cne $pythonTreeSha256 -or
+              (Get-LowerSha256 -Path (
+                Join-Path $runtimeDestination "RELEASE.READY.json"
+              )) -cne $readySha256 -or
+              (Get-LowerSha256 -Path (
+                Join-Path $runtimeDestination $ready.archive.fileName
+              )) -cne $archiveSha256 -or
+              (Get-LowerSha256 -Path (
+                Join-Path $runtimeDestination $ready.manifest.fileName
+              )) -cne $manifestSha256) {
+            throw "Native handoff staging changed an authenticated input."
+          }
+
+          $handoff = [ordered]@{
+            schemaVersion = 1
+            sourceRevision = $env:GITHUB_SHA
+            releaseVersion = [string]$ready.releaseVersion
+            readySha256 = $readySha256
+            runtime = [ordered]@{
+              directory = "runtime"
+              archiveFileName = [string]$ready.archive.fileName
+              archiveSha256 = $archiveSha256
+              manifestFileName = [string]$ready.manifest.fileName
+              manifestSha256 = $manifestSha256
+            }
+            python = [ordered]@{
+              directory = "python-runtime"
+              executable = "python3.exe"
+              executableSha256 = [string]$manifest.nativeBuild.toolchain.pythonSha256
+              treeSha256 = $pythonTreeSha256
+            }
+          }
+          [IO.File]::WriteAllText(
+            (Join-Path $handoffRoot "NATIVE.HANDOFF.json"),
+            (($handoff | ConvertTo-Json -Depth 6) + "`n"),
+            [Text.UTF8Encoding]::new($false)
+          )
+
+          $artifactName = "kwiken-native-handoff-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          "artifact-name=$artifactName" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          "handoff-path=$handoffRoot" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          "ready-sha256=$readySha256" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          "release-version=$($ready.releaseVersion)" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          "source-revision=$env:GITHUB_SHA" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+
+      - name: Upload authenticated native handoff
+        id: upload-handoff
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.stage-handoff.outputs.artifact-name }}
+          path: ${{ steps.stage-handoff.outputs.handoff-path }}
+          if-no-files-found: error
+          compression-level: 0
+          include-hidden-files: true
+          retention-days: 7
+
+  package-unsigned:
+    name: Package unsigned candidate (not releasable)
+    needs: native-runtime
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: [self-hosted, Windows, X64, kwiken-chromium]
+    timeout-minutes: 150
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out exact workflow commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - name: Download exact native handoff artifact
+        id: download-handoff
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.native-runtime.outputs.artifact-id }}
+          path: ${{ runner.temp }}\kwiken-native-handoff-download
+          merge-multiple: true
+          digest-mismatch: error
+
+      - name: Verify handoff and package unsigned candidate
+        id: package
+        shell: pwsh
+        env:
+          HANDOFF_ROOT: ${{ steps.download-handoff.outputs.download-path }}
+          EXPECTED_ARTIFACT_ID: ${{ needs.native-runtime.outputs.artifact-id }}
+          EXPECTED_ARTIFACT_DIGEST: ${{ needs.native-runtime.outputs.artifact-digest }}
+          EXPECTED_READY_SHA256: ${{ needs.native-runtime.outputs.ready-sha256 }}
+          EXPECTED_RELEASE_VERSION: ${{ needs.native-runtime.outputs.release-version }}
+          EXPECTED_SOURCE_REVISION: ${{ needs.native-runtime.outputs.source-revision }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-StrictMode -Version Latest
+
+          function Get-LowerSha256([string]$Path) {
+            return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          function Assert-RegularTree([string]$Root) {
+            $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+            foreach ($item in Get-ChildItem -LiteralPath $rootPath -Recurse -Force) {
+              if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Packaging input cannot contain a reparse point: $($item.FullName)"
+              }
+            }
+          }
+
+          function Get-ToolTreeSha256([string]$Root) {
+            Assert-RegularTree -Root $Root
+            $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+            $paths = @(
+              Get-ChildItem -LiteralPath $rootPath -File -Recurse -Force |
+                ForEach-Object {
+                  $_.FullName.Substring($rootPath.Length + 1).Replace('\', '/')
+                }
+            )
+            [Array]::Sort($paths, [StringComparer]::Ordinal)
+            if ($paths.Count -gt 50000) {
+              throw "Tool runtime contains more than 50000 files."
+            }
+            $totalBytes = [long]0
+            foreach ($path in $paths) {
+              $totalBytes += (Get-Item -LiteralPath (
+                Join-Path $rootPath $path.Replace('/', '\')
+              ) -Force).Length
+              if ($totalBytes -gt 2147483648) {
+                throw "Tool runtime exceeds the 2 GiB input limit."
+              }
+            }
+            $records = [IO.MemoryStream]::new()
+            $sha256 = [Security.Cryptography.SHA256]::Create()
+            try {
+              foreach ($path in $paths) {
+                $file = Get-Item -LiteralPath (
+                  Join-Path $rootPath $path.Replace('/', '\')
+                ) -Force
+                $hash = Get-LowerSha256 -Path $file.FullName
+                $record = "$path$([char]0)$($file.Length)$([char]0)$hash`n"
+                $bytes = [Text.UTF8Encoding]::new($false, $true).GetBytes($record)
+                $records.Write($bytes, 0, $bytes.Length)
+              }
+              $records.Position = 0
+              return -join ($sha256.ComputeHash($records) | ForEach-Object {
+                  $_.ToString("x2")
+                })
+            } finally {
+              $sha256.Dispose()
+              $records.Dispose()
+            }
+          }
+
+          if ($env:GITHUB_SHA -cnotmatch '^[0-9a-f]{40}$' -or
+              $env:EXPECTED_SOURCE_REVISION -cne $env:GITHUB_SHA -or
+              $env:EXPECTED_ARTIFACT_ID -cnotmatch '^[1-9][0-9]*$' -or
+              $env:EXPECTED_ARTIFACT_DIGEST -cnotmatch '^[0-9a-f]{64}$' -or
+              $env:EXPECTED_READY_SHA256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw "Producer trust outputs are missing or malformed."
+          }
+          $actualRevision = (& git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $actualRevision -cne $env:GITHUB_SHA) {
+            throw "Packaging checkout does not equal the producer commit."
+          }
+          foreach ($name in @(
+              "KWIKEN_WEB_STORE_ARCHIVE",
+              "KWIKEN_NSIS_RUNTIME_ROOT",
+              "KWIKEN_NSIS_EXE_SHA256",
+              "KWIKEN_NSIS_RUNTIME_TREE_SHA256"
+            )) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ([string]::IsNullOrWhiteSpace($value) -or
+                $value.IndexOfAny(@([char]0, [char]10, [char]13)) -ge 0) {
+              throw "Required independent packaging variable $name is missing or unsafe."
+            }
+          }
+          $nsisExeSha256 = $env:KWIKEN_NSIS_EXE_SHA256.ToLowerInvariant()
+          $nsisTreeSha256 = $env:KWIKEN_NSIS_RUNTIME_TREE_SHA256.ToLowerInvariant()
+          if ($nsisExeSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+              $nsisTreeSha256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw "Independent NSIS hashes are malformed."
+          }
+          foreach ($path in @(
+              $env:HANDOFF_ROOT,
+              $env:KWIKEN_NSIS_RUNTIME_ROOT
+            )) {
+            if (-not [IO.Path]::IsPathRooted($path) -or
+                -not (Test-Path -LiteralPath $path -PathType Container)) {
+              throw "Required packaging directory is not provisioned: $path"
+            }
+          }
+          if (-not [IO.Path]::IsPathRooted($env:KWIKEN_WEB_STORE_ARCHIVE) -or
+              -not (Test-Path -LiteralPath $env:KWIKEN_WEB_STORE_ARCHIVE -PathType Leaf)) {
+            throw "Pinned Web Store source archive is not provisioned."
+          }
+          Assert-RegularTree -Root $env:HANDOFF_ROOT
+          Assert-RegularTree -Root $env:KWIKEN_NSIS_RUNTIME_ROOT
+
+          $handoffPath = Join-Path $env:HANDOFF_ROOT "NATIVE.HANDOFF.json"
+          $handoff = Get-Content -LiteralPath $handoffPath -Raw | ConvertFrom-Json
+          if ($handoff.schemaVersion -ne 1 -or
+              $handoff.sourceRevision -cne $env:EXPECTED_SOURCE_REVISION -or
+              $handoff.releaseVersion -cne $env:EXPECTED_RELEASE_VERSION -or
+              $handoff.readySha256 -cne $env:EXPECTED_READY_SHA256) {
+            throw "Downloaded native handoff does not match producer trust outputs."
+          }
+          $runtimeRoot = Join-Path $env:HANDOFF_ROOT "runtime"
+          $readyPath = Join-Path $runtimeRoot "RELEASE.READY.json"
+          if ((Get-LowerSha256 -Path $readyPath) -cne $env:EXPECTED_READY_SHA256) {
+            throw "Downloaded READY does not match the producer's external hash."
+          }
+          $ready = Get-Content -LiteralPath $readyPath -Raw | ConvertFrom-Json
+          if ($ready.schemaVersion -ne 1 -or
+              $ready.releaseVersion -cne $env:EXPECTED_RELEASE_VERSION) {
+            throw "Downloaded READY release identity is invalid."
+          }
+          $expectedRuntimeNames = @(
+            "RELEASE.READY.json",
+            [string]$ready.archive.fileName,
+            [string]$ready.manifest.fileName
+          ) | Sort-Object
+          $actualRuntimeNames = @(
+            Get-ChildItem -LiteralPath $runtimeRoot -Force |
+              ForEach-Object { $_.Name }
+          ) | Sort-Object
+          if ($expectedRuntimeNames.Count -ne $actualRuntimeNames.Count -or
+              (Compare-Object -CaseSensitive -ReferenceObject $expectedRuntimeNames `
+                -DifferenceObject $actualRuntimeNames)) {
+            throw "Downloaded runtime handoff has an unexpected file set."
+          }
+          $archivePath = Join-Path $runtimeRoot ([string]$ready.archive.fileName)
+          $manifestPath = Join-Path $runtimeRoot ([string]$ready.manifest.fileName)
+          if ((Get-LowerSha256 -Path $archivePath) -cne $ready.archive.sha256 -or
+              (Get-LowerSha256 -Path $manifestPath) -cne $ready.manifest.sha256) {
+            throw "Downloaded runtime files are not authenticated by READY."
+          }
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          if ($manifest.source.kwiken.revision -cne $env:EXPECTED_SOURCE_REVISION -or
+              [bool]$manifest.source.kwiken.dirty -or
+              $manifest.product.releaseVersion -cne $env:EXPECTED_RELEASE_VERSION) {
+            throw "Downloaded native provenance is not the producer's clean commit."
+          }
+
+          $pythonRoot = Join-Path $env:HANDOFF_ROOT "python-runtime"
+          $pythonPath = Join-Path $pythonRoot "python3.exe"
+          $pythonSha256 = [string]$manifest.nativeBuild.toolchain.pythonSha256
+          $pythonTreeSha256 = [string]$manifest.nativeBuild.toolchain.pythonRuntimeTreeSha256
+          if ((Get-LowerSha256 -Path $pythonPath) -cne $pythonSha256 -or
+              (Get-ToolTreeSha256 -Root $pythonRoot) -cne $pythonTreeSha256) {
+            throw "Downloaded verifier Python does not match native provenance."
+          }
+          if ((Get-LowerSha256 -Path $env:KWIKEN_WEB_STORE_ARCHIVE) -cne
+                $env:KWIKEN_WEB_STORE_SHA256) {
+            throw "Web Store source archive does not match pinned v1.5.5.3."
+          }
+          $makeNsisPath = Join-Path $env:KWIKEN_NSIS_RUNTIME_ROOT "makensis.exe"
+          if ((Get-LowerSha256 -Path $makeNsisPath) -cne $nsisExeSha256 -or
+              (Get-ToolTreeSha256 -Root $env:KWIKEN_NSIS_RUNTIME_ROOT) -cne
+                $nsisTreeSha256) {
+            throw "Pre-provisioned NSIS does not match independent pinned hashes."
+          }
+
+          $buildOutput = @(
+            .\chromium-fork\scripts\build-distribution.ps1 `
+              -RuntimeReadyPath $readyPath `
+              -RuntimeArchive $archivePath `
+              -RuntimeManifest $manifestPath `
+              -ExpectedReadySha256 $env:EXPECTED_READY_SHA256 `
+              -WebStoreArchive $env:KWIKEN_WEB_STORE_ARCHIVE `
+              -PythonPath $pythonPath `
+              -PythonRuntimeRoot $pythonRoot `
+              -ExpectedPythonSha256 $pythonSha256 `
+              -ExpectedPythonRuntimeTreeSha256 $pythonTreeSha256 `
+              -MakeNsisPath $makeNsisPath `
+              -MakeNsisRuntimeRoot $env:KWIKEN_NSIS_RUNTIME_ROOT `
+              -ExpectedMakeNsisSha256 $nsisExeSha256 `
+              -ExpectedMakeNsisRuntimeTreeSha256 $nsisTreeSha256
+          )
+          $candidate = @($buildOutput | Where-Object {
+              $null -ne $_.PSObject.Properties["InstallerPath"]
+            }) | Select-Object -Last 1
+          if ($null -eq $candidate -or [bool]$candidate.Signed) {
+            throw "Distribution bridge did not return an explicitly unsigned candidate."
+          }
+          foreach ($message in @($buildOutput | Where-Object { $_ -ne $candidate })) {
+            Write-Host $message
+          }
+          $installerSha256 = Get-LowerSha256 -Path $candidate.InstallerPath
+          if ($installerSha256 -cne $candidate.InstallerSha256) {
+            throw "Unsigned installer changed after the distribution bridge returned."
+          }
+
+          $unsignedRoot = Join-Path $env:RUNNER_TEMP (
+            "kwiken-unsigned-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          )
+          if (Test-Path -LiteralPath $unsignedRoot) {
+            throw "Refusing to reuse unsigned artifact staging: $unsignedRoot"
+          }
+          $provenanceRoot = Join-Path $unsignedRoot "provenance"
+          [void][IO.Directory]::CreateDirectory($provenanceRoot)
+          Copy-Item -LiteralPath $candidate.InstallerPath -Destination $unsignedRoot `
+            -ErrorAction Stop
+          Copy-Item -LiteralPath $readyPath -Destination $provenanceRoot `
+            -ErrorAction Stop
+          Copy-Item -LiteralPath $manifestPath -Destination $provenanceRoot `
+            -ErrorAction Stop
+          Copy-Item -LiteralPath $handoffPath -Destination $provenanceRoot `
+            -ErrorAction Stop
+
+          $receipt = [ordered]@{
+            schemaVersion = 1
+            releaseReady = $false
+            signed = $false
+            requiredNextGate = "environment-approved Authenticode signing, signature verification, attestation, and immutable publication"
+            sourceRevision = $env:EXPECTED_SOURCE_REVISION
+            releaseVersion = $env:EXPECTED_RELEASE_VERSION
+            installer = [ordered]@{
+              fileName = Split-Path -Leaf $candidate.InstallerPath
+              sha256 = $installerSha256
+            }
+            nativeHandoff = [ordered]@{
+              artifactId = $env:EXPECTED_ARTIFACT_ID
+              artifactDigest = $env:EXPECTED_ARTIFACT_DIGEST
+              readySha256 = $env:EXPECTED_READY_SHA256
+              manifestSha256 = [string]$ready.manifest.sha256
+            }
+            packagingInputs = [ordered]@{
+              nsisExeSha256 = $nsisExeSha256
+              nsisRuntimeTreeSha256 = $nsisTreeSha256
+              webStoreArchiveSha256 = $env:KWIKEN_WEB_STORE_SHA256
+            }
+          }
+          [IO.File]::WriteAllText(
+            (Join-Path $provenanceRoot "UNSIGNED.NOT-FOR-PUBLICATION.json"),
+            (($receipt | ConvertTo-Json -Depth 7) + "`n"),
+            [Text.UTF8Encoding]::new($false)
+          )
+          Assert-RegularTree -Root $unsignedRoot
+
+          $artifactName = "kwiken-unsigned-candidate-$env:EXPECTED_RELEASE_VERSION-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          "artifact-name=$artifactName" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          "artifact-path=$unsignedRoot" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          @"
+          ## Unsigned candidate only
+
+          Built ``$($candidate.InstallerPath)`` with SHA-256 ``$installerSha256``.
+          This artifact is **not release-ready**. It requires an independently
+          configured, environment-approved Authenticode signing, signature
+          verification, attestation, and immutable publication workflow.
+          "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+      - name: Upload unsigned candidate and provenance
+        id: upload-unsigned
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.package.outputs.artifact-name }}
+          path: ${{ steps.package.outputs.artifact-path }}
+          if-no-files-found: error
+          compression-level: 0
+          include-hidden-files: true
+          retention-days: 7

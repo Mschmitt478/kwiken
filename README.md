@@ -11,15 +11,17 @@
 
 ![Kwiken browser with native vertical tabs](chromium-fork/assets/kwiken-browser.png)
 
-## Install
+## Install status
 
-Download `Kwiken-Setup-150.0.7871.186-r4.exe` from the latest GitHub release.
-Kwiken installs per-user, creates Start menu and desktop shortcuts, registers
-itself with Windows Default Apps, and keeps its profile in
-`%LOCALAPPDATA%\Kwiken\User Data`.
+The native source and packaging path are under active validation. The current
+GitHub workflow creates an explicitly unsigned candidate for controlled testing
+only; it does not create or update a GitHub release. A public installer remains
+blocked on an environment-approved Authenticode signing, signature
+verification, attestation, and immutable publication gate.
 
-The current installer is not code-signed, so Windows SmartScreen may show an
-unknown-publisher warning. The release notes include its SHA-256 checksum.
+Once signed release publication is configured, Kwiken installs per-user,
+creates Start menu and desktop shortcuts, registers itself with Windows Default
+Apps, and keeps its profile in `%LOCALAPPDATA%\Kwiken\User Data`.
 
 ## Browser Features
 
@@ -69,30 +71,24 @@ Memory Saver and preloading remain user-configurable under
 
 ## Reproducibility
 
-The installable distribution uses the matching
-`ungoogled-chromium-windows` GitHub Actions build of Chromium
-`150.0.7871.186`. Its archive SHA-256 is pinned and verified before packaging.
-Kwiken then compiles its native Win32 launcher, rebrands Chromium resource
-packs and window icon, installs the pinned extension-store bridge, applies
-first-run preferences, and creates the NSIS installer.
-
-```powershell
-.\chromium-fork\scripts\build-distribution.ps1
-```
-
-This fast build requires Python 3, the Visual Studio C++ build tools, and NSIS.
-It downloads and checksum-verifies the pinned Chromium runtime automatically;
-it does not require a Chromium source checkout.
-
-The full source-fork path is also pinned and reproducible:
+Kwiken builds its browser runtime from the repository's exact pinned Chromium
+and depot_tools revisions. The native export binds the clean Kwiken commit,
+complete Chromium dependency state, source delta, toolchain, build outputs, and
+every runtime file into an authenticated READY/provenance handoff. The public
+distribution bridge accepts only that handoff; it neither downloads a generic
+Chromium build nor rewrites browser binaries after verification.
 
 ```powershell
 .\chromium-fork\scripts\bootstrap.ps1
 .\chromium-fork\scripts\build.ps1 -Jobs 2
+.\chromium-fork\scripts\export-runtime.ps1 -Jobs 2
 ```
 
-When `chromium-fork/VERSION` changes on `master`, GitHub Actions builds the
-Windows installer and publishes or refreshes the matching GitHub release.
+The manual GitHub Actions workflow runs only on an explicitly labeled,
+controlled Windows builder. It produces a short-lived unsigned candidate plus
+provenance with read-only repository permissions and has no tag/release path.
+Public release automation remains disabled until the separate signing and
+attestation environment is configured.
 
 See [`chromium-fork/README.md`](chromium-fork/README.md) for implementation,
 authentication, codec, and build details.
