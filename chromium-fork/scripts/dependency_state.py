@@ -1513,11 +1513,9 @@ def collect_dependency_state(
 
     gcs_metadata = _load_gcs_metadata(checkout_root)
     gcs_paths = sorted(path for path, kind in non_git_kinds.items() if kind == "gcs")
-    declared_gcs_metadata: set[tuple[str, str]] = set()
     content_deadline = time.monotonic() + command_timeout_seconds
     for path in gcs_paths:
         dependency_path, object_name = _split_non_git_key(path)
-        declared_gcs_metadata.add((dependency_path, object_name))
         if (dependency_path, object_name) not in gcs_metadata:
             raise DependencyStateError(
                 f"GCS sync metadata does not contain the active DEPS object {path}."
@@ -1544,13 +1542,6 @@ def collect_dependency_state(
                 "url": declaration["url"],
                 "verificationLevel": "expected-artifact-and-installed-content-sha256",
             }
-        )
-    if gcs_metadata != declared_gcs_metadata:
-        unexpected = sorted(gcs_metadata - declared_gcs_metadata)
-        missing = sorted(declared_gcs_metadata - gcs_metadata)
-        raise DependencyStateError(
-            f"GCS sync metadata differs from active declarations "
-            f"(missing={missing}, unexpected={unexpected})."
         )
 
     entries.sort(key=_entry_sort_key)

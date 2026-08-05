@@ -407,6 +407,17 @@ class DependencyStateTests(unittest.TestCase):
         ):
             self.collect()
 
+    def test_allows_inactive_gcs_sync_metadata(self) -> None:
+        metadata_path = self.checkout / ".gcs_entries"
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata["src"]["src/test/data"].append("linux-only-object.tar.gz")
+        metadata["src"]["src/test/linux-only"] = ["inactive-object.tar.gz"]
+        metadata_path.write_text(
+            json.dumps(metadata, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        manifest = self.collect()
+        self.assertEqual(manifest["summary"]["gcsObjects"], 1)
+
     def test_validates_and_records_git_submodule(self) -> None:
         origin = self.root / "submodule-origin"
         submodule_revision = initialize_repository(origin, {"module.txt": "module\n"})
