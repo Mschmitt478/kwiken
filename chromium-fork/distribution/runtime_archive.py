@@ -351,7 +351,7 @@ def _path_is_within(path: Path, parent: Path) -> bool:
 
 def _new_atomic_path(destination: Path) -> Path:
     return destination.with_name(
-        f".{destination.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        f".kwiken-tmp-{os.getpid()}-{uuid.uuid4().hex}.tmp"
     )
 
 
@@ -1010,7 +1010,7 @@ def create_runtime_archive(
 
     staging_directory = Path(
         tempfile.mkdtemp(
-            prefix=f".{archive_path.name}.{os.getpid()}.",
+            prefix=f".kwiken-pack-{os.getpid()}.",
             dir=archive_path.parent,
         )
     )

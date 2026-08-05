@@ -270,6 +270,52 @@ class RuntimeArchiveTests(unittest.TestCase):
         )
         self.assertEqual(len(expected_paths), first["runtime"]["fileCount"])
 
+    def test_pack_uses_compact_windows_transaction_paths(self) -> None:
+        output_parent = self.root / "release"
+        while len(os.fspath(output_parent.absolute())) < 150:
+            output_parent /= "nested-transaction-path"
+        output_parent.mkdir(parents=True)
+        archive = output_parent / f"{ARCHIVE_ROOT}-windows-x64.zip"
+        manifest = output_parent / f"{ARCHIVE_ROOT}-windows-x64.provenance.json"
+
+        transaction_directories: list[Path] = []
+        atomic_paths: list[Path] = []
+        real_mkdtemp = runtime_archive.tempfile.mkdtemp
+        real_new_atomic_path = runtime_archive._new_atomic_path
+
+        def capture_mkdtemp(*args, **kwargs) -> str:
+            created = Path(real_mkdtemp(*args, **kwargs))
+            transaction_directories.append(created)
+            return os.fspath(created)
+
+        def capture_atomic_path(destination: Path) -> Path:
+            created = real_new_atomic_path(destination)
+            atomic_paths.append(created)
+            return created
+
+        with mock.patch.object(
+            runtime_archive.tempfile, "mkdtemp", side_effect=capture_mkdtemp
+        ), mock.patch.object(
+            runtime_archive, "_new_atomic_path", side_effect=capture_atomic_path
+        ):
+            self.pack(archive, manifest)
+
+        self.assertEqual(1, len(transaction_directories))
+        self.assertEqual(1, len(atomic_paths))
+        transaction_directory = transaction_directories[0]
+        intermediate_paths = [
+            transaction_directory,
+            transaction_directory / archive.name,
+            transaction_directory / manifest.name,
+            *atomic_paths,
+        ]
+        self.assertLessEqual(
+            max(len(os.fspath(path.absolute())) for path in intermediate_paths),
+            259,
+        )
+        self.assertNotIn(archive.name, transaction_directory.name)
+        self.assertNotIn(manifest.name, atomic_paths[0].name)
+
     def test_cli_pack_and_verify_contract(self) -> None:
         state = dependency_state()
         state_manifest = self.root / "dependency-state.json"
