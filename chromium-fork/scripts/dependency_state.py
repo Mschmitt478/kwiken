@@ -30,6 +30,7 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 CIPD_INSTANCE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{40,64}$")
 CIPD_SERVICE = "https://chrome-infra-packages.appspot.com"
 GCS_PROBE_REVISION_PREFIX = "kwiken-gcs-v1:"
+CIPD_PROBE_REVISION_PREFIX = "kwiken-cipd-v1:"
 BASE_LIMITATIONS = [
     "inactive-non-windows-conditional-dependencies-are-not-materialized-or-validated",
 ]
@@ -240,6 +241,37 @@ def _load_revinfo_output(data: bytes, label: str) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _encode_cipd_probe_revision(version: str) -> str:
+    if not version or any(character in version for character in "\x00\r\n"):
+        raise DependencyStateError("CIPD declaration probe received an invalid version.")
+    encoded = base64.urlsafe_b64encode(version.encode("utf-8")).decode("ascii")
+    return CIPD_PROBE_REVISION_PREFIX + encoded.rstrip("=")
+
+
+def _decode_cipd_probe_revision(revision: Any, path: str) -> str:
+    if not isinstance(revision, str) or not revision.startswith(
+        CIPD_PROBE_REVISION_PREFIX
+    ):
+        raise DependencyStateError(
+            f"CIPD declaration probe did not preserve the complete version for {path}."
+        )
+    encoded = revision[len(CIPD_PROBE_REVISION_PREFIX) :]
+    try:
+        padding = "=" * (-len(encoded) % 4)
+        version = base64.b64decode(
+            (encoded + padding).encode("ascii"), altchars=b"-_", validate=True
+        ).decode("utf-8")
+    except (UnicodeError, ValueError) as error:
+        raise DependencyStateError(
+            f"CIPD declaration probe returned a malformed version for {path}."
+        ) from error
+    if not version or any(character in version for character in "\x00\r\n"):
+        raise DependencyStateError(
+            f"CIPD declaration probe returned an invalid version for {path}."
+        )
+    return version
+
+
 def _pinned_vpython_command(
     depot_tools_root: Path, script: Path, arguments: Sequence[str]
 ) -> list[str]:
@@ -307,10 +339,11 @@ def _gclient_declarations_main(arguments: Sequence[str]) -> int:
     except ImportError as error:
         raise DependencyStateError(f"Could not import pinned gclient: {error}") from error
 
-    original_init = gclient.GcsDependency.__init__
+    original_gcs_init = gclient.GcsDependency.__init__
+    original_cipd_run = gclient.CipdDependency.run
 
     def enriched_gcs_init(dependency: Any, *args: Any, **kwargs: Any) -> None:
-        original_init(dependency, *args, **kwargs)
+        original_gcs_init(dependency, *args, **kwargs)
         payload = {
             "outputFile": dependency.output_file,
             "sha256": dependency.sha256sum,
@@ -321,11 +354,28 @@ def _gclient_declarations_main(arguments: Sequence[str]) -> int:
         ).decode("ascii").rstrip("=")
         dependency.set_url(f"{dependency.url}@{GCS_PROBE_REVISION_PREFIX}{encoded}")
 
+    def enriched_cipd_run(dependency: Any, *args: Any, **kwargs: Any) -> Any:
+        result = original_cipd_run(dependency, *args, **kwargs)
+        package_url, separator, version = dependency.url.partition("@")
+        if not separator or not version:
+            raise DependencyStateError(
+                f"Pinned gclient returned a malformed CIPD URL for {dependency.name}."
+            )
+        dependency.set_url(
+            f"{package_url}@{_encode_cipd_probe_revision(version)}"
+        )
+        return result
+
     # ParseDepsFile otherwise calls IsDownloadNeeded and can remove an installed
     # GCS output directory even for revinfo. The exact depot_tools revision is
     # validated before this pinned private-API probe is launched.
     gclient.GcsDependency.__init__ = enriched_gcs_init
     gclient.GcsDependency.IsDownloadNeeded = lambda dependency: False
+    # Pinned gclient's JSON revinfo splits URLs on every '@' and therefore
+    # truncates CIPD versions such as "version:3@resolved-tag". Encode the
+    # complete revision after gclient has processed the package and decode it
+    # in the parent process before comparing it with .gclient_entries.
+    gclient.CipdDependency.run = enriched_cipd_run
     return int(
         gclient.main(
             [
@@ -361,7 +411,13 @@ def _invoke_gclient_declarations(
         timeout_seconds=timeout_seconds,
         label="pinned gclient dependency declaration probe",
     )
-    return _load_revinfo_output(output, "gclient dependency declaration probe")
+    declarations = _load_revinfo_output(
+        output, "gclient dependency declaration probe"
+    )
+    for path, record in declarations.items():
+        if str(record.get("url", "")).startswith(f"{CIPD_SERVICE}/"):
+            record["rev"] = _decode_cipd_probe_revision(record.get("rev"), path)
+    return declarations
 
 
 def _parse_gcs_declaration(

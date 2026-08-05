@@ -164,7 +164,7 @@ class DependencyStateTests(unittest.TestCase):
             **{path: dict(record) for path, record in self.expected.items()},
             self.cipd_key: {
                 "url": f"{dependency_state.CIPD_SERVICE}/gn/gn/${{platform}}",
-                "rev": "git_revision:" + "b" * 40,
+                "rev": "version:3@fixture-resolution",
             },
             self.gcs_key: {
                 "url": self.gcs_url,
@@ -225,6 +225,7 @@ class DependencyStateTests(unittest.TestCase):
             cipd_entry["verificationLevel"],
             "cipd-deployment-check-and-package-manifest-sha256",
         )
+        self.assertEqual(cipd_entry["version"], "version:3@fixture-resolution")
         gcs_entry = next(item for item in first["entries"] if item["type"] == "gcs")
         self.assertEqual(
             gcs_entry["verificationLevel"],
@@ -280,6 +281,28 @@ class DependencyStateTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(
             dependency_state.DependencyStateError, "Installed CIPD metadata"
+        ):
+            self.collect()
+
+    def test_cipd_probe_revision_roundtrip_preserves_resolved_tag(self) -> None:
+        version = "version:3@httpd2.4.55-php8.2.5.chromium.6"
+        encoded = dependency_state._encode_cipd_probe_revision(version)
+        self.assertNotIn("@", encoded)
+        self.assertEqual(
+            dependency_state._decode_cipd_probe_revision(encoded, self.cipd_key),
+            version,
+        )
+
+    def test_rejects_truncated_mutable_cipd_sync_entry(self) -> None:
+        entries = dependency_state._load_gclient_entries(self.checkout)
+        entries[self.cipd_key] = (
+            f"{self.declarations[self.cipd_key]['url']}@version:3"
+        )
+        (self.checkout / ".gclient_entries").write_text(
+            "entries = " + repr(entries) + "\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(
+            dependency_state.DependencyStateError, "does not match"
         ):
             self.collect()
 
