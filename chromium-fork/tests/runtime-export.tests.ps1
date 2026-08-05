@@ -199,6 +199,34 @@ Size = 4096
 "@
 Assert-SafeSevenZipListing -Listing $validListing
 
+$pinnedListing = @"
+7-Zip technical listing
+----------
+Path = Chrome-bin
+Attributes = D
+Encrypted = -
+Size = 0
+
+Path = Chrome-bin\chrome.exe
+Attributes = A
+Encrypted = -
+Size = 4096
+"@
+Assert-SafeSevenZipListing -Listing $pinnedListing
+
+$conflictingDirectoryListing = @"
+7-Zip technical listing
+----------
+Path = Chrome-bin
+Folder = +
+Attributes = A
+Encrypted = -
+Size = 0
+"@
+Assert-Throws -Description "conflicting 7z directory metadata" -Action {
+  Assert-SafeSevenZipListing -Listing $conflictingDirectoryListing
+}
+
 $encryptedListing = $validListing.Replace(
   "Path = Chrome-bin\chrome.exe`r`nFolder = -`r`nEncrypted = -",
   "Path = Chrome-bin\chrome.exe`r`nFolder = -`r`nEncrypted = +"

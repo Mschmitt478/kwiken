@@ -27,7 +27,14 @@ class ExportRuntimeContractTests(unittest.TestCase):
         self.assertNotIn("python3.bat", self.script)
         self.assertIn('"python3.exe"', self.script)
         self.assertIn('"export",', self.script)
-        self.assertIn("$installedPythonTreeSha256 -ne $pythonRuntimeTreeSha256", self.script)
+        self.assertIn("Assert-InstalledPythonMatchesAuthenticatedRuntime", self.script)
+        self.assertIn(
+            "$relativePath -notmatch '(?:^|/)__pycache__/[^/]+\\.pyc$'",
+            self.script,
+        )
+        self.assertIn(
+            "$verifiedPaths.Count -ne $authenticatedFiles.Count", self.script
+        )
         self.assertIn('@("-I", "-S", "-B", $ToolPath)', self.script)
         self.assertIn("ExpectedRuntimeTreeSha256", self.script)
         self.assertNotIn(

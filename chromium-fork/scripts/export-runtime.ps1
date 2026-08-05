@@ -1551,7 +1551,27 @@ function Assert-SafeSevenZipListing {
         throw "$linkProperty entries are not allowed in Chromium chrome.7z: '$rawPath'"
       }
     }
-    $isDirectory = $record.ContainsKey("Folder") -and $record["Folder"] -eq "+"
+    $directoryClassifications = [Collections.Generic.List[bool]]::new()
+    if ($record.ContainsKey("Folder")) {
+      if ($record["Folder"] -notin @("+", "-")) {
+        throw "Invalid Folder property in Chromium chrome.7z: '$rawPath'"
+      }
+      $directoryClassifications.Add($record["Folder"] -eq "+")
+    }
+    if ($record.ContainsKey("Attributes")) {
+      $attributes = [string]$record["Attributes"]
+      if ($attributes -cnotmatch '^[DRHSA]+$') {
+        throw "Invalid Attributes property in Chromium chrome.7z: '$rawPath'"
+      }
+      $directoryClassifications.Add($attributes.Contains('D'))
+    }
+    if ($directoryClassifications.Count -lt 1) {
+      throw "Missing directory metadata in Chromium chrome.7z: '$rawPath'"
+    }
+    $isDirectory = $directoryClassifications[0]
+    if (@($directoryClassifications | Where-Object { $_ -ne $isDirectory }).Count -gt 0) {
+      throw "Conflicting directory metadata in Chromium chrome.7z: '$rawPath'"
+    }
     if ($isDirectory) {
       [void]$directoryPaths.Add($path)
     } else {
