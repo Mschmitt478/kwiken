@@ -256,6 +256,25 @@ Invoke-Test "source patches are discovered and applied in lexical order" {
     -Message "apply-patches.ps1 cannot recognize the complete reviewed stack on a rerun."
 }
 
+Invoke-Test "runtime export fingerprints the complete patch series" {
+  $exportScriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) `
+    "scripts\export-runtime.ps1"
+  $exportScript = [IO.File]::ReadAllText($exportScriptPath)
+  Assert-True -Condition ($exportScript -match 'Get-ChildItem[\s\S]+"\*\.patch"') `
+    -Message "export-runtime.ps1 does not discover the complete patch series."
+  Assert-True -Condition ($exportScript -match 'Sort-Object\s+-Property\s+Name') `
+    -Message "The runtime export patch series is not ordered deterministically."
+  Assert-True -Condition (
+      $exportScript -match '\$provenanceInputPaths\.Add\(\$patch\.FullName\)') `
+    -Message "The complete patch series is not included in runtime provenance."
+  Assert-True -Condition (
+      $exportScript -notmatch 'patches\\0001-kwiken-browser\.patch') `
+    -Message "export-runtime.ps1 is still hard-coded to the baseline patch."
+  Assert-True -Condition (
+      $exportScript -notmatch 'apply\s+--reverse\s+--check[\s\S]+\$patchPath') `
+    -Message "export-runtime.ps1 still reverse-checks one patch against the final stack."
+}
+
 Invoke-Test "all PowerShell scripts parse" {
   $scripts = Get-ChildItem (Join-Path (Split-Path -Parent $PSScriptRoot) "scripts\*.ps1")
   foreach ($scriptFile in $scripts) {

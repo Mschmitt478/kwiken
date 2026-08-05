@@ -1818,10 +1818,14 @@ Assert-DepotToolsCheckout -DepotToolsRoot $DepotToolsRoot
 Assert-CleanKwikenRepository
 $sourceDeltaSha256 = Assert-KwikenSourceDelta -SourceRoot $sourceRoot
 
-$patchPath = Join-Path $script:ForkRoot "patches\0001-kwiken-browser.patch"
-& git -C $sourceRoot apply --reverse --check --ignore-space-change $patchPath
-if ($LASTEXITCODE -ne 0) {
-  throw "The reviewed Kwiken source patch is not fully applied to $sourceRoot."
+$patchRoot = Join-Path $script:ForkRoot "patches"
+$patchPaths = @(Get-ChildItem -LiteralPath $patchRoot -Filter "*.patch" -File |
+    Sort-Object -Property Name)
+if ($patchPaths.Count -eq 0) {
+  throw "No reviewed Kwiken source patches were found in $patchRoot."
+}
+foreach ($patch in $patchPaths) {
+  Assert-NoReparsePath -Path $patch.FullName
 }
 $repositoryRevision = (& git -C $script:RepoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $repositoryRevision -notmatch '^[0-9a-f]{40}$') {
@@ -2099,8 +2103,10 @@ try {
     -TemporaryRoot (Join-Path $stagingRoot "raw-smoke")
 
   $provenanceInputPaths = [Collections.Generic.List[string]]::new()
+  foreach ($patch in $patchPaths) {
+    $provenanceInputPaths.Add($patch.FullName)
+  }
   foreach ($path in @(
-      $patchPath,
       $repoArgsPath,
       (Join-Path $script:ForkRoot "VERSION"),
       (Join-Path $script:ForkRoot "PACKAGE_REVISION"),
