@@ -1094,14 +1094,26 @@ def _hash_regular_file(
 
 
 def _archive_member_name(value: str, label: str) -> str | None:
-    if not isinstance(value, str) or not value or "\\" in value or "\x00" in value:
+    if (
+        not isinstance(value, str)
+        or not value
+        or "\\" in value
+        or "\x00" in value
+        or value.startswith("/")
+        or re.match(r"^[A-Za-z]:", value)
+    ):
         raise DependencyStateError(f"Unsafe {label}: {value!r}")
-    while value.startswith("./"):
-        value = value[2:]
     value = value.rstrip("/")
-    if value in {"", "."}:
+    normalized_parts: list[str] = []
+    for part in value.split("/"):
+        if part == ".":
+            continue
+        if part in {"", ".."}:
+            raise DependencyStateError(f"Unsafe {label}: {value!r}")
+        normalized_parts.append(part)
+    if not normalized_parts:
         return None
-    return _normalized_relative_path(value, label)
+    return _normalized_relative_path("/".join(normalized_parts), label)
 
 
 def _installed_tree_sha256(records: Sequence[Mapping[str, Any]]) -> str:

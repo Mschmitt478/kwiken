@@ -111,7 +111,7 @@ class DependencyStateTests(unittest.TestCase):
         self.gcs_directory.mkdir(parents=True)
         self.gcs_artifact = self.gcs_directory / f".{self.gcs_object}"
         tar_contents = b"verified extracted content\n"
-        member = tarfile.TarInfo("fixture/hello.txt")
+        member = tarfile.TarInfo("fixture/./hello.txt")
         member.size = len(tar_contents)
         member.mtime = 0
         with tarfile.open(self.gcs_artifact, "w:gz") as archive:
@@ -129,7 +129,7 @@ class DependencyStateTests(unittest.TestCase):
             "1\n", encoding="ascii"
         )
         (self.gcs_directory / f".{gcs_prefix}_content_names").write_text(
-            json.dumps(["fixture/hello.txt"]) + "\n", encoding="utf-8"
+            json.dumps([member.name]) + "\n", encoding="utf-8"
         )
         (self.checkout / ".gcs_entries").write_text(
             json.dumps(
@@ -253,6 +253,28 @@ class DependencyStateTests(unittest.TestCase):
                 label="bounded fixture",
                 maximum_stdout_bytes=512,
             )
+
+    def test_archive_member_normalization_is_safe_and_collision_ready(self) -> None:
+        self.assertEqual(
+            dependency_state._archive_member_name(
+                "meet-gpu-tests/./test_cases.json", "fixture member"
+            ),
+            "meet-gpu-tests/test_cases.json",
+        )
+        self.assertIsNone(
+            dependency_state._archive_member_name("./", "fixture member")
+        )
+        for unsafe in (
+            "../escape.txt",
+            "safe/../escape.txt",
+            "/absolute.txt",
+            "C:/absolute.txt",
+            "safe//ambiguous.txt",
+        ):
+            with self.subTest(unsafe=unsafe), self.assertRaisesRegex(
+                dependency_state.DependencyStateError, "Unsafe fixture member"
+            ):
+                dependency_state._archive_member_name(unsafe, "fixture member")
 
     def test_git_tree_listings_use_the_large_bounded_limit(self) -> None:
         original_run_git = dependency_state._run_git
