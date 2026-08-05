@@ -271,6 +271,15 @@ class RuntimeArchiveTests(unittest.TestCase):
         self.assertEqual(len(expected_paths), first["runtime"]["fileCount"])
 
     def test_pack_uses_compact_windows_transaction_paths(self) -> None:
+        longest_runtime_path = (
+            self.source
+            / VERSION
+            / "PrivacySandboxAttestationsPreloaded"
+            / "privacy-sandbox-attestations.dat"
+        )
+        longest_runtime_path.parent.mkdir(parents=True, exist_ok=True)
+        longest_runtime_path.write_bytes(b"attestations\n")
+
         output_parent = self.root / "release"
         while len(os.fspath(output_parent.absolute())) < 150:
             output_parent /= "nested-transaction-path"
@@ -298,7 +307,7 @@ class RuntimeArchiveTests(unittest.TestCase):
         ), mock.patch.object(
             runtime_archive, "_new_atomic_path", side_effect=capture_atomic_path
         ):
-            self.pack(archive, manifest)
+            packed_manifest = self.pack(archive, manifest)
 
         self.assertEqual(1, len(transaction_directories))
         self.assertEqual(1, len(atomic_paths))
@@ -315,6 +324,45 @@ class RuntimeArchiveTests(unittest.TestCase):
         )
         self.assertNotIn(archive.name, transaction_directory.name)
         self.assertNotIn(manifest.name, atomic_paths[0].name)
+
+        extraction_parent = self.root / "verify"
+        extraction_padding = (
+            105 - len(os.fspath(extraction_parent.absolute())) - 1
+        )
+        if extraction_padding > 0:
+            extraction_parent /= "x" * extraction_padding
+        extraction_parent.mkdir(parents=True)
+        extraction_destination = extraction_parent / "verified-extracted"
+        extraction_paths: list[Path] = []
+        real_new_extraction_path = runtime_archive._new_extraction_path
+
+        def capture_extraction_path(destination: Path) -> Path:
+            created = real_new_extraction_path(destination)
+            extraction_paths.append(created)
+            return created
+
+        with mock.patch.object(
+            runtime_archive,
+            "_new_extraction_path",
+            side_effect=capture_extraction_path,
+        ):
+            runtime_archive.verify_runtime_archive(
+                archive,
+                manifest,
+                extract_to=extraction_destination,
+                expectations=trusted_expectations(archive),
+            )
+
+        self.assertEqual(1, len(extraction_paths))
+        longest_record = max(
+            (record["path"] for record in packed_manifest["runtime"]["files"]),
+            key=len,
+        )
+        deepest_target = extraction_paths[0].joinpath(
+            ARCHIVE_ROOT, *longest_record.split("/")
+        )
+        self.assertLessEqual(len(os.fspath(deepest_target.absolute())), 259)
+        self.assertNotIn(extraction_destination.name, extraction_paths[0].name)
 
     def test_cli_pack_and_verify_contract(self) -> None:
         state = dependency_state()

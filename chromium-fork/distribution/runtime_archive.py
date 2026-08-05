@@ -355,6 +355,10 @@ def _new_atomic_path(destination: Path) -> Path:
     )
 
 
+def _new_extraction_path(destination: Path) -> Path:
+    return destination.with_name(f".kwiken-extract-{uuid.uuid4().hex[:12]}")
+
+
 def _write_zip_member(
     archive: zipfile.ZipFile,
     archive_name: str,
@@ -1765,9 +1769,7 @@ def _extract_verified(
     _ensure_no_reparse_ancestors(destination.parent)
     destination.parent.mkdir(parents=True, exist_ok=True)
     _ensure_no_reparse_ancestors(destination.parent)
-    temporary = destination.with_name(
-        f".{destination.name}.{os.getpid()}.{uuid.uuid4().hex}.extracting"
-    )
+    temporary = _new_extraction_path(destination)
     if os.path.lexists(temporary):
         raise RuntimeArchiveError(f"Temporary extraction path already exists: {temporary}")
     temporary.mkdir()

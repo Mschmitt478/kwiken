@@ -625,7 +625,7 @@ function Remove-ExportStagingDirectory {
       $fullParent,
       [StringComparison]::OrdinalIgnoreCase
     ) -or
-      (Split-Path -Leaf $fullPath) -notmatch '^\.Kwiken-Runtime-Export-[0-9a-f]{32}\.staging$') {
+      (Split-Path -Leaf $fullPath) -notmatch '^\.kwiken-stage-[0-9a-f]{12}$') {
     throw "Refusing to remove an unexpected release staging directory: $fullPath"
   }
   if (Test-Path -LiteralPath $fullPath) {
@@ -2129,7 +2129,7 @@ if (Get-Item -LiteralPath $finalDirectory -Force -ErrorAction SilentlyContinue) 
   throw "Refusing to overwrite existing runtime release: $finalDirectory"
 }
 $stagingRoot = Join-Path $OutputDirectory `
-  (".Kwiken-Runtime-Export-" + [Guid]::NewGuid().ToString("N") + ".staging")
+  (".kwiken-stage-" + [Guid]::NewGuid().ToString("N").Substring(0, 12))
 New-PrivateDirectory -Path $stagingRoot
 $published = $false
 $exportFailure = $null

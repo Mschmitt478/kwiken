@@ -333,7 +333,7 @@ try {
   }
 
   $guardedStaging = Join-Path $temporaryRoot `
-    (".Kwiken-Runtime-Export-" + [Guid]::NewGuid().ToString("N") + ".staging")
+    (".kwiken-stage-" + [Guid]::NewGuid().ToString("N").Substring(0, 12))
   New-Item -ItemType Directory -Path $guardedStaging | Out-Null
   Remove-ExportStagingDirectory -Path $guardedStaging `
     -Parent ($temporaryRoot + [IO.Path]::DirectorySeparatorChar)
