@@ -640,3 +640,23 @@ index 060453a7150693e1e7742299c9ce24a8f9781193..a439cac55aa94952fdce3fd3f562b1d9
  
  // Controls whether site isolation should use origins instead of scheme and
  // eTLD+1.
+diff --git a/chrome/browser/ui/startup/startup_browser_creator_impl.cc b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+index a93e7d7e7be59b3be27b33cd6098edb37f62bf44..dd3fd47e0b2c45ba146d7493225b7f724b988d74 100644
+--- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+@@ -531,6 +531,15 @@ void StartupBrowserCreatorImpl::DetermineURLsAndLaunch(
+       StartupBrowserCreator::GetSessionStartupPref(*command_line_, profile_),
+       behavior_options);
+ 
++  // Headless commands are dispatched by OpenTabsInBrowser(). Kwiken defaults
++  // regular profiles to restoring the previous session, but synchronous
++  // restore opens the command-line URL directly and bypasses that dispatcher.
++  // Keep session restore as the interactive default while ensuring automation
++  // commands execute through Chromium's dedicated headless command processor.
++  if (headless::ShouldProcessHeadlessCommands()) {
++    behavior = BrowserOpenBehavior::NEW;
++  }
++
+   SessionRestore::BehaviorBitmask restore_options =
+       restore_tabbed_browser ? SessionRestore::RESTORE_BROWSER : 0;
+   if (behavior == BrowserOpenBehavior::SYNCHRONOUS_RESTORE) {

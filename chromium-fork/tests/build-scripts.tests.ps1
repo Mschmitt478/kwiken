@@ -256,6 +256,18 @@ Invoke-Test "source patches are discovered and applied in lexical order" {
     -Message "apply-patches.ps1 cannot recognize the complete reviewed stack on a rerun."
 }
 
+Invoke-Test "headless commands bypass the interactive restore default" {
+  $baselinePatchPath = Join-Path (Split-Path -Parent $PSScriptRoot) `
+    "patches\0001-kwiken-browser.patch"
+  $baselinePatch = [IO.File]::ReadAllText($baselinePatchPath)
+  Assert-True -Condition (
+      $baselinePatch -match '(?m)^diff --git a/chrome/browser/ui/startup/startup_browser_creator_impl\.cc b/') `
+    -Message "The baseline patch does not carry the headless startup routing fix."
+  Assert-True -Condition (
+      $baselinePatch -match 'headless::ShouldProcessHeadlessCommands\(\)[\s\S]{0,300}behavior = BrowserOpenBehavior::NEW;[\s\S]{0,300}SessionRestore::BehaviorBitmask') `
+    -Message "Headless commands can be diverted through synchronous session restore."
+}
+
 Invoke-Test "runtime export fingerprints the complete patch series" {
   $exportScriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) `
     "scripts\export-runtime.ps1"
