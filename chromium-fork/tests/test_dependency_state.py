@@ -309,6 +309,18 @@ class DependencyStateTests(unittest.TestCase):
             )
         )
 
+    def test_duplicate_dependency_identity_diagnostic_is_deterministic(self) -> None:
+        entries = [
+            {"type": "git", "path": "src", "revision": "b" * 40},
+            {"type": "gcs", "path": "src/data", "object": "fixture.zip"},
+            {"type": "git", "path": "src", "revision": "a" * 40},
+            {"type": "git", "path": "src", "revision": "c" * 40},
+        ]
+        self.assertEqual(
+            dependency_state._duplicate_entry_identities(entries),
+            [("git", "src", "")],
+        )
+
     def test_rejects_tracked_dependency_modification(self) -> None:
         (self.dependency / "dependency.txt").write_text(
             "modified\n", encoding="utf-8", newline="\n"
@@ -472,6 +484,115 @@ class DependencyStateTests(unittest.TestCase):
         )
         self.assertEqual(submodule["path"], "src/modules/fixture")
         self.assertEqual(submodule["revision"], submodule_revision)
+
+    def test_nested_declared_submodules_are_recorded_once(self) -> None:
+        leaf_origin = self.root / "leaf-origin"
+        leaf_revision = initialize_repository(leaf_origin, {"leaf.txt": "leaf\n"})
+        middle_origin = self.root / "middle-origin"
+        initialize_repository(middle_origin, {"middle.txt": "middle\n"})
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "protocol.file.allow=always",
+                "-c",
+                "core.autocrlf=false",
+                "-C",
+                str(middle_origin),
+                "submodule",
+                "add",
+                "--quiet",
+                str(leaf_origin),
+                "nested/leaf",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        run_git(middle_origin, "add", ".gitmodules", "nested/leaf")
+        run_git(middle_origin, "commit", "--quiet", "-m", "add leaf")
+        middle_revision = run_git(middle_origin, "rev-parse", "HEAD")
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "protocol.file.allow=always",
+                "-c",
+                "core.autocrlf=false",
+                "-C",
+                str(self.source),
+                "submodule",
+                "add",
+                "--quiet",
+                str(middle_origin),
+                "modules/middle",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        middle_checkout = self.source / "modules" / "middle"
+        run_git(middle_checkout, "config", "core.autocrlf", "false")
+        run_git(middle_checkout, "reset", "--hard", "--quiet")
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "protocol.file.allow=always",
+                "-c",
+                "core.autocrlf=false",
+                "-C",
+                str(self.source),
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+                "modules/middle",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        leaf_checkout = middle_checkout / "nested" / "leaf"
+        run_git(leaf_checkout, "config", "core.autocrlf", "false")
+        run_git(leaf_checkout, "reset", "--hard", "--quiet")
+        run_git(self.source, "add", ".gitmodules", "modules/middle")
+        run_git(self.source, "commit", "--quiet", "-m", "add middle")
+        self.source_revision = run_git(self.source, "rev-parse", "HEAD")
+        self.expected["src"]["rev"] = self.source_revision
+        self.actual["src"]["rev"] = self.source_revision
+        self.declarations["src"]["rev"] = self.source_revision
+        nested_dependencies = {
+            "src/modules/middle": {
+                "url": middle_origin.as_uri(),
+                "rev": middle_revision,
+            },
+            "src/modules/middle/nested/leaf": {
+                "url": leaf_origin.as_uri(),
+                "rev": leaf_revision,
+            },
+        }
+        gclient_entries = dependency_state._load_gclient_entries(self.checkout)
+        for path, record in nested_dependencies.items():
+            self.expected[path] = dict(record)
+            self.actual[path] = dict(record)
+            self.declarations[path] = dict(record)
+            gclient_entries[path] = f"{record['url']}@{record['rev']}"
+        (self.checkout / ".gclient_entries").write_text(
+            "entries = " + repr(gclient_entries) + "\n", encoding="utf-8"
+        )
+        self.source_delta = dependency_state._source_delta_sha256(
+            self.source, self.source_revision, timeout_seconds=10
+        )
+
+        manifest = self.collect()
+        submodules = [
+            item for item in manifest["entries"] if item["type"] == "git-submodule"
+        ]
+        self.assertEqual(
+            [item["path"] for item in submodules],
+            ["src/modules/middle", "src/modules/middle/nested/leaf"],
+        )
 
     def test_inactive_submodule_must_be_absent_or_empty(self) -> None:
         origin = self.root / "inactive-submodule-origin"

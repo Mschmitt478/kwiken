@@ -728,10 +728,7 @@ def _validate_submodules(
     *,
     declared_dependency_paths: Sequence[str],
     timeout_seconds: int,
-    seen: set[str] | None = None,
 ) -> list[dict[str, Any]]:
-    if seen is None:
-        seen = set()
     index_gitlinks = _gitlinks_from_index(repository, timeout_seconds=timeout_seconds)
     head_gitlinks = _gitlinks_from_head(repository, timeout_seconds=timeout_seconds)
     if index_gitlinks != head_gitlinks:
@@ -740,9 +737,6 @@ def _validate_submodules(
     entries: list[dict[str, Any]] = []
     for submodule_path, revision in sorted(head_gitlinks.items()):
         full_relative = f"{repository_path}/{submodule_path}"
-        if full_relative in seen:
-            raise DependencyStateError(f"Duplicate or recursive Git submodule: {full_relative}")
-        seen.add(full_relative)
         submodule = checkout_root.joinpath(*full_relative.split("/"))
         if full_relative not in declared_dependency_paths:
             if not os.path.lexists(submodule):
@@ -807,16 +801,6 @@ def _validate_submodules(
                 "type": "git-submodule",
                 "workingTreeSha256": EMPTY_SHA256,
             }
-        )
-        entries.extend(
-            _validate_submodules(
-                checkout_root,
-                submodule,
-                full_relative,
-                declared_dependency_paths=declared_dependency_paths,
-                timeout_seconds=timeout_seconds,
-                seen=seen,
-            )
         )
     return entries
 
@@ -1348,6 +1332,24 @@ def _entry_sort_key(entry: Mapping[str, Any]) -> tuple[str, str, str, str]:
     )
 
 
+def _duplicate_entry_identities(
+    entries: Sequence[Mapping[str, Any]],
+) -> list[tuple[str, str, str]]:
+    seen: set[tuple[str, str, str]] = set()
+    duplicates: set[tuple[str, str, str]] = set()
+    for entry in entries:
+        identity = (
+            str(entry.get("type", "")),
+            str(entry.get("path", "")),
+            str(entry.get("package", entry.get("object", ""))),
+        )
+        if identity in seen:
+            duplicates.add(identity)
+        else:
+            seen.add(identity)
+    return sorted(duplicates)
+
+
 def dependency_tree_sha256(entries: Sequence[Mapping[str, Any]]) -> str:
     encoded = json.dumps(
         list(entries), ensure_ascii=False, separators=(",", ":"), sort_keys=True
@@ -1545,12 +1547,12 @@ def collect_dependency_state(
         )
 
     entries.sort(key=_entry_sort_key)
-    identities = [
-        (entry["type"], entry["path"], entry.get("package", entry.get("object", "")))
-        for entry in entries
-    ]
-    if len(identities) != len(set(identities)):
-        raise DependencyStateError("Dependency-state entries contain duplicate identities.")
+    duplicate_identities = _duplicate_entry_identities(entries)
+    if duplicate_identities:
+        raise DependencyStateError(
+            f"Dependency-state entries contain duplicate identities: "
+            f"{duplicate_identities}"
+        )
     summary = {
         "cipdPackages": sum(entry["type"] == "cipd" for entry in entries),
         "gcsObjects": sum(entry["type"] == "gcs" for entry in entries),
