@@ -423,8 +423,13 @@ function New-PrivateDirectory {
   }
   Assert-NoReparseAncestors -Path (Split-Path -Parent $Path)
   $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
-  $sddl = "O:{0}G:{0}D:P(A;OICI;FA;;;{0})(A;OICI;FA;;;SY)" -f `
-    $currentSid.Value
+  # Chromium's Windows sandbox uses S-1-5-12 as a restricting SID. A
+  # restricted token must pass the DACL check both as the current user and as
+  # Restricted Code, so this read/execute ACE preserves user isolation while
+  # allowing the sandboxed child to map the staged executable and DLLs.
+  $restrictedCodeSid = [Security.Principal.SecurityIdentifier]::new("S-1-5-12")
+  $sddl = "O:{0}G:{0}D:P(A;OICI;FA;;;{0})(A;OICI;FA;;;SY)(A;OICI;GRGX;;;{1})" -f `
+    $currentSid.Value, $restrictedCodeSid.Value
   $created = $false
   try {
     Initialize-KwikenPrivateDirectoryInterop
@@ -432,7 +437,33 @@ function New-PrivateDirectory {
     $created = $true
     $acl = Get-Acl -LiteralPath $Path
     $actualOwner = $acl.GetOwner([Security.Principal.SecurityIdentifier])
-    if ($actualOwner -ne $currentSid -or -not $acl.AreAccessRulesProtected) {
+    $restrictedRules = @($acl.GetAccessRules(
+        $true,
+        $true,
+        [Security.Principal.SecurityIdentifier]
+      ) | Where-Object {
+        $_.IdentityReference -eq $restrictedCodeSid -and
+          $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow
+      })
+    $requiredRights = [Security.AccessControl.FileSystemRights]::ReadAndExecute
+    $forbiddenRights = [Security.AccessControl.FileSystemRights]::WriteData -bor
+      [Security.AccessControl.FileSystemRights]::AppendData -bor
+      [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+      [Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+      [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+      [Security.AccessControl.FileSystemRights]::Delete -bor
+      [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+      [Security.AccessControl.FileSystemRights]::TakeOwnership
+    $expectedInheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+      [Security.AccessControl.InheritanceFlags]::ObjectInherit
+    if ($actualOwner -ne $currentSid -or -not $acl.AreAccessRulesProtected -or
+        $restrictedRules.Count -ne 1 -or
+        ($restrictedRules[0].FileSystemRights -band $requiredRights) -ne
+          $requiredRights -or
+        ($restrictedRules[0].FileSystemRights -band $forbiddenRights) -ne 0 -or
+        $restrictedRules[0].InheritanceFlags -ne $expectedInheritance -or
+        $restrictedRules[0].PropagationFlags -ne
+          [Security.AccessControl.PropagationFlags]::None) {
       throw "Private staging ACL could not be established for $Path."
     }
   } catch {

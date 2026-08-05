@@ -282,6 +282,23 @@ try {
   if ($actualOwner -ne $expectedOwner) {
     throw "Private staging directory has the wrong owner."
   }
+  $restrictedCodeSid = [Security.Principal.SecurityIdentifier]::new("S-1-5-12")
+  $restrictedRules = @((Get-Acl -LiteralPath $privatePath).GetAccessRules(
+      $true,
+      $true,
+      [Security.Principal.SecurityIdentifier]
+    ) | Where-Object {
+      $_.IdentityReference -eq $restrictedCodeSid -and
+        $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow
+    })
+  if ($restrictedRules.Count -ne 1 -or
+      ($restrictedRules[0].FileSystemRights -band
+        [Security.AccessControl.FileSystemRights]::ReadAndExecute) -ne
+        [Security.AccessControl.FileSystemRights]::ReadAndExecute -or
+      ($restrictedRules[0].FileSystemRights -band
+        [Security.AccessControl.FileSystemRights]::WriteData) -ne 0) {
+    throw "Private staging does not grant Restricted Code read/execute-only access."
+  }
 
   $publishParent = Join-Path $temporaryRoot "publish-parent"
   $privatePublication = Join-Path $privatePath "publication"

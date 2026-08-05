@@ -99,6 +99,8 @@ class ExportRuntimeContractTests(unittest.TestCase):
         self.assertIn("New-PrivateDirectory -Path $stagingRoot", self.script)
         self.assertIn("ConvertStringSecurityDescriptorToSecurityDescriptor", self.script)
         self.assertIn("D:P(A;OICI;FA", self.script)
+        self.assertIn("S-1-5-12", self.script)
+        self.assertNotIn('"--no-sandbox"', self.script)
 
     def test_all_manifest_native_fields_are_repeated_as_verify_expectations(self) -> None:
         pairs = (
