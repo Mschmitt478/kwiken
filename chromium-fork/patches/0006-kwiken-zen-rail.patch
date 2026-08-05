@@ -523,7 +523,7 @@ index 50f7bbb8e79df391e060e8006459bd82327b9947..94c474433bd1f2d5092916d4763155bc
  
    void OnCollapseStateChanged(tabs::VerticalTabStripCollapseState state);
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc
-index 63a17434753087cc0f0f31ecf3b17fb0264a9b04..f894acd98c9beb168bfca88092b4eaf9eaab8caf 100644
+index 63a17434753087cc0f0f31ecf3b17fb0264a9b04..0357d75a3dbf194e4c34bdb6d1ee3cfcdf2ddbe7 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc
 @@ -6,14 +6,17 @@
@@ -575,8 +575,8 @@ index 63a17434753087cc0f0f31ecf3b17fb0264a9b04..f894acd98c9beb168bfca88092b4eaf9
 +  auto* const new_tab_button = views::AsViewClass<TabStripFlatEdgeButton>(
 +      region_view()->GetBottomContainer()->children().front());
 +  ASSERT_TRUE(new_tab_button);
-+  EXPECT_TRUE(new_tab_button->label()->GetVisible());
-+  EXPECT_FALSE(new_tab_button->label()->GetText().empty());
++  // TabStripFlatEdgeButton clears its public text when the label is hidden.
++  EXPECT_FALSE(new_tab_button->GetText().empty());
 +}
 +
 +IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest,

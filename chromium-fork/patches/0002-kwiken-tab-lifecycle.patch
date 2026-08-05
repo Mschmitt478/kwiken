@@ -419,18 +419,19 @@ index 6fcbab81cc34b2c40ea6f5b6c0b8bacbcf3da49f..aac534e5d86f2d81b9e5252d6dd9afa0
                        IDS_TAB_CXMENU_DUPLICATE);
    SetElementIdentifierAt(GetItemCount() - 1, kDuplicateMenuItem);
 diff --git a/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc b/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
-index 60704c8a323c85febcc0fe4d375739604726e2c5..8da8aecc3d6f879c20eff1974868d48f3f7e8cbe 100644
+index 60704c8a323c85febcc0fe4d375739604726e2c5..d8d38a39b2b59ad6a61aed33b770fe281ef13184 100644
 --- a/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
 +++ b/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
-@@ -20,6 +20,7 @@
+@@ -20,6 +20,8 @@
  #include "chrome/browser/ui/browser.h"
  #include "chrome/browser/ui/browser_commands.h"
++#include "chrome/browser/ui/browser_tabstrip.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 +#include "chrome/browser/ui/tab_ui_helper.h"
  #include "chrome/browser/ui/tabs/existing_base_sub_menu_model.h"
  #include "chrome/browser/ui/tabs/features.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
-@@ -46,7 +47,10 @@
+@@ -46,7 +48,10 @@
  #include "components/tabs/public/split_tab_data.h"
  #include "content/public/browser/web_contents.h"
  #include "content/public/test/browser_test.h"
@@ -441,7 +442,7 @@ index 60704c8a323c85febcc0fe4d375739604726e2c5..8da8aecc3d6f879c20eff1974868d48f
  #include "ui/base/models/menu_model.h"
  #include "ui/base/mojom/window_show_state.mojom.h"
  #include "ui/base/ui_base_features.h"
-@@ -93,6 +97,197 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, Basics) {
+@@ -93,6 +98,197 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, Basics) {
    EXPECT_EQ(item_count, delegate_.enable_count_);
  }
  

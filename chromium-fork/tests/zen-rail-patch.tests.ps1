@@ -160,7 +160,9 @@ Assert-PatchMatch "folder header keeps neutral background" `
 Assert-PatchMatch "folder header carries selected hue in glyph" `
   'folder_icon_->SetImage[\s\S]+kFolderFlippableIcon[\s\S]+kFolderChromeRefreshOldIcon[\s\S]+group_color'
 Assert-PatchMatch "expanded rail navigation C++ coverage" `
-  'ExpandedRailKeepsZenNavigationCues[\s\S]+tabs_separator_for_testing\(\)->GetVisible\(\)[\s\S]+label\(\)->GetVisible\(\)'
+  'ExpandedRailKeepsZenNavigationCues[\s\S]+tabs_separator_for_testing\(\)->GetVisible\(\)[\s\S]+new_tab_button->GetText\(\)\.empty\(\)'
+Assert-PatchDoesNotMatch "tests do not access protected label internals" `
+  'new_tab_button->label\(\)'
 Assert-PatchMatch "neutral folder C++ coverage" `
   'GroupHeaderUsesNeutralFolderTreatment[\s\S]+GetBackground\(\)->color\(\)[\s\S]+folder_icon_for_testing\(\)'
 

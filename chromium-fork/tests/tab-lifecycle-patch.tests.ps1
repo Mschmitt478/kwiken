@@ -130,6 +130,8 @@ Assert-PatchMatch "crashed-renderer safety coverage" `
   'UserUnloadRejectsCrashedRenderer[\s\S]+SetIsCrashed'
 Assert-PatchMatch "beforeunload browser safety coverage" `
   'LifecycleCommandRejectsBeforeUnloadTab[\s\S]+ExecJs[\s\S]+NeedToFireBeforeUnloadOrUnloadEvents'
+Assert-PatchMatch "AddTabAt browser helper declaration" `
+  '#include "chrome/browser/ui/browser_tabstrip\.h"'
 Assert-PatchMatch "ordinary-tab menu suppression coverage" `
   'LifecycleCommandsAreHiddenForOrdinaryTab[\s\S]+ASSERT_FALSE\(active_tab->IsPinned\(\)\)[\s\S]+CommandUnloadTab[\s\S]+CommandLoadTab'
 Assert-PatchMatch "active-tab coverage uses durable scope" `
