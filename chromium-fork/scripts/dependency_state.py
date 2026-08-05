@@ -744,6 +744,17 @@ def _validate_submodules(
             raise DependencyStateError(f"Duplicate or recursive Git submodule: {full_relative}")
         seen.add(full_relative)
         submodule = checkout_root.joinpath(*full_relative.split("/"))
+        if full_relative not in declared_dependency_paths:
+            if not os.path.lexists(submodule):
+                continue
+            _assert_plain_path(submodule, directory=True)
+            try:
+                next(submodule.iterdir())
+            except StopIteration:
+                continue
+            raise DependencyStateError(
+                f"Inactive Git submodule contains undeclared content: {full_relative}"
+            )
         _assert_plain_path(submodule, directory=True)
         submodule_head = _run_git(
             submodule,

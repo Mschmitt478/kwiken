@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -412,6 +413,21 @@ class DependencyStateTests(unittest.TestCase):
         self.expected["src"]["rev"] = self.source_revision
         self.actual["src"]["rev"] = self.source_revision
         self.declarations["src"]["rev"] = self.source_revision
+        submodule_path = "src/modules/fixture"
+        submodule_record = {
+            "url": origin.as_uri(),
+            "rev": submodule_revision,
+        }
+        self.expected[submodule_path] = dict(submodule_record)
+        self.actual[submodule_path] = dict(submodule_record)
+        self.declarations[submodule_path] = dict(submodule_record)
+        gclient_entries = dependency_state._load_gclient_entries(self.checkout)
+        gclient_entries[submodule_path] = (
+            f"{submodule_record['url']}@{submodule_record['rev']}"
+        )
+        (self.checkout / ".gclient_entries").write_text(
+            "entries = " + repr(gclient_entries) + "\n", encoding="utf-8"
+        )
         self.source_delta = dependency_state._source_delta_sha256(
             self.source, self.source_revision, timeout_seconds=10
         )
@@ -423,6 +439,50 @@ class DependencyStateTests(unittest.TestCase):
         )
         self.assertEqual(submodule["path"], "src/modules/fixture")
         self.assertEqual(submodule["revision"], submodule_revision)
+
+    def test_inactive_submodule_must_be_absent_or_empty(self) -> None:
+        origin = self.root / "inactive-submodule-origin"
+        initialize_repository(origin, {"internal.txt": "internal\n"})
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "protocol.file.allow=always",
+                "-c",
+                "core.autocrlf=false",
+                "-C",
+                str(self.source),
+                "submodule",
+                "add",
+                "--quiet",
+                str(origin),
+                "internal/conditional",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        run_git(self.source, "add", ".gitmodules", "internal/conditional")
+        run_git(self.source, "commit", "--quiet", "-m", "add inactive submodule")
+        self.source_revision = run_git(self.source, "rev-parse", "HEAD")
+        self.expected["src"]["rev"] = self.source_revision
+        self.actual["src"]["rev"] = self.source_revision
+        self.declarations["src"]["rev"] = self.source_revision
+        inactive_path = self.source / "internal" / "conditional"
+        shutil.rmtree(inactive_path)
+        inactive_path.mkdir(parents=True)
+        self.source_delta = dependency_state._source_delta_sha256(
+            self.source, self.source_revision, timeout_seconds=10
+        )
+
+        self.collect()
+        (inactive_path / "undeclared.txt").write_text(
+            "undeclared\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(
+            dependency_state.DependencyStateError, "undeclared content"
+        ):
+            self.collect()
 
     def test_depot_tools_validation_ignores_user_excludes(self) -> None:
         tools = self.root / "depot_tools"
