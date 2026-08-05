@@ -60,6 +60,7 @@ Import-ExportFunction -Name "Assert-NoReparseAncestors"
 Import-ExportFunction -Name "Assert-NoReparsePath"
 Import-ExportFunction -Name "Copy-FileSnapshot"
 Import-ExportFunction -Name "Get-DirectoryTreeSha256"
+Import-ExportFunction -Name "Assert-InstalledPythonMatchesAuthenticatedRuntime"
 Import-ExportFunction -Name "Copy-DirectorySnapshot"
 Import-ExportFunction -Name "Assert-PythonSnapshot"
 Import-ExportFunction -Name "Initialize-KwikenJobInterop"
@@ -306,6 +307,47 @@ try {
     Assert-PythonSnapshot -PythonPath (Join-Path $toolSnapshot "python3.exe") `
       -RuntimeRoot $toolSnapshot -ExpectedExeSha256 $toolExeHash `
       -ExpectedRuntimeTreeSha256 $toolTreeHash
+  }
+
+  $authenticatedPython = Join-Path $temporaryRoot "authenticated-python"
+  $installedPython = Join-Path $temporaryRoot "installed-python"
+  New-Item -ItemType Directory -Path (Join-Path $authenticatedPython "Lib") `
+    -Force | Out-Null
+  New-Item -ItemType Directory -Path (Join-Path $installedPython "Lib") `
+    -Force | Out-Null
+  foreach ($relativePath in @("python3.exe", "Lib\module.py")) {
+    $authenticatedPath = Join-Path $authenticatedPython $relativePath
+    $installedPath = Join-Path $installedPython $relativePath
+    [IO.File]::WriteAllText(
+      $authenticatedPath,
+      "authenticated $relativePath",
+      [Text.UTF8Encoding]::new($false)
+    )
+    [IO.File]::WriteAllText(
+      $installedPath,
+      "authenticated $relativePath",
+      [Text.UTF8Encoding]::new($false)
+    )
+  }
+  $bytecodePath = Join-Path $installedPython `
+    "Lib\__pycache__\module.cpython-311.pyc"
+  New-Item -ItemType Directory -Path (Split-Path -Parent $bytecodePath) `
+    -Force | Out-Null
+  [IO.File]::WriteAllBytes($bytecodePath, [byte[]](1, 2, 3))
+  Assert-InstalledPythonMatchesAuthenticatedRuntime `
+    -InstalledRoot $installedPython -AuthenticatedRoot $authenticatedPython
+
+  $unexpectedPythonFile = Join-Path $installedPython "Lib\injected.py"
+  [IO.File]::WriteAllText($unexpectedPythonFile, "injected")
+  Assert-Throws -Description "unauthenticated Python file" -Action {
+    Assert-InstalledPythonMatchesAuthenticatedRuntime `
+      -InstalledRoot $installedPython -AuthenticatedRoot $authenticatedPython
+  }
+  [IO.File]::Delete($unexpectedPythonFile)
+  [IO.File]::AppendAllText((Join-Path $installedPython "Lib\module.py"), "changed")
+  Assert-Throws -Description "changed authenticated Python file" -Action {
+    Assert-InstalledPythonMatchesAuthenticatedRuntime `
+      -InstalledRoot $installedPython -AuthenticatedRoot $authenticatedPython
   }
 
   $pePath = Join-Path $temporaryRoot "amd64.exe"

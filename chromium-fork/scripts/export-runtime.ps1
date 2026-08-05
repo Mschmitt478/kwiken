@@ -1314,6 +1314,69 @@ function Get-DirectoryTreeSha256 {
   }
 }
 
+function Assert-InstalledPythonMatchesAuthenticatedRuntime {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$InstalledRoot,
+    [Parameter(Mandatory = $true)]
+    [string]$AuthenticatedRoot
+  )
+
+  Assert-NoReparsePath -Path $InstalledRoot -Recurse
+  Assert-NoReparsePath -Path $AuthenticatedRoot -Recurse
+  $installedFullRoot = [IO.Path]::GetFullPath($InstalledRoot).TrimEnd('\')
+  $authenticatedFullRoot = [IO.Path]::GetFullPath(
+    $AuthenticatedRoot
+  ).TrimEnd('\')
+  $authenticatedFiles = [Collections.Generic.Dictionary[string, object]]::new(
+    [StringComparer]::Ordinal
+  )
+  foreach ($file in Get-ChildItem -LiteralPath $authenticatedFullRoot -File `
+      -Recurse -Force) {
+    $relativePath = $file.FullName.Substring(
+      $authenticatedFullRoot.Length + 1
+    ).Replace('\', '/')
+    if (-not $authenticatedFiles.TryAdd($relativePath, $file)) {
+      throw "Authenticated Python runtime contains a duplicate path: $relativePath"
+    }
+  }
+  if ($authenticatedFiles.Count -eq 0) {
+    throw "Authenticated Python runtime is empty: $authenticatedFullRoot"
+  }
+
+  $verifiedPaths = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::Ordinal
+  )
+  foreach ($installedFile in Get-ChildItem -LiteralPath $installedFullRoot -File `
+      -Recurse -Force) {
+    $relativePath = $installedFile.FullName.Substring(
+      $installedFullRoot.Length + 1
+    ).Replace('\', '/')
+    $authenticatedFile = $null
+    if (-not $authenticatedFiles.TryGetValue(
+        $relativePath,
+        [ref]$authenticatedFile
+      )) {
+      if ($relativePath -notmatch '(?:^|/)__pycache__/[^/]+\.pyc$') {
+        throw "Installed depot_tools Python has an unauthenticated file: $relativePath"
+      }
+      continue
+    }
+    if ($installedFile.Length -ne $authenticatedFile.Length -or
+        (Get-LowerSha256 -Path $installedFile.FullName) -ne
+          (Get-LowerSha256 -Path $authenticatedFile.FullName)) {
+      throw "Installed depot_tools Python file differs from CIPD: $relativePath"
+    }
+    [void]$verifiedPaths.Add($relativePath)
+  }
+  if ($verifiedPaths.Count -ne $authenticatedFiles.Count) {
+    $missing = @($authenticatedFiles.Keys | Where-Object {
+        -not $verifiedPaths.Contains($_)
+      } | Sort-Object)
+    throw "Installed depot_tools Python is missing authenticated files: $($missing -join ', ')"
+  }
+}
+
 function Copy-DirectorySnapshot {
   param(
     [Parameter(Mandatory = $true)]
@@ -1884,6 +1947,15 @@ if ((Get-LowerSha256 -Path $outputArgsPath) -ne $gnArgsSha256) {
 
 $buildArguments = @("-C", "out/Kwiken", "chrome", "mini_installer", "-j", [string]$Jobs)
 $buildCommandLine = "autoninja -C out/Kwiken chrome mini_installer -j $Jobs"
+$buildPythonCachePrefix = Join-Path ([IO.Path]::GetTempPath()) `
+  ("Kwiken-Python-Cache-" + [Guid]::NewGuid().ToString("N"))
+if (Test-Path -LiteralPath $buildPythonCachePrefix) {
+  throw "Refusing to reuse build Python cache prefix: $buildPythonCachePrefix"
+}
+Assert-PathOutsideRoot -Path $buildPythonCachePrefix -Root $ChromiumRoot `
+  -Description "Build Python cache prefix"
+Assert-PathOutsideRoot -Path $buildPythonCachePrefix -Root $DepotToolsRoot `
+  -Description "Build Python cache prefix"
 $environmentSnapshot = New-ChromiumBuildEnvironmentSnapshot
 $sanitizedBuildEnvironment = @{}
 foreach ($name in @([Environment]::GetEnvironmentVariables(
@@ -1907,6 +1979,16 @@ foreach ($name in @([Environment]::GetEnvironmentVariables(
 try {
   Set-ChromiumBuildEnvironment -DepotToolsRoot $DepotToolsRoot `
     -VisualStudioRoot $resolvedVisualStudioRoot
+  [Environment]::SetEnvironmentVariable(
+    "PYTHONDONTWRITEBYTECODE",
+    "1",
+    [EnvironmentVariableTarget]::Process
+  )
+  [Environment]::SetEnvironmentVariable(
+    "PYTHONPYCACHEPREFIX",
+    $buildPythonCachePrefix,
+    [EnvironmentVariableTarget]::Process
+  )
   Push-Location $sourceRoot
   try {
     Invoke-BatchFile -Path (Join-Path $DepotToolsRoot "autoninja.bat") `
@@ -1915,6 +1997,13 @@ try {
     Pop-Location
   }
 } finally {
+  foreach ($name in @("PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX")) {
+    [Environment]::SetEnvironmentVariable(
+      $name,
+      $null,
+      [EnvironmentVariableTarget]::Process
+    )
+  }
   Restore-ChromiumBuildEnvironment -Snapshot $environmentSnapshot
   foreach ($entry in $sanitizedBuildEnvironment.GetEnumerator()) {
     [Environment]::SetEnvironmentVariable(
@@ -1923,6 +2012,9 @@ try {
       [EnvironmentVariableTarget]::Process
     )
   }
+}
+if (Test-Path -LiteralPath $buildPythonCachePrefix) {
+  throw "The isolated build unexpectedly wrote Python bytecode: $buildPythonCachePrefix"
 }
 
 Assert-CleanKwikenRepository
@@ -2022,10 +2114,8 @@ try {
   $snapshotPythonRoot = Join-Path $pythonExportRoot "python3\bin"
   Assert-NoReparsePath -Path $snapshotPythonRoot -Recurse
   $pythonRuntimeTreeSha256 = Get-DirectoryTreeSha256 -Root $snapshotPythonRoot
-  $installedPythonTreeSha256 = Get-DirectoryTreeSha256 -Root $python.RuntimeRoot
-  if ($installedPythonTreeSha256 -ne $pythonRuntimeTreeSha256) {
-    throw "Installed depot_tools Python content does not match its authenticated CIPD instance."
-  }
+  Assert-InstalledPythonMatchesAuthenticatedRuntime `
+    -InstalledRoot $python.RuntimeRoot -AuthenticatedRoot $snapshotPythonRoot
   $snapshotPythonPath = Join-Path $snapshotPythonRoot "python3.exe"
   if ((Get-LowerSha256 -Path $snapshotPythonPath) -ne $python.Sha256) {
     throw "Installed python3.exe does not match its authenticated CIPD instance."

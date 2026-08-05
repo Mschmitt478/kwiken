@@ -275,6 +275,23 @@ Invoke-Test "runtime export fingerprints the complete patch series" {
     -Message "export-runtime.ps1 still reverse-checks one patch against the final stack."
 }
 
+Invoke-Test "runtime export isolates generated Python bytecode" {
+  $exportScriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) `
+    "scripts\export-runtime.ps1"
+  $exportScript = [IO.File]::ReadAllText($exportScriptPath)
+  foreach ($required in @(
+      'PYTHONDONTWRITEBYTECODE',
+      'PYTHONPYCACHEPREFIX',
+      'Assert-InstalledPythonMatchesAuthenticatedRuntime'
+    )) {
+    Assert-True -Condition ($exportScript.Contains($required)) `
+      -Message "Runtime export Python isolation is missing $required."
+  }
+  Assert-True -Condition (
+      $exportScript -match '\(\?:\^\|/\)__pycache__/\[\^/\]\+\\\.pyc\$') `
+    -Message "Runtime export does not narrowly allow generated Python bytecode."
+}
+
 Invoke-Test "all PowerShell scripts parse" {
   $scripts = Get-ChildItem (Join-Path (Split-Path -Parent $PSScriptRoot) "scripts\*.ps1")
   foreach ($scriptFile in $scripts) {
