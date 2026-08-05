@@ -423,13 +423,34 @@ function New-PrivateDirectory {
   }
   Assert-NoReparseAncestors -Path (Split-Path -Parent $Path)
   $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
-  # Chromium's Windows sandbox uses S-1-5-12 as a restricting SID. A
-  # restricted token must pass the DACL check both as the current user and as
-  # Restricted Code, so this read/execute ACE preserves user isolation while
-  # allowing the sandboxed child to map the staged executable and DLLs.
+  # Chromium's Windows sandbox uses S-1-5-12 as a restricting SID. Its own
+  # installer also grants read/execute to the chromeInstallFiles and
+  # lpacChromeInstallFiles named capability SIDs so AppContainer services can
+  # map the installed executable and DLLs. Mirror those pinned Chromium ACLs
+  # in transient staging without granting write access or disabling sandboxing.
   $restrictedCodeSid = [Security.Principal.SecurityIdentifier]::new("S-1-5-12")
-  $sddl = "O:{0}G:{0}D:P(A;OICI;FA;;;{0})(A;OICI;FA;;;SY)(A;OICI;GRGX;;;{1})" -f `
-    $currentSid.Value, $restrictedCodeSid.Value
+  $chromeInstallFilesSid = [Security.Principal.SecurityIdentifier]::new(
+    "S-1-15-3-1024-3424233489-972189580-2057154623-747635277-1604371224-" +
+      "316187997-3786583170-1043257646"
+  )
+  $lpacChromeInstallFilesSid = [Security.Principal.SecurityIdentifier]::new(
+    "S-1-15-3-1024-2302894289-466761758-1166120688-1039016420-2430351297-" +
+      "4240214049-4028510897-3317428798"
+  )
+  $sandboxReadSids = @(
+    $restrictedCodeSid,
+    $chromeInstallFilesSid,
+    $lpacChromeInstallFilesSid
+  )
+  $sddl = @(
+    "O:{0}G:{0}D:P(A;OICI;FA;;;{0})(A;OICI;FA;;;SY)" +
+      "(A;OICI;GRGX;;;{1})(A;OICI;GRGX;;;{2})(A;OICI;GRGX;;;{3})"
+  ) -f @(
+    $currentSid.Value,
+    $restrictedCodeSid.Value,
+    $chromeInstallFilesSid.Value,
+    $lpacChromeInstallFilesSid.Value
+  )
   $created = $false
   try {
     Initialize-KwikenPrivateDirectoryInterop
@@ -437,14 +458,6 @@ function New-PrivateDirectory {
     $created = $true
     $acl = Get-Acl -LiteralPath $Path
     $actualOwner = $acl.GetOwner([Security.Principal.SecurityIdentifier])
-    $restrictedRules = @($acl.GetAccessRules(
-        $true,
-        $true,
-        [Security.Principal.SecurityIdentifier]
-      ) | Where-Object {
-        $_.IdentityReference -eq $restrictedCodeSid -and
-          $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow
-      })
     $requiredRights = [Security.AccessControl.FileSystemRights]::ReadAndExecute
     $forbiddenRights = [Security.AccessControl.FileSystemRights]::WriteData -bor
       [Security.AccessControl.FileSystemRights]::AppendData -bor
@@ -456,14 +469,31 @@ function New-PrivateDirectory {
       [Security.AccessControl.FileSystemRights]::TakeOwnership
     $expectedInheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
       [Security.AccessControl.InheritanceFlags]::ObjectInherit
+    $sandboxAclValid = $true
+    $aclRules = @($acl.GetAccessRules(
+        $true,
+        $true,
+        [Security.Principal.SecurityIdentifier]
+      ))
+    foreach ($sandboxSid in $sandboxReadSids) {
+      $sandboxRules = @($aclRules | Where-Object {
+          $_.IdentityReference -eq $sandboxSid -and
+            $_.AccessControlType -eq
+              [Security.AccessControl.AccessControlType]::Allow
+        })
+      if ($sandboxRules.Count -ne 1 -or
+          ($sandboxRules[0].FileSystemRights -band $requiredRights) -ne
+            $requiredRights -or
+          ($sandboxRules[0].FileSystemRights -band $forbiddenRights) -ne 0 -or
+          $sandboxRules[0].InheritanceFlags -ne $expectedInheritance -or
+          $sandboxRules[0].PropagationFlags -ne
+            [Security.AccessControl.PropagationFlags]::None) {
+        $sandboxAclValid = $false
+        break
+      }
+    }
     if ($actualOwner -ne $currentSid -or -not $acl.AreAccessRulesProtected -or
-        $restrictedRules.Count -ne 1 -or
-        ($restrictedRules[0].FileSystemRights -band $requiredRights) -ne
-          $requiredRights -or
-        ($restrictedRules[0].FileSystemRights -band $forbiddenRights) -ne 0 -or
-        $restrictedRules[0].InheritanceFlags -ne $expectedInheritance -or
-        $restrictedRules[0].PropagationFlags -ne
-          [Security.AccessControl.PropagationFlags]::None) {
+        -not $sandboxAclValid) {
       throw "Private staging ACL could not be established for $Path."
     }
   } catch {

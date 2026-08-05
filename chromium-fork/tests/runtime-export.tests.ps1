@@ -282,22 +282,36 @@ try {
   if ($actualOwner -ne $expectedOwner) {
     throw "Private staging directory has the wrong owner."
   }
-  $restrictedCodeSid = [Security.Principal.SecurityIdentifier]::new("S-1-5-12")
-  $restrictedRules = @((Get-Acl -LiteralPath $privatePath).GetAccessRules(
+  $sandboxReadSids = @(
+    [Security.Principal.SecurityIdentifier]::new("S-1-5-12"),
+    [Security.Principal.SecurityIdentifier]::new(
+      "S-1-15-3-1024-3424233489-972189580-2057154623-747635277-" +
+        "1604371224-316187997-3786583170-1043257646"
+    ),
+    [Security.Principal.SecurityIdentifier]::new(
+      "S-1-15-3-1024-2302894289-466761758-1166120688-1039016420-" +
+        "2430351297-4240214049-4028510897-3317428798"
+    )
+  )
+  $privateRules = @((Get-Acl -LiteralPath $privatePath).GetAccessRules(
       $true,
       $true,
       [Security.Principal.SecurityIdentifier]
-    ) | Where-Object {
-      $_.IdentityReference -eq $restrictedCodeSid -and
-        $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow
-    })
-  if ($restrictedRules.Count -ne 1 -or
-      ($restrictedRules[0].FileSystemRights -band
-        [Security.AccessControl.FileSystemRights]::ReadAndExecute) -ne
-        [Security.AccessControl.FileSystemRights]::ReadAndExecute -or
-      ($restrictedRules[0].FileSystemRights -band
-        [Security.AccessControl.FileSystemRights]::WriteData) -ne 0) {
-    throw "Private staging does not grant Restricted Code read/execute-only access."
+    ))
+  foreach ($sandboxSid in $sandboxReadSids) {
+    $sandboxRules = @($privateRules | Where-Object {
+        $_.IdentityReference -eq $sandboxSid -and
+          $_.AccessControlType -eq
+            [Security.AccessControl.AccessControlType]::Allow
+      })
+    if ($sandboxRules.Count -ne 1 -or
+        ($sandboxRules[0].FileSystemRights -band
+          [Security.AccessControl.FileSystemRights]::ReadAndExecute) -ne
+          [Security.AccessControl.FileSystemRights]::ReadAndExecute -or
+        ($sandboxRules[0].FileSystemRights -band
+          [Security.AccessControl.FileSystemRights]::WriteData) -ne 0) {
+      throw "Private staging does not grant sandbox read/execute-only access."
+    }
   }
 
   $publishParent = Join-Path $temporaryRoot "publish-parent"

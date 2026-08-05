@@ -100,6 +100,12 @@ class ExportRuntimeContractTests(unittest.TestCase):
         self.assertIn("ConvertStringSecurityDescriptorToSecurityDescriptor", self.script)
         self.assertIn("D:P(A;OICI;FA", self.script)
         self.assertIn("S-1-5-12", self.script)
+        self.assertIn(
+            "S-1-15-3-1024-3424233489-972189580-2057154623", self.script
+        )
+        self.assertIn(
+            "S-1-15-3-1024-2302894289-466761758-1166120688", self.script
+        )
         self.assertNotIn('"--no-sandbox"', self.script)
 
     def test_all_manifest_native_fields_are_repeated_as_verify_expectations(self) -> None:
