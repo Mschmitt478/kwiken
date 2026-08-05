@@ -232,6 +232,60 @@ class DependencyStateTests(unittest.TestCase):
             "expected-artifact-and-installed-content-sha256",
         )
 
+    def test_command_stdout_override_remains_bounded(self) -> None:
+        command = [sys.executable, "-c", "import sys; sys.stdout.write('x' * 1024)"]
+        output = dependency_state._run_process(
+            command,
+            cwd=self.root,
+            timeout_seconds=10,
+            label="bounded fixture",
+            maximum_stdout_bytes=2048,
+        )
+        self.assertEqual(len(output), 1024)
+        with self.assertRaisesRegex(
+            dependency_state.DependencyStateError, "bounded output limit"
+        ):
+            dependency_state._run_process(
+                command,
+                cwd=self.root,
+                timeout_seconds=10,
+                label="bounded fixture",
+                maximum_stdout_bytes=512,
+            )
+
+    def test_git_tree_listings_use_the_large_bounded_limit(self) -> None:
+        original_run_git = dependency_state._run_git
+        calls: list[dict] = []
+
+        def fake_run_git(*args, **kwargs):
+            calls.append(kwargs)
+            return b""
+
+        dependency_state._run_git = fake_run_git
+        try:
+            self.assertEqual(
+                dependency_state._gitlinks_from_index(
+                    self.source, timeout_seconds=10
+                ),
+                {},
+            )
+            self.assertEqual(
+                dependency_state._gitlinks_from_head(
+                    self.source, timeout_seconds=10
+                ),
+                {},
+            )
+        finally:
+            dependency_state._run_git = original_run_git
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(
+            all(
+                call["maximum_stdout_bytes"]
+                == dependency_state.MAX_GIT_TREE_OUTPUT_BYTES
+                for call in calls
+            )
+        )
+
     def test_rejects_tracked_dependency_modification(self) -> None:
         (self.dependency / "dependency.txt").write_text(
             "modified\n", encoding="utf-8", newline="\n"

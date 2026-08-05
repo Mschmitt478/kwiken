@@ -23,6 +23,7 @@ from typing import Any, BinaryIO, Iterable, Mapping, Sequence
 
 SCHEMA_VERSION = 1
 MAX_COMMAND_OUTPUT_BYTES = 32 * 1024 * 1024
+MAX_GIT_TREE_OUTPUT_BYTES = 128 * 1024 * 1024
 MAX_METADATA_BYTES = 32 * 1024 * 1024
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
@@ -149,7 +150,10 @@ def _run_process(
     cwd: Path,
     timeout_seconds: int,
     label: str,
+    maximum_stdout_bytes: int = MAX_COMMAND_OUTPUT_BYTES,
 ) -> bytes:
+    if maximum_stdout_bytes < 1 or maximum_stdout_bytes > MAX_GIT_TREE_OUTPUT_BYTES:
+        raise DependencyStateError(f"Invalid stdout limit for {label}.")
     try:
         process = subprocess.Popen(
             list(command),
@@ -186,7 +190,7 @@ def _run_process(
         raise DependencyStateError(
             f"{label} timed out after {timeout_seconds} seconds."
         ) from error
-    if len(stdout) > MAX_COMMAND_OUTPUT_BYTES or len(stderr) > MAX_COMMAND_OUTPUT_BYTES:
+    if len(stdout) > maximum_stdout_bytes or len(stderr) > MAX_COMMAND_OUTPUT_BYTES:
         raise DependencyStateError(f"{label} exceeded its bounded output limit.")
     if process.returncode != 0:
         detail = stderr.decode("utf-8", errors="replace").strip()
@@ -202,6 +206,7 @@ def _run_git(
     *,
     timeout_seconds: int,
     label: str,
+    maximum_stdout_bytes: int = MAX_COMMAND_OUTPUT_BYTES,
 ) -> bytes:
     command = [
         "git",
@@ -218,7 +223,11 @@ def _run_git(
         *arguments,
     ]
     return _run_process(
-        command, cwd=repository, timeout_seconds=timeout_seconds, label=label
+        command,
+        cwd=repository,
+        timeout_seconds=timeout_seconds,
+        label=label,
+        maximum_stdout_bytes=maximum_stdout_bytes,
     )
 
 
@@ -622,6 +631,7 @@ def _gitlinks_from_index(
         ["ls-files", "--stage", "-z"],
         timeout_seconds=timeout_seconds,
         label=f"Git index listing for {repository}",
+        maximum_stdout_bytes=MAX_GIT_TREE_OUTPUT_BYTES,
     )
     result: dict[str, str] = {}
     for raw in output.split(b"\0"):
@@ -654,6 +664,7 @@ def _gitlinks_from_head(
         ["ls-tree", "-rz", "HEAD"],
         timeout_seconds=timeout_seconds,
         label=f"Git HEAD tree listing for {repository}",
+        maximum_stdout_bytes=MAX_GIT_TREE_OUTPUT_BYTES,
     )
     result: dict[str, str] = {}
     for raw in output.split(b"\0"):
