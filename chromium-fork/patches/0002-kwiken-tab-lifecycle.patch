@@ -1,0 +1,867 @@
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 86731fd1704bc75fd021db98f13e655466579c6b..4fda0f0a011d4e417372763962e116eea230aa7f 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -11910,6 +11910,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+         <message name="IDS_TAB_CXMENU_RELOAD" desc="The label of the 'Reload' Tab context menu item.">
+           Reload
+         </message>
++        <message name="IDS_TAB_CXMENU_LOAD_TAB" desc="The label of the tab context menu item for loading one or more unloaded tabs. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
++          {NUM_TABS, plural, =1 {Load tab} other {Load tabs}}
++        </message>
++        <message name="IDS_TAB_CXMENU_UNLOAD_TAB" desc="The label of the tab context menu item for unloading one or more tabs while keeping them in the tab strip. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
++          {NUM_TABS, plural, =1 {Unload tab} other {Unload tabs}}
++        </message>
+         <message name="IDS_TAB_CXMENU_DUPLICATE" desc="The label of the 'Duplicate' Tab context menu item.">
+           Duplicate
+         </message>
+@@ -12026,6 +12032,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+         <message name="IDS_TAB_CXMENU_RELOAD" desc="In Title Case: The label of the 'Reload' Tab context menu item.">
+           Reload
+         </message>
++        <message name="IDS_TAB_CXMENU_LOAD_TAB" desc="In Title Case: The label of the tab context menu item for loading one or more unloaded tabs. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
++          {NUM_TABS, plural, =1 {Load Tab} other {Load Tabs}}
++        </message>
++        <message name="IDS_TAB_CXMENU_UNLOAD_TAB" desc="In Title Case: The label of the tab context menu item for unloading one or more tabs while keeping them in the tab strip. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
++          {NUM_TABS, plural, =1 {Unload Tab} other {Unload Tabs}}
++        </message>
+         <message name="IDS_TAB_CXMENU_DUPLICATE" desc="In Title Case: The label of the 'Duplicate' Tab context menu item.">
+           Duplicate
+         </message>
+diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc b/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
+index f4c33684dab4db760253063c9fd5fb71ee944666..537cb1b68fb1f97ed4c12f8bad1c97c127bcac97 100644
+--- a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
++++ b/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/devtools/devtools_window.h"
+ #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+ #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
++#include "chrome/browser/performance_manager/policies/discard_eligibility_policy.h"
+ #include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
+ #include "chrome/browser/permissions/permission_manager_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+@@ -39,8 +40,10 @@
+ #include "components/performance_manager/public/features.h"
+ #include "components/performance_manager/public/mojom/lifecycle.mojom.h"
+ #include "components/permissions/permission_manager.h"
++#include "content/public/browser/browser_thread.h"
+ #include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/navigation_entry.h"
++#include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/content_features.h"
+ #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+@@ -416,6 +419,73 @@ bool TabLifecycleUnitSource::TabLifecycleUnit::DiscardTab(
+   return Discard(reason, memory_footprint_estimate);
+ }
+ 
++bool TabLifecycleUnitSource::TabLifecycleUnit::CanUnloadTab() const {
++  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
++
++  content::WebContents* const contents = web_contents();
++  if (!tab_strip_model_ || is_discarded_ || !auto_discardable_ ||
++      contents->IsCrashed() || !contents->GetPrimaryMainFrame() ||
++      !contents->GetPrimaryMainFrame()->IsRenderFrameLive() ||
++      contents->NeedToFireBeforeUnloadOrUnloadEvents()) {
++    return false;
++  }
++
++  const int index = tab_strip_model_->GetIndexOfWebContents(contents);
++  if (index == TabStripModel::kNoTab ||
++      index == tab_strip_model_->active_index() ||
++      tab_strip_model_->GetTabAtIndex(index)->IsVisible()) {
++    return false;
++  }
++
++  // Match Chromium's automatic-discard audio grace period. The lifecycle unit
++  // records the point at which the tab-strip's recently-audible signal clears,
++  // so this protects both currently and recently audible tabs.
++  const bool was_recently_audible =
++      recently_audible_time_.is_max() ||
++      (!recently_audible_time_.is_null() &&
++       NowTicks() - recently_audible_time_ <
++           performance_manager::policies::kTabAudioProtectionTime);
++  if (contents->IsCurrentlyAudible() || was_recently_audible) {
++    return false;
++  }
++
++  if (performance_manager::PageLiveStateDecorator::IsCapturingVideo(contents) ||
++      performance_manager::PageLiveStateDecorator::IsCapturingAudio(contents) ||
++      performance_manager::PageLiveStateDecorator::IsBeingMirrored(contents) ||
++      performance_manager::PageLiveStateDecorator::IsCapturingWindow(
++          contents) ||
++      performance_manager::PageLiveStateDecorator::IsCapturingDisplay(
++          contents) ||
++      performance_manager::PageLiveStateDecorator::IsDevToolsOpen(contents)) {
++    return false;
++  }
++
++  const FormInteractionTabHelper* const form_helper =
++      FormInteractionTabHelper::FromWebContents(contents);
++  return !form_helper || !form_helper->had_form_interaction();
++}
++
++bool TabLifecycleUnitSource::TabLifecycleUnit::UnloadTab() {
++  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
++
++  // Keep the check and state transition in one UI-thread call. The context
++  // menu may have been open while page state changed, so execution must not
++  // trust the earlier enabled-state query.
++  return CanUnloadTab() && Discard(LifecycleUnitDiscardReason::EXTERNAL, 0);
++}
++
++bool TabLifecycleUnitSource::TabLifecycleUnit::LoadTab() {
++  if (!is_discarded_) {
++    return false;
++  }
++
++  // Unlike activation-driven loading, an explicit background load cannot
++  // rely on a visibility transition to start navigation. The existing Load()
++  // path starts that navigation for both discard implementations;
++  // DidStartLoading() owns the lifecycle transition and reload metrics.
++  return Load();
++}
++
+ mojom::LifecycleUnitState
+ TabLifecycleUnitSource::TabLifecycleUnit::GetTabState() const {
+   return GetState();
+diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit.h b/chrome/browser/resource_coordinator/tab_lifecycle_unit.h
+index b5c7b329fee36ad7d30e86d006a003477e4d31a0..297c29203c6faf8b3c7e900b087e28797f2cd957 100644
+--- a/chrome/browser/resource_coordinator/tab_lifecycle_unit.h
++++ b/chrome/browser/resource_coordinator/tab_lifecycle_unit.h
+@@ -85,6 +85,9 @@ class TabLifecycleUnitSource::TabLifecycleUnit
+   void SetAutoDiscardable(bool auto_discardable) override;
+   bool DiscardTab(mojom::LifecycleUnitDiscardReason reason,
+                   uint64_t memory_footprint_estimate) override;
++  bool CanUnloadTab() const override;
++  bool UnloadTab() override;
++  bool LoadTab() override;
+   mojom::LifecycleUnitState GetTabState() const override;
+ 
+   // content::WebContentsObserver:
+diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h b/chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h
+index c818b8b083b6d5a06b84d9812565b28c4de43ab6..5ed631fb927b05f959d0fef43589e96b8fd8d9f0 100644
+--- a/chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h
++++ b/chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h
+@@ -41,6 +41,18 @@ class TabLifecycleUnitExternal {
+   virtual bool DiscardTab(mojom::LifecycleUnitDiscardReason reason,
+                           uint64_t memory_footprint_estimate = 0) = 0;
+ 
++  // Returns whether this tab can be explicitly unloaded by the user without
++  // interrupting active or protected page state. Pinned tabs remain eligible.
++  virtual bool CanUnloadTab() const = 0;
++
++  // Explicitly unloads an eligible background tab. Eligibility is rechecked
++  // synchronously before discarding so callers cannot race menu state.
++  virtual bool UnloadTab() = 0;
++
++  // Explicitly loads a discarded tab without activating it. Returns true if
++  // the discarded tab transitioned back to a loading state.
++  virtual bool LoadTab() = 0;
++
+   // Returns the state of the LifecycleUnit.
+   virtual mojom::LifecycleUnitState GetTabState() const = 0;
+ 
+diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit_unittest.cc b/chrome/browser/resource_coordinator/tab_lifecycle_unit_unittest.cc
+index 614dfb70193f2c0eee92b601aed3dda8488c9de8..b41d0d9a9084ca4a9e6483ec68072c200eb5b3e8 100644
+--- a/chrome/browser/resource_coordinator/tab_lifecycle_unit_unittest.cc
++++ b/chrome/browser/resource_coordinator/tab_lifecycle_unit_unittest.cc
+@@ -14,6 +14,7 @@
+ #include "base/memory/weak_ptr.h"
+ #include "base/scoped_observation.h"
+ #include "base/test/metrics/histogram_tester.h"
++#include "base/test/scoped_feature_list.h"
+ #include "base/test/simple_test_clock.h"
+ #include "base/test/simple_test_tick_clock.h"
+ #include "base/time/time.h"
+@@ -44,6 +45,7 @@
+ #include "components/performance_manager/public/performance_manager.h"
+ #include "components/performance_manager/test_support/test_harness_helper.h"
+ #include "content/public/browser/web_contents.h"
++#include "content/public/common/content_features.h"
+ #include "content/public/common/referrer.h"
+ #include "content/public/test/navigation_simulator.h"
+ #include "content/public/test/web_contents_tester.h"
+@@ -272,6 +274,114 @@ TEST_F(TabLifecycleUnitTest, AutoDiscardable) {
+   ExpectCanDiscardTrueAllReasons(&tab_lifecycle_unit);
+ }
+ 
++TEST_F(TabLifecycleUnitTest, UserUnloadRejectsActiveOrVisibleTab) {
++  TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(),
++                                      web_contents_, tab_strip_model_.get());
++  ASSERT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  web_contents_->WasShown();
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++
++  web_contents_->WasHidden();
++  EXPECT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  tab_strip_model_->ActivateTabAt(0);
++  web_contents_->WasHidden();
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  EXPECT_FALSE(tab_lifecycle_unit.UnloadTab());
++}
++
++TEST_F(TabLifecycleUnitTest, UserUnloadRejectsCrashedRenderer) {
++  TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(),
++                                      web_contents_, tab_strip_model_.get());
++  ASSERT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  content::WebContentsTester::For(web_contents_)
++      ->SetIsCrashed(base::TERMINATION_STATUS_PROCESS_CRASHED, -1);
++  ASSERT_TRUE(web_contents_->IsCrashed());
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  EXPECT_FALSE(tab_lifecycle_unit.UnloadTab());
++}
++
++TEST_F(TabLifecycleUnitTest, UserUnloadRejectsCurrentAndRecentAudio) {
++  TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(),
++                                      web_contents_, tab_strip_model_.get());
++  ASSERT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  tab_lifecycle_unit.SetRecentlyAudible(true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++
++  tab_lifecycle_unit.SetRecentlyAudible(false);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++
++  test_tick_clock_.Advance(
++      performance_manager::policies::kTabAudioProtectionTime +
++      base::Seconds(1));
++  EXPECT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++}
++
++TEST_F(TabLifecycleUnitTest, UserUnloadRejectsMediaCaptureAndMirroring) {
++  TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(),
++                                      web_contents_, tab_strip_model_.get());
++  ASSERT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  PageLiveStateDecorator::OnIsCapturingVideoChanged(web_contents_, true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  PageLiveStateDecorator::OnIsCapturingVideoChanged(web_contents_, false);
++
++  PageLiveStateDecorator::OnIsCapturingAudioChanged(web_contents_, true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  PageLiveStateDecorator::OnIsCapturingAudioChanged(web_contents_, false);
++
++  PageLiveStateDecorator::OnIsBeingMirroredChanged(web_contents_, true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  PageLiveStateDecorator::OnIsBeingMirroredChanged(web_contents_, false);
++
++  PageLiveStateDecorator::OnIsCapturingWindowChanged(web_contents_, true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  PageLiveStateDecorator::OnIsCapturingWindowChanged(web_contents_, false);
++
++  PageLiveStateDecorator::OnIsCapturingDisplayChanged(web_contents_, true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  PageLiveStateDecorator::OnIsCapturingDisplayChanged(web_contents_, false);
++
++  EXPECT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++}
++
++TEST_F(TabLifecycleUnitTest, UserUnloadRejectsFormInteraction) {
++  FormInteractionTabHelper::CreateForWebContents(web_contents_);
++  FormInteractionTabHelper* const form_helper =
++      FormInteractionTabHelper::FromWebContents(web_contents_);
++  ASSERT_TRUE(form_helper);
++
++  TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(),
++                                      web_contents_, tab_strip_model_.get());
++  ASSERT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  form_helper->OnHadFormInteractionChangedForTesting(true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  EXPECT_FALSE(tab_lifecycle_unit.UnloadTab());
++
++  form_helper->OnHadFormInteractionChangedForTesting(false);
++  EXPECT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++}
++
++TEST_F(TabLifecycleUnitTest,
++       UserUnloadRejectsAutoDiscardProtectionAndDevTools) {
++  TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(),
++                                      web_contents_, tab_strip_model_.get());
++  ASSERT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  tab_lifecycle_unit.SetAutoDiscardable(false);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  tab_lifecycle_unit.SetAutoDiscardable(true);
++
++  PageLiveStateDecorator::SetIsDevToolsOpen(web_contents_, true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  PageLiveStateDecorator::SetIsDevToolsOpen(web_contents_, false);
++  EXPECT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++}
++
+ TEST_F(TabLifecycleUnitTest, AutoDiscardablePersistsThroughDiscard) {
+   // Start observing the TabStripModel so that TabLifecycleUnitSource will be
+   // informed when the tab is discarded. TabLifecycleUnitSource expects to fully
+@@ -289,7 +399,10 @@ TEST_F(TabLifecycleUnitTest, AutoDiscardablePersistsThroughDiscard) {
+   EXPECT_FALSE(PageLiveStateDecorator::IsAutoDiscardable(
+       tab_lifecycle_unit->GetWebContents()));
+ 
+-  EXPECT_TRUE(tab_lifecycle_unit->Load());
++  EXPECT_EQ(LifecycleUnitState::DISCARDED, tab_lifecycle_unit->GetTabState());
++  EXPECT_TRUE(tab_lifecycle_unit->LoadTab());
++  EXPECT_EQ(LifecycleUnitState::ACTIVE, tab_lifecycle_unit->GetTabState());
++  EXPECT_FALSE(tab_lifecycle_unit->LoadTab());
+   EXPECT_FALSE(tab_lifecycle_unit->IsAutoDiscardable());
+   EXPECT_FALSE(PageLiveStateDecorator::IsAutoDiscardable(
+       tab_lifecycle_unit->GetWebContents()));
+@@ -297,6 +410,38 @@ TEST_F(TabLifecycleUnitTest, AutoDiscardablePersistsThroughDiscard) {
+   tab_strip_model_->RemoveObserver(GetTabLifecycleUnitSource());
+ }
+ 
++class TabLifecycleUnitWebContentsDiscardTest : public TabLifecycleUnitTest {
++ public:
++  TabLifecycleUnitWebContentsDiscardTest() {
++    scoped_feature_list_.InitAndEnableFeature(features::kWebContentsDiscard);
++  }
++
++ private:
++  base::test::ScopedFeatureList scoped_feature_list_;
++};
++
++TEST_F(TabLifecycleUnitWebContentsDiscardTest, ExplicitlyLoadsDiscardedTab) {
++  tab_strip_model_->AddObserver(GetTabLifecycleUnitSource());
++  TabLifecycleUnit* const tab_lifecycle_unit =
++      AddNewHiddenLifecycleUnitToTabStrip();
++  ASSERT_TRUE(tab_lifecycle_unit);
++  auto navigation = content::NavigationSimulator::CreateBrowserInitiated(
++      GURL("https://www.example.com/discarded"),
++      tab_lifecycle_unit->GetWebContents());
++  navigation->Commit();
++
++  EXPECT_TRUE(tab_lifecycle_unit->CanUnloadTab());
++  EXPECT_TRUE(tab_lifecycle_unit->UnloadTab());
++  EXPECT_EQ(LifecycleUnitState::DISCARDED, tab_lifecycle_unit->GetTabState());
++  EXPECT_FALSE(tab_lifecycle_unit->CanUnloadTab());
++  EXPECT_FALSE(tab_lifecycle_unit->UnloadTab());
++  EXPECT_TRUE(tab_lifecycle_unit->LoadTab());
++  EXPECT_EQ(LifecycleUnitState::ACTIVE, tab_lifecycle_unit->GetTabState());
++  EXPECT_FALSE(tab_lifecycle_unit->LoadTab());
++
++  tab_strip_model_->RemoveObserver(GetTabLifecycleUnitSource());
++}
++
+ TEST_F(TabLifecycleUnitTest, CannotDiscardInvalidURL) {
+   content::WebContents* web_contents = AddNewHiddenWebContentsToTabStrip();
+   TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(), web_contents,
+diff --git a/chrome/browser/ui/tabs/tab_menu_model.cc b/chrome/browser/ui/tabs/tab_menu_model.cc
+index 6fcbab81cc34b2c40ea6f5b6c0b8bacbcf3da49f..aac534e5d86f2d81b9e5252d6dd9afa039110f5a 100644
+--- a/chrome/browser/ui/tabs/tab_menu_model.cc
++++ b/chrome/browser/ui/tabs/tab_menu_model.cc
+@@ -28,6 +28,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_context_menu_delegate.h"
++#include "chrome/browser/ui/tab_ui_helper.h"
+ #include "chrome/browser/ui/tabs/existing_tab_group_sub_menu_model.h"
+ #include "chrome/browser/ui/tabs/existing_window_sub_menu_model.h"
+ #include "chrome/browser/ui/tabs/features.h"
+@@ -72,7 +73,24 @@ using base::UserMetricsAction;
+ 
+ namespace {
+ constexpr int kTabMenuIconSize = 16;
++
++bool IsTabDiscarded(tabs::TabInterface* tab) {
++  if (!tab) {
++    return false;
++  }
++
++  if (TabUIHelper* const tab_ui_helper = TabUIHelper::From(tab)) {
++    return tab_ui_helper->IsDiscarded();
++  }
++
++  content::WebContents* const contents = tab->GetContents();
++  return contents && contents->WasDiscarded();
++}
++
++bool IsPersistentTab(tabs::TabInterface* tab) {
++  return tab && (tab->IsPinned() || tab->GetGroup().has_value());
+ }
++}  // namespace
+ 
+ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(TabMenuModel, kAddANoteTabMenuItem);
+ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(TabMenuModel, kSplitTabsMenuItem);
+@@ -414,6 +432,32 @@ void TabMenuModel::Build(int index) {
+   AddSeparator(ui::NORMAL_SEPARATOR);
+   AddItemWithStringId(TabStripModel::CommandReload, IDS_TAB_CXMENU_RELOAD);
+ 
++  int discarded_tabs = 0;
++  int loaded_tabs = 0;
++  if (IsPersistentTab(tab_strip_->GetTabAtIndex(index))) {
++    for (int selected_index : indices) {
++      tabs::TabInterface* const tab = tab_strip_->GetTabAtIndex(selected_index);
++      if (!IsPersistentTab(tab)) {
++        continue;
++      }
++      if (IsTabDiscarded(tab)) {
++        ++discarded_tabs;
++      } else {
++        ++loaded_tabs;
++      }
++    }
++  }
++  if (discarded_tabs > 0) {
++    AddItem(TabStripModel::CommandLoadTab,
++            l10n_util::GetPluralStringFUTF16(IDS_TAB_CXMENU_LOAD_TAB,
++                                             discarded_tabs));
++  }
++  if (loaded_tabs > 0) {
++    AddItem(TabStripModel::CommandUnloadTab,
++            l10n_util::GetPluralStringFUTF16(IDS_TAB_CXMENU_UNLOAD_TAB,
++                                             loaded_tabs));
++  }
++
+   AddItemWithStringId(TabStripModel::CommandDuplicate,
+                       IDS_TAB_CXMENU_DUPLICATE);
+   SetElementIdentifierAt(GetItemCount() - 1, kDuplicateMenuItem);
+diff --git a/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc b/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
+index 60704c8a323c85febcc0fe4d375739604726e2c5..8da8aecc3d6f879c20eff1974868d48f3f7e8cbe 100644
+--- a/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
++++ b/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
++#include "chrome/browser/ui/tab_ui_helper.h"
+ #include "chrome/browser/ui/tabs/existing_base_sub_menu_model.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+@@ -46,7 +47,10 @@
+ #include "components/tabs/public/split_tab_data.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/test/browser_test.h"
++#include "content/public/test/browser_test_utils.h"
++#include "content/public/test/test_navigation_observer.h"
+ #include "testing/gtest/include/gtest/gtest.h"
++#include "ui/base/models/list_selection_model.h"
+ #include "ui/base/models/menu_model.h"
+ #include "ui/base/mojom/window_show_state.mojom.h"
+ #include "ui/base/ui_base_features.h"
+@@ -93,6 +97,197 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, Basics) {
+   EXPECT_EQ(item_count, delegate_.enable_count_);
+ }
+ 
++IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
++                       LifecycleCommandsAreHiddenForOrdinaryTab) {
++  TabStripModel* const tab_strip_model = browser()->tab_strip_model();
++  tabs::TabInterface* const active_tab = tab_strip_model->GetActiveTab();
++  ASSERT_TRUE(active_tab);
++  ASSERT_FALSE(active_tab->IsPinned());
++  ASSERT_FALSE(active_tab->GetGroup().has_value());
++
++  TabMenuModel menu(&delegate_,
++                    browser()->GetFeatures().tab_menu_model_delegate(),
++                    tab_strip_model, tab_strip_model->active_index());
++  EXPECT_FALSE(
++      menu.GetIndexOfCommandId(TabStripModel::CommandUnloadTab).has_value());
++  EXPECT_FALSE(
++      menu.GetIndexOfCommandId(TabStripModel::CommandLoadTab).has_value());
++
++  tab_strip_model->ExecuteContextMenuCommand(tab_strip_model->active_index(),
++                                             TabStripModel::CommandUnloadTab);
++  EXPECT_FALSE(TabUIHelper::From(active_tab)->IsDiscarded());
++}
++
++IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
++                       LifecycleCommandDoesNotUnloadActiveTab) {
++  TabStripModel* const tab_strip_model = browser()->tab_strip_model();
++  tabs::TabInterface* const active_tab = tab_strip_model->GetActiveTab();
++  ASSERT_TRUE(active_tab);
++  ASSERT_TRUE(TabUIHelper::From(active_tab));
++  tab_strip_model->SetTabPinned(tab_strip_model->active_index(), true);
++  ASSERT_TRUE(active_tab->IsPinned());
++
++  TabMenuModel menu(&delegate_,
++                    browser()->GetFeatures().tab_menu_model_delegate(),
++                    tab_strip_model, tab_strip_model->active_index());
++  EXPECT_TRUE(
++      menu.GetIndexOfCommandId(TabStripModel::CommandUnloadTab).has_value());
++  EXPECT_FALSE(
++      menu.GetIndexOfCommandId(TabStripModel::CommandLoadTab).has_value());
++  EXPECT_FALSE(tab_strip_model->IsContextMenuCommandEnabled(
++      tab_strip_model->active_index(), TabStripModel::CommandUnloadTab));
++
++  tab_strip_model->ExecuteContextMenuCommand(tab_strip_model->active_index(),
++                                             TabStripModel::CommandUnloadTab);
++  EXPECT_FALSE(TabUIHelper::From(active_tab)->IsDiscarded());
++}
++
++IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
++                       LifecycleCommandRejectsBeforeUnloadTab) {
++  ASSERT_TRUE(embedded_test_server()->Start());
++  ASSERT_TRUE(ui_test_utils::NavigateToURL(
++      browser(), embedded_test_server()->GetURL("/title1.html")));
++
++  TabStripModel* const tab_strip_model = browser()->tab_strip_model();
++  tabs::TabInterface* const protected_tab = tab_strip_model->GetActiveTab();
++  ASSERT_TRUE(protected_tab);
++  tab_strip_model->SetTabPinned(tab_strip_model->active_index(), true);
++  ASSERT_TRUE(protected_tab->IsPinned());
++  ASSERT_TRUE(
++      content::ExecJs(protected_tab->GetContents(),
++                      "window.onbeforeunload = () => 'Keep this tab loaded';"));
++  ASSERT_TRUE(
++      protected_tab->GetContents()->NeedToFireBeforeUnloadOrUnloadEvents());
++
++  chrome::AddTabAt(browser(), GURL("about:blank"), tab_strip_model->count(),
++                   /*foreground=*/true);
++  const int protected_index = tab_strip_model->GetIndexOfTab(protected_tab);
++  ASSERT_NE(TabStripModel::kNoTab, protected_index);
++  ASSERT_NE(protected_index, tab_strip_model->active_index());
++
++  TabMenuModel menu(&delegate_,
++                    browser()->GetFeatures().tab_menu_model_delegate(),
++                    tab_strip_model, protected_index);
++  EXPECT_TRUE(
++      menu.GetIndexOfCommandId(TabStripModel::CommandUnloadTab).has_value());
++  EXPECT_FALSE(tab_strip_model->IsContextMenuCommandEnabled(
++      protected_index, TabStripModel::CommandUnloadTab));
++
++  tab_strip_model->ExecuteContextMenuCommand(protected_index,
++                                             TabStripModel::CommandUnloadTab);
++  EXPECT_FALSE(TabUIHelper::From(protected_tab)->IsDiscarded());
++  EXPECT_TRUE(
++      protected_tab->GetContents()->NeedToFireBeforeUnloadOrUnloadEvents());
++
++  ASSERT_TRUE(content::ExecJs(protected_tab->GetContents(),
++                              "window.onbeforeunload = null;"));
++}
++
++IN_PROC_BROWSER_TEST_F(
++    TabMenuModelBrowserTest,
++    LifecycleCommandsHandleSelectionAndPreservePinnedTabIdentity) {
++  ASSERT_TRUE(embedded_test_server()->Start());
++  const GURL original_url = embedded_test_server()->GetURL("/title1.html");
++  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), original_url));
++
++  TabStripModel* const tab_strip_model = browser()->tab_strip_model();
++  tab_strip_model->SetTabPinned(0, true);
++  chrome::AddTabAt(browser(), GURL("about:blank"), tab_strip_model->count(),
++                   /*foreground=*/true);
++  ASSERT_EQ(2, tab_strip_model->count());
++  ASSERT_EQ(1, tab_strip_model->active_index());
++
++  // Select the pinned background tab together with the active tab. Unloading
++  // the selection must skip the active tab while retaining both selections.
++  ui::ListSelectionModel selection;
++  selection.SetSelectedIndex(1);
++  selection.AddIndexToSelection(0);
++  tab_strip_model->SetSelectionFromModel(selection);
++  ASSERT_EQ(1, tab_strip_model->active_index());
++  ASSERT_TRUE(tab_strip_model->IsTabSelected(0));
++  ASSERT_TRUE(tab_strip_model->IsTabSelected(1));
++
++  tabs::TabInterface* const preserved_tab = tab_strip_model->GetTabAtIndex(0);
++  const tabs::TabHandle preserved_handle = preserved_tab->GetHandle();
++  ASSERT_TRUE(TabUIHelper::From(preserved_tab));
++
++  TabMenuModel loaded_menu(&delegate_,
++                           browser()->GetFeatures().tab_menu_model_delegate(),
++                           tab_strip_model, 0);
++  EXPECT_TRUE(loaded_menu.GetIndexOfCommandId(TabStripModel::CommandUnloadTab)
++                  .has_value());
++  EXPECT_FALSE(loaded_menu.GetIndexOfCommandId(TabStripModel::CommandLoadTab)
++                   .has_value());
++  EXPECT_TRUE(tab_strip_model->IsContextMenuCommandEnabled(
++      0, TabStripModel::CommandUnloadTab));
++
++  tab_strip_model->ExecuteContextMenuCommand(0,
++                                             TabStripModel::CommandUnloadTab);
++  EXPECT_TRUE(TabUIHelper::From(preserved_tab)->IsDiscarded());
++  EXPECT_FALSE(
++      TabUIHelper::From(tab_strip_model->GetActiveTab())->IsDiscarded());
++  EXPECT_EQ(preserved_tab, preserved_handle.Get());
++  EXPECT_TRUE(preserved_tab->IsPinned());
++  EXPECT_EQ(original_url, preserved_tab->GetContents()->GetLastCommittedURL());
++  EXPECT_TRUE(tab_strip_model->IsTabSelected(0));
++  EXPECT_TRUE(tab_strip_model->IsTabSelected(1));
++
++  // The selected set is now mixed: Load is available for the discarded pin,
++  // while the ordinary active tab is outside the lifecycle command's scope.
++  TabMenuModel discarded_menu(
++      &delegate_, browser()->GetFeatures().tab_menu_model_delegate(),
++      tab_strip_model, 0);
++  EXPECT_TRUE(discarded_menu.GetIndexOfCommandId(TabStripModel::CommandLoadTab)
++                  .has_value());
++  EXPECT_FALSE(
++      discarded_menu.GetIndexOfCommandId(TabStripModel::CommandUnloadTab)
++          .has_value());
++  EXPECT_TRUE(tab_strip_model->IsContextMenuCommandEnabled(
++      0, TabStripModel::CommandLoadTab));
++  EXPECT_FALSE(tab_strip_model->IsContextMenuCommandEnabled(
++      0, TabStripModel::CommandUnloadTab));
++
++  content::TestNavigationObserver load_observer(preserved_tab->GetContents());
++  tab_strip_model->ExecuteContextMenuCommand(0, TabStripModel::CommandLoadTab);
++  load_observer.Wait();
++  EXPECT_FALSE(TabUIHelper::From(preserved_tab)->IsDiscarded());
++  EXPECT_EQ(preserved_tab, preserved_handle.Get());
++  EXPECT_TRUE(preserved_tab->IsPinned());
++  EXPECT_EQ(original_url, preserved_tab->GetContents()->GetLastCommittedURL());
++  EXPECT_TRUE(tab_strip_model->IsTabSelected(0));
++  EXPECT_TRUE(tab_strip_model->IsTabSelected(1));
++}
++
++IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
++                       LifecycleCommandsPreserveTabGroupMembership) {
++  ASSERT_TRUE(embedded_test_server()->Start());
++  const GURL original_url = embedded_test_server()->GetURL("/title1.html");
++  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), original_url));
++
++  TabStripModel* const tab_strip_model = browser()->tab_strip_model();
++  chrome::AddTabAt(browser(), GURL("about:blank"), tab_strip_model->count(),
++                   /*foreground=*/true);
++  const tab_groups::TabGroupId group_id = tab_strip_model->AddToNewGroup({0});
++  tabs::TabInterface* const preserved_tab = tab_strip_model->GetTabAtIndex(0);
++  const tabs::TabHandle preserved_handle = preserved_tab->GetHandle();
++
++  tab_strip_model->ExecuteContextMenuCommand(0,
++                                             TabStripModel::CommandUnloadTab);
++  EXPECT_TRUE(TabUIHelper::From(preserved_tab)->IsDiscarded());
++  ASSERT_TRUE(preserved_tab->GetGroup().has_value());
++  EXPECT_EQ(group_id, preserved_tab->GetGroup().value());
++  EXPECT_EQ(original_url, preserved_tab->GetContents()->GetLastCommittedURL());
++
++  content::TestNavigationObserver load_observer(preserved_tab->GetContents());
++  tab_strip_model->ExecuteContextMenuCommand(0, TabStripModel::CommandLoadTab);
++  load_observer.Wait();
++  EXPECT_FALSE(TabUIHelper::From(preserved_tab)->IsDiscarded());
++  EXPECT_EQ(preserved_tab, preserved_handle.Get());
++  ASSERT_TRUE(preserved_tab->GetGroup().has_value());
++  EXPECT_EQ(group_id, preserved_tab->GetGroup().value());
++  EXPECT_EQ(original_url, preserved_tab->GetContents()->GetLastCommittedURL());
++}
++
+ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, MoveToNewWindow) {
+   chrome::NewTab(browser());
+   TabMenuModel model(&delegate_,
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
+index 3326a79d2ba317df34fbecfb576f67f2b3bd7e6e..57c7ad74cc1efae25f2e36ce1315a94c0da6273d 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -47,6 +47,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/reading_list/reading_list_model_factory.h"
+ #include "chrome/browser/resource_coordinator/tab_helper.h"
++#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+ #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
+ #include "chrome/browser/ui/bookmarks/bookmark_utils.h"
+ #include "chrome/browser/ui/browser.h"
+@@ -162,6 +163,35 @@ bool ShouldForgetOpenersForTransition(ui::PageTransition transition) {
+                                       ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
+ }
+ 
++// Uses the tab UI's discard signal rather than inferring lifecycle state from
++// navigation entries. The WebContents fallback keeps lightweight model tests
++// working when tab features have deliberately not been initialized.
++bool IsTabDiscarded(tabs::TabInterface* tab) {
++  if (!tab) {
++    return false;
++  }
++
++  if (TabUIHelper* const tab_ui_helper = TabUIHelper::From(tab)) {
++    return tab_ui_helper->IsDiscarded();
++  }
++
++  content::WebContents* const contents = tab->GetContents();
++  return contents && contents->WasDiscarded();
++}
++
++bool IsPersistentTab(tabs::TabInterface* tab) {
++  return tab && (tab->IsPinned() || tab->GetGroup().has_value());
++}
++
++resource_coordinator::TabLifecycleUnitExternal* GetTabLifecycleUnit(
++    tabs::TabInterface* tab) {
++  content::WebContents* const contents = tab ? tab->GetContents() : nullptr;
++  return contents
++             ? resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
++                   contents)
++             : nullptr;
++}
++
+ }  // namespace
+ 
+ TabGroupModelFactory::TabGroupModelFactory() {
+@@ -2423,6 +2453,37 @@ bool TabStripModel::IsContextMenuCommandEnabled(
+     case CommandReload:
+       return delegate_->CanReload();
+ 
++    case CommandLoadTab: {
++      if (!IsPersistentTab(GetTabAtIndex(context_index))) {
++        return false;
++      }
++      for (int index : GetIndicesForCommand(context_index)) {
++        tabs::TabInterface* const tab = GetTabAtIndex(index);
++        if (IsPersistentTab(tab) && IsTabDiscarded(tab)) {
++          return true;
++        }
++      }
++      return false;
++    }
++
++    case CommandUnloadTab: {
++      if (!IsPersistentTab(GetTabAtIndex(context_index))) {
++        return false;
++      }
++      for (int index : GetIndicesForCommand(context_index)) {
++        tabs::TabInterface* const tab = GetTabAtIndex(index);
++        if (!IsPersistentTab(tab)) {
++          continue;
++        }
++        resource_coordinator::TabLifecycleUnitExternal* const lifecycle =
++            GetTabLifecycleUnit(tab);
++        if (lifecycle && lifecycle->CanUnloadTab()) {
++          return true;
++        }
++      }
++      return false;
++    }
++
+     case CommandCloseOtherTabs:
+     case CommandCloseTabsToRight: {
+       return !GetIndicesClosedByCommand(context_index, command_id).empty();
+@@ -2561,6 +2622,69 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
+       break;
+     }
+ 
++    case CommandLoadTab: {
++      if (!IsPersistentTab(GetTabAtIndex(context_index))) {
++        break;
++      }
++      const std::vector<int> indices = GetIndicesForCommand(context_index);
++      std::vector<tabs::TabInterface*> command_tabs;
++      for (tabs::TabInterface* tab : GetTabsAtIndices(indices)) {
++        if (IsPersistentTab(tab)) {
++          command_tabs.push_back(tab);
++        }
++      }
++      base::UmaHistogramCounts1000("Tab.ContextMenu.LoadTab.SelectedTabsCount",
++                                   command_tabs.size());
++      base::RecordAction(UserMetricsAction("TabContextMenu_LoadTab"));
++
++      // Snapshot TabInterfaces because loading can synchronously notify tab
++      // observers. The command only asks an existing discarded tab to load;
++      // it never creates or replaces WebContents itself.
++      for (tabs::TabInterface* tab : command_tabs) {
++        if (GetIndexOfTab(tab) != kNoTab && IsTabDiscarded(tab)) {
++          resource_coordinator::TabLifecycleUnitExternal* const lifecycle =
++              GetTabLifecycleUnit(tab);
++          if (!lifecycle || !lifecycle->LoadTab()) {
++            // Session-restored tabs may need loading without being in the
++            // lifecycle unit's discarded state.
++            tab->LoadIfNeeded();
++          }
++        }
++      }
++      break;
++    }
++
++    case CommandUnloadTab: {
++      if (!IsPersistentTab(GetTabAtIndex(context_index))) {
++        break;
++      }
++      const std::vector<int> indices = GetIndicesForCommand(context_index);
++      std::vector<tabs::TabInterface*> command_tabs;
++      for (tabs::TabInterface* tab : GetTabsAtIndices(indices)) {
++        if (IsPersistentTab(tab)) {
++          command_tabs.push_back(tab);
++        }
++      }
++      base::UmaHistogramCounts1000(
++          "Tab.ContextMenu.UnloadTab.SelectedTabsCount", command_tabs.size());
++      base::RecordAction(UserMetricsAction("TabContextMenu_UnloadTab"));
++
++      // Snapshot TabInterfaces because a successful discard can replace the
++      // underlying WebContents. UnloadTab() rechecks all user-safety state on
++      // the UI thread immediately before performing the discard.
++      for (tabs::TabInterface* tab : command_tabs) {
++        if (GetIndexOfTab(tab) == kNoTab) {
++          continue;
++        }
++        resource_coordinator::TabLifecycleUnitExternal* const lifecycle =
++            GetTabLifecycleUnit(tab);
++        if (lifecycle) {
++          lifecycle->UnloadTab();
++        }
++      }
++      break;
++    }
++
+     case CommandDuplicate: {
+       base::UmaHistogramCounts1000(
+           "Tab.ContextMenu.Duplicate.SelectedTabsCount",
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.h b/chrome/browser/ui/tabs/tab_strip_model.h
+index ef083215f22dbadb5d5af40608d15bb579e250cc..b740186a2d38c936bb8c3a3f6fc4265c4e451986 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.h
++++ b/chrome/browser/ui/tabs/tab_strip_model.h
+@@ -783,6 +783,9 @@ class TabStripModel {
+     CommandGlicCreateNewChat,
+     CommandGlicSwitchToRecentConversation,
+     CommandGlicUnshare,
++    // Keep new commands at the end so existing command IDs remain stable.
++    CommandLoadTab,
++    CommandUnloadTab,
+     CommandLast
+   };
+   // LINT.ThenChange(//tools/metrics/histograms/metadata/tab/histograms.xml:TabContextMenuCommand)
+diff --git a/tools/metrics/histograms/metadata/tab/histograms.xml b/tools/metrics/histograms/metadata/tab/histograms.xml
+index f79ac1f6cd73c0b7c86f043dc3da15e4251f05b0..348f8fef97f2832dba7e5d109c95e1514f9cbc15 100644
+--- a/tools/metrics/histograms/metadata/tab/histograms.xml
++++ b/tools/metrics/histograms/metadata/tab/histograms.xml
+@@ -77,6 +77,7 @@ chromium-metrics-reviews@google.com.
+       summary="the Switch to Recent Conversation command"/>
+   <variant name="GlicUnshare" summary="the Unshare with Gemini command"/>
+   <variant name="GoBack" summary="the Go Back command"/>
++  <variant name="LoadTab" summary="the Load Tab command"/>
+   <variant name="MoveToExistingWindow"
+       summary="the Move to existing window command"/>
+   <variant name="MoveToNewWindow" summary="the Move to new window command"/>
+@@ -90,6 +91,7 @@ chromium-metrics-reviews@google.com.
+   <variant name="ToggleMuted" summary="the Toggle muted command"/>
+   <variant name="TogglePinned" summary="the Toggle Pinned command"/>
+   <variant name="ToggleVertical" summary="the Toggle Vertical tabs command"/>
++  <variant name="UnloadTab" summary="the Unload Tab command"/>
+ </variants>
+ 
+ <!-- LINT.ThenChange(//chrome/browser/ui/tabs/tab_strip_model.h:TabContextMenuCommand) -->
+diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
+index 5c017592c729fc031602297cbff9ff09d36533e7..4c9c64d02e32e44290fca894db317f8643938b86 100644
+--- a/tools/metrics/actions/actions.xml
++++ b/tools/metrics/actions/actions.xml
+@@ -51007,6 +51007,15 @@ should be able to be added at any place in this file.
+   </description>
+ </action>
+ 
++<action name="TabContextMenu_LoadTab">
++  <owner>50995795+Mschmitt478@users.noreply.github.com</owner>
++  <owner>top-chrome-desktop-ui@google.com</owner>
++  <description>
++    User selected Load tab from the tab context menu to explicitly load one or
++    more unloaded tabs without activating them.
++  </description>
++</action>
++
+ <action name="TabContextMenu_MoveTabToNewWindow">
+   <owner>lgrey@chromium.org</owner>
+   <owner>top-chrome-desktop-ui@google.com</owner>
+@@ -51123,6 +51132,15 @@ should be able to be added at any place in this file.
+   <description>User selected Pin/Unpin from tab context menu.</description>
+ </action>
+ 
++<action name="TabContextMenu_UnloadTab">
++  <owner>50995795+Mschmitt478@users.noreply.github.com</owner>
++  <owner>top-chrome-desktop-ui@google.com</owner>
++  <description>
++    User selected Unload tab from the tab context menu to explicitly discard
++    one or more eligible background tabs while retaining their tab entries.
++  </description>
++</action>
++
+ <action name="TabContextMenu_UnmuteTabs">
+   <owner>miu@chromium.org</owner>
+   <description>

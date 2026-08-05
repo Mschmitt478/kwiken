@@ -1,0 +1,988 @@
+diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
+index e33f8a4753b05ac5baa268970d454291497213f0..debc414c215aba21b8999a7d399595cdebe114e8 100644
+--- a/chrome/browser/ui/color/chrome_color_mixers.cc
++++ b/chrome/browser/ui/color/chrome_color_mixers.cc
+@@ -45,27 +45,63 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+       key.color_mode == ui::ColorProviderKey::ColorMode::kDark &&
+       key.user_color_source ==
+           ui::ColorProviderKey::UserColorSource::kGrayscale;
+-  const SkColor sidebar = private_palette ? SkColorSetRGB(0x17, 0x13, 0x1D)
+-                                          : SkColorSetRGB(0x14, 0x18, 0x11);
++  const SkColor sidebar = private_palette ? SkColorSetRGB(0x2A, 0x20, 0x2F)
++                                          : SkColorSetRGB(0x7D, 0x68, 0x82);
+   const SkColor sidebar_raised = private_palette
+-                                     ? SkColorSetRGB(0x22, 0x1B, 0x2B)
+-                                     : SkColorSetRGB(0x1D, 0x23, 0x19);
+-  const SkColor accent = private_palette ? SkColorSetRGB(0xC9, 0xAD, 0xFF)
+-                                         : SkColorSetRGB(0xC8, 0xFF, 0x5A);
+-  const SkColor accent_strong = private_palette
+-                                    ? SkColorSetRGB(0xAD, 0x8C, 0xF1)
+-                                    : SkColorSetRGB(0xAE, 0xE6, 0x3A);
+-  constexpr SkColor text = SkColorSetRGB(0xF2, 0xF5, 0xED);
+-  constexpr SkColor muted = SkColorSetRGB(0x8D, 0x96, 0x86);
+-  constexpr SkColor paper = SkColorSetRGB(0xF6, 0xF7, 0xF3);
+-  constexpr SkColor paper_raised = SK_ColorWHITE;
+-  constexpr SkColor paper_text = SkColorSetRGB(0x25, 0x2B, 0x21);
+-  constexpr SkColor paper_muted = SkColorSetRGB(0x73, 0x7B, 0x6E);
+-  constexpr SkColor paper_line = SkColorSetRGB(0xE2, 0xE5, 0xDE);
++                                     ? SkColorSetRGB(0x38, 0x2A, 0x3E)
++                                     : SkColorSetRGB(0x75, 0x61, 0x7A);
++  const SkColor sidebar_hover = private_palette
++                                    ? SkColorSetRGB(0x4A, 0x38, 0x51)
++                                    : SkColorSetRGB(0x8A, 0x74, 0x8F);
++  const SkColor active_tile = private_palette ? SkColorSetRGB(0xD2, 0xC4, 0xD4)
++                                              : SkColorSetRGB(0xDC, 0xD6, 0xDD);
++  const SkColor active_foreground = private_palette
++                                        ? SkColorSetRGB(0x24, 0x1C, 0x27)
++                                        : SkColorSetRGB(0x2D, 0x26, 0x30);
++  const SkColor text = private_palette ? SkColorSetRGB(0xF5, 0xED, 0xF6)
++                                       : SkColorSetRGB(0xF1, 0xEB, 0xF2);
++  const SkColor muted = private_palette ? SkColorSetRGB(0xC6, 0xB7, 0xC9)
++                                        : SkColorSetRGB(0xD0, 0xC4, 0xD2);
++  const SkColor accent = private_palette ? SkColorSetRGB(0xD7, 0xAF, 0xC1)
++                                         : SkColorSetRGB(0xE5, 0xC6, 0xD1);
++  const SkColor paper = private_palette ? SkColorSetRGB(0x1B, 0x15, 0x1E)
++                                        : SkColorSetRGB(0xF7, 0xF3, 0xF6);
++  const SkColor paper_raised = private_palette
++                                   ? SkColorSetRGB(0x26, 0x1D, 0x2A)
++                                   : SkColorSetRGB(0xFF, 0xF9, 0xFD);
++  const SkColor paper_text =
++      private_palette ? SkColorSetRGB(0xF4, 0xED, 0xF4) : active_foreground;
++  const SkColor paper_muted = private_palette ? SkColorSetRGB(0xC3, 0xB5, 0xC5)
++                                              : SkColorSetRGB(0x76, 0x6C, 0x78);
++  const SkColor paper_line = private_palette ? SkColorSetRGB(0x46, 0x38, 0x4A)
++                                             : SkColorSetRGB(0xE5, 0xDD, 0xE4);
++
++  // Keep every group hue distinct while lowering saturation against the rail.
++  const SkColor group_grey = private_palette ? SkColorSetRGB(0x55, 0x49, 0x59)
++                                             : SkColorSetRGB(0x8E, 0x7F, 0x91);
++  const SkColor group_blue = private_palette ? SkColorSetRGB(0x45, 0x50, 0x68)
++                                             : SkColorSetRGB(0x7B, 0x87, 0xA6);
++  const SkColor group_red = private_palette ? SkColorSetRGB(0x67, 0x43, 0x4B)
++                                            : SkColorSetRGB(0xA7, 0x79, 0x82);
++  const SkColor group_yellow = private_palette
++                                   ? SkColorSetRGB(0x68, 0x5A, 0x3E)
++                                   : SkColorSetRGB(0xA7, 0x95, 0x6D);
++  const SkColor group_green = private_palette ? SkColorSetRGB(0x43, 0x5B, 0x48)
++                                              : SkColorSetRGB(0x7E, 0x9A, 0x82);
++  const SkColor group_pink = private_palette ? SkColorSetRGB(0x66, 0x45, 0x59)
++                                             : SkColorSetRGB(0xA7, 0x7E, 0x99);
++  const SkColor group_purple = private_palette
++                                   ? SkColorSetRGB(0x59, 0x48, 0x68)
++                                   : SkColorSetRGB(0x92, 0x7D, 0xA6);
++  const SkColor group_cyan = private_palette ? SkColorSetRGB(0x3D, 0x5B, 0x5E)
++                                             : SkColorSetRGB(0x72, 0x9A, 0x9D);
++  const SkColor group_orange = private_palette
++                                   ? SkColorSetRGB(0x66, 0x4E, 0x3F)
++                                   : SkColorSetRGB(0xA7, 0x86, 0x70);
+ 
+   ui::ColorMixer& mixer = provider->AddMixer();
+-  mixer[ui::kColorAccent] = {accent_strong};
+-  mixer[ui::kColorFocusableBorderFocused] = {accent_strong};
++  mixer[ui::kColorAccent] = {accent};
++  mixer[ui::kColorFocusableBorderFocused] = {accent};
+   mixer[ui::kColorFrameActive] = {sidebar};
+   mixer[ui::kColorFrameInactive] = {sidebar_raised};
+   mixer[ui::kColorSysHeader] = {sidebar};
+@@ -76,38 +112,56 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+       SkColorSetARGB(0x20, 0xFF, 0xFF, 0xFF)};
+   mixer[ui::kColorSysOnHeaderDividerInactive] = {
+       SkColorSetARGB(0x18, 0xFF, 0xFF, 0xFF)};
+-  mixer[ui::kColorSysStateHeaderHover] = {
+-      SkColorSetARGB(0x12, 0xFF, 0xFF, 0xFF)};
+-  mixer[ui::kColorSysStateHeaderHoverInactive] = {
+-      SkColorSetARGB(0x0D, 0xFF, 0xFF, 0xFF)};
+-
+-  mixer[kColorTabBackgroundActiveFrameActive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundActiveFrameInactive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundInactiveFrameActive] = {sidebar};
++  mixer[ui::kColorSysStateHeaderHover] = {sidebar_hover};
++  mixer[ui::kColorSysStateHeaderHoverInactive] = {sidebar_hover};
++
++  mixer[kColorTabBackgroundActiveFrameActive] = {active_tile};
++  mixer[kColorTabBackgroundActiveFrameInactive] = {active_tile};
++  mixer[kColorTabBackgroundInactiveFrameActive] = {sidebar_raised};
+   mixer[kColorTabBackgroundInactiveFrameInactive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundInactiveHoverFrameActive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundInactiveHoverFrameInactive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundSelectedFrameActive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundSelectedFrameInactive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundSelectedHoverFrameActive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundSelectedHoverFrameInactive] = {sidebar_raised};
+-  mixer[kColorTabForegroundActiveFrameActive] = {text};
+-  mixer[kColorTabForegroundActiveFrameInactive] = {text};
+-  mixer[kColorTabForegroundInactiveFrameActive] = {muted};
+-  mixer[kColorTabForegroundInactiveFrameInactive] = {muted};
++  mixer[kColorTabBackgroundInactiveHoverFrameActive] = {sidebar_hover};
++  mixer[kColorTabBackgroundInactiveHoverFrameInactive] = {sidebar_hover};
++  mixer[kColorTabBackgroundSelectedFrameActive] = {sidebar_hover};
++  mixer[kColorTabBackgroundSelectedFrameInactive] = {sidebar_hover};
++  mixer[kColorTabBackgroundSelectedHoverFrameActive] = {sidebar_hover};
++  mixer[kColorTabBackgroundSelectedHoverFrameInactive] = {sidebar_hover};
++  mixer[kColorTabForegroundActiveFrameActive] = {active_foreground};
++  mixer[kColorTabForegroundActiveFrameInactive] = {active_foreground};
++  mixer[kColorTabForegroundInactiveFrameActive] = {text};
++  mixer[kColorTabForegroundInactiveFrameInactive] = {text};
+   mixer[kColorTabDividerFrameActive] = {SkColorSetARGB(0x20, 0xFF, 0xFF, 0xFF)};
+   mixer[kColorTabDividerFrameInactive] = {
+       SkColorSetARGB(0x18, 0xFF, 0xFF, 0xFF)};
+-  mixer[kColorVerticalTabPinnedOutline] = {accent_strong};
+-  mixer[kColorNewTabButtonForegroundFrameActive] = {accent};
+-  mixer[kColorNewTabButtonForegroundFrameInactive] = {accent};
++  mixer[kColorVerticalTabPinnedOutline] = {accent};
++
++  mixer[kColorTabGroupTabStripFrameActiveGrey] = {group_grey};
++  mixer[kColorTabGroupTabStripFrameInactiveGrey] = {group_grey};
++  mixer[kColorTabGroupTabStripFrameActiveBlue] = {group_blue};
++  mixer[kColorTabGroupTabStripFrameInactiveBlue] = {group_blue};
++  mixer[kColorTabGroupTabStripFrameActiveRed] = {group_red};
++  mixer[kColorTabGroupTabStripFrameInactiveRed] = {group_red};
++  mixer[kColorTabGroupTabStripFrameActiveYellow] = {group_yellow};
++  mixer[kColorTabGroupTabStripFrameInactiveYellow] = {group_yellow};
++  mixer[kColorTabGroupTabStripFrameActiveGreen] = {group_green};
++  mixer[kColorTabGroupTabStripFrameInactiveGreen] = {group_green};
++  mixer[kColorTabGroupTabStripFrameActivePink] = {group_pink};
++  mixer[kColorTabGroupTabStripFrameInactivePink] = {group_pink};
++  mixer[kColorTabGroupTabStripFrameActivePurple] = {group_purple};
++  mixer[kColorTabGroupTabStripFrameInactivePurple] = {group_purple};
++  mixer[kColorTabGroupTabStripFrameActiveCyan] = {group_cyan};
++  mixer[kColorTabGroupTabStripFrameInactiveCyan] = {group_cyan};
++  mixer[kColorTabGroupTabStripFrameActiveOrange] = {group_orange};
++  mixer[kColorTabGroupTabStripFrameInactiveOrange] = {group_orange};
++
++  mixer[kColorNewTabButtonForegroundFrameActive] = {text};
++  mixer[kColorNewTabButtonForegroundFrameInactive] = {text};
+   mixer[kColorNewTabButtonBackgroundFrameActive] = {sidebar_raised};
+   mixer[kColorNewTabButtonBackgroundFrameInactive] = {sidebar_raised};
+-  mixer[kColorNewTabButtonCRForegroundFrameActive] = {accent};
+-  mixer[kColorNewTabButtonCRForegroundFrameInactive] = {accent};
++  mixer[kColorNewTabButtonCRForegroundFrameActive] = {text};
++  mixer[kColorNewTabButtonCRForegroundFrameInactive] = {text};
+   mixer[kColorNewTabButtonCRBackgroundFrameActive] = {sidebar_raised};
+   mixer[kColorNewTabButtonCRBackgroundFrameInactive] = {sidebar_raised};
+-  mixer[kColorNewTabButtonFocusRing] = {accent_strong};
++  mixer[kColorNewTabButtonFocusRing] = {accent};
+ 
+   mixer[kColorToolbar] = {paper};
+   mixer[kColorToolbarBackgroundSubtleEmphasis] = {paper_raised};
+@@ -138,9 +192,9 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+   mixer[kColorOmniboxTextDimmed] = {paper_muted};
+   mixer[kColorOmniboxResultsTextSelected] = {paper_text};
+   mixer[kColorOmniboxResultsTextSecondary] = {paper_muted};
+-  mixer[kColorOmniboxResultsUrl] = {accent_strong};
+-  mixer[kColorOmniboxResultsUrlSelected] = {accent_strong};
+-  mixer[kColorOmniboxResultsFocusIndicator] = {accent_strong};
++  mixer[kColorOmniboxResultsUrl] = {accent};
++  mixer[kColorOmniboxResultsUrlSelected] = {accent};
++  mixer[kColorOmniboxResultsFocusIndicator] = {accent};
+ 
+   mixer[kColorNewTabPageBackground] = {paper};
+   mixer[kColorNewTabPageBackgroundOverride] = {paper};
+@@ -148,12 +202,12 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+   mixer[kColorNewTabPageTextUnthemed] = {paper_text};
+   mixer[kColorNewTabPagePrimaryForeground] = {paper_text};
+   mixer[kColorNewTabPageSecondaryForeground] = {paper_muted};
+-  mixer[kColorNewTabPageLink] = {accent_strong};
+-  mixer[kColorNewTabPageLogo] = {accent_strong};
++  mixer[kColorNewTabPageLink] = {accent};
++  mixer[kColorNewTabPageLogo] = {accent};
+   mixer[kColorNewTabPageSearchBoxBackground] = {paper_raised};
+   mixer[kColorNewTabPageSearchBoxBackgroundHovered] = {paper_raised};
+   mixer[kColorNewTabPageMostVisitedTileBackground] = {paper_raised};
+-  mixer[kColorNewTabPageFocusRing] = {accent_strong};
++  mixer[kColorNewTabPageFocusRing] = {accent};
+ }
+ 
+ class ChromeColorProviderUtilsCallbacks
+diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
+index b2c1709b4c2ac60dfc9b436ab9c75e4212e92dc2..db14f227df1f72eeff06a339f0ea3751bcb3c88e 100644
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -134,15 +134,17 @@ int GetLayoutConstant(LayoutConstant constant) {
+       return 20;
+     case LayoutConstant::kMainBackgroundRegionCornerRadius:
+     case LayoutConstant::kToolbarCornerRadius:
++      return 8;
+     case LayoutConstant::kVerticalTabCornerRadius:
+       return 8;
+     case LayoutConstant::kVerticalTabHeight:
+       return 30;
+     case LayoutConstant::kVerticalTabPinnedHeight:
+-      return 32;
++      return 44;
+     case LayoutConstant::kVerticalTabMinWidth:
+       return 32;
+     case LayoutConstant::kVerticalTabStripHorizontalPadding:
++      // Keep Chromium's 12 DIP rail inset around the denser pinned grid.
+       return 12;
+     case LayoutConstant::kVerticalTabStripUncollapsedVerticalPadding:
+       return 12;
+@@ -165,7 +167,7 @@ int GetLayoutConstant(LayoutConstant constant) {
+     case LayoutConstant::kVerticalTabStripTopContainerButtonSize:
+       return 28;
+     case LayoutConstant::kVerticalTabPinnedBorderThickness:
+-      return 1;
++      return 2;
+     default:
+       break;
+   }
+diff --git a/chrome/browser/ui/tab_ui_helper.cc b/chrome/browser/ui/tab_ui_helper.cc
+index ef6e48fcb4d483798bfcc2723b483fea14ead78a..407310e6acce6e39e137231ad456a9bab226fc2d 100644
+--- a/chrome/browser/ui/tab_ui_helper.cc
++++ b/chrome/browser/ui/tab_ui_helper.cc
+@@ -292,10 +292,12 @@ void TabUIHelper::OnVisibilityChanged(content::Visibility visiblity) {
+ }
+ 
+ void TabUIHelper::WasDiscarded() {
+-  // Notify observers that the tab should update its UI to show discard status.
+-  if (ShouldShowDiscardStatus()) {
+-    tab_ui_change_callbacks_.Notify();
+-  }
++  // `ShouldShowDiscardStatus()` intentionally filters Chromium's automatic
++  // memory-saver messaging by reason. Kwiken also has an explicit EXTERNAL
++  // unload command, and session-restored tabs can already be unloaded, so let
++  // TabData promote the underlying discarded state into the shared visual and
++  // accessibility path.
++  tab_ui_change_callbacks_.Notify();
+ }
+ 
+ void TabUIHelper::DidFinishNavigation(
+diff --git a/chrome/browser/ui/tabs/tab_data.cc b/chrome/browser/ui/tabs/tab_data.cc
+index 84682b0f8437b952f7ed8607ab31a2f7f958938c..1ca448df22641712dcf13f3a120072dcb4a626fb 100644
+--- a/chrome/browser/ui/tabs/tab_data.cc
++++ b/chrome/browser/ui/tabs/tab_data.cc
+@@ -46,12 +46,12 @@ TabData TabData::FromTabInterface(tabs::TabInterface* tab_interface) {
+   tab_data.should_display_url = tab_ui_helper->ShouldDisplayURL();
+   tab_data.visible_url = tab_ui_helper->GetVisibleURL();
+   tab_data.needs_attention = tab_ui_helper->needs_attention();
++  tab_data.is_tab_discarded = tab_ui_helper->IsDiscarded();
+   tab_data.should_show_discard_status =
+-      tab_ui_helper->ShouldShowDiscardStatus();
++      tab_ui_helper->ShouldShowDiscardStatus() || tab_data.is_tab_discarded;
+   tab_data.discarded_memory_savings =
+       tab_ui_helper->GetDiscardedMemorySavings();
+   tab_data.network_state = tab_ui_helper->GetTabNetworkState();
+-  tab_data.is_tab_discarded = tab_ui_helper->IsDiscarded();
+   tab_data.last_committed_url = tab_ui_helper->GetLastCommittedURL();
+   tab_data.alert_state = tab_alert_controller->GetAlertToShow();
+   tab_data.pinned = tab_interface->IsPinned();
+diff --git a/chrome/browser/ui/tabs/tab_data_browsertest.cc b/chrome/browser/ui/tabs/tab_data_browsertest.cc
+index f05ddcb8be2db09098ad01904d3443f68ae83d09..82d3495e49c8440e982acf13e885936831958b08 100644
+--- a/chrome/browser/ui/tabs/tab_data_browsertest.cc
++++ b/chrome/browser/ui/tabs/tab_data_browsertest.cc
+@@ -400,6 +400,20 @@ IN_PROC_BROWSER_TEST_F(TabDataObserverBrowserTest, TabLifecycleManagement) {
+   ASSERT_TRUE(data_usage.tab_resource_usage);
+   EXPECT_EQ(data_usage.tab_resource_usage->memory_usage(),
+             base::ByteSize(1234));
++
++  // A session-restored tab can already be unloaded without a Chromium
++  // memory-saver discard reason. The underlying discarded bit must still feed
++  // the common icon, hover-card and accessibility status path.
++  content::WebContents* const web_contents = tab_interface->GetContents();
++  const std::u16string original_title = data_usage.title;
++  const GURL original_url = data_usage.last_committed_url;
++  web_contents->SetWasDiscarded(true);
++  tabs::TabData data_restored_unloaded =
++      tabs::TabData::FromTabInterface(tab_interface);
++  EXPECT_TRUE(data_restored_unloaded.is_tab_discarded);
++  EXPECT_TRUE(data_restored_unloaded.should_show_discard_status);
++  EXPECT_EQ(original_title, data_restored_unloaded.title);
++  EXPECT_EQ(original_url, data_restored_unloaded.last_committed_url);
+ }
+ 
+ IN_PROC_BROWSER_TEST_F(TabDataObserverBrowserTest,
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.cc
+index 58c8ef10b31d8b8e1baae2bb2f1f72cc6a9ffc32..20d660ad90447e6a0e32d6e2d8875c4896161f03 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.cc
+@@ -26,7 +26,8 @@
+ #include "ui/views/view_utils.h"
+ 
+ namespace {
+-constexpr int kTabPadding = 4;
++constexpr int kExpandedPinnedTabMinWidth = 64;
++constexpr int kPinnedTabGridGap = 8;
+ }  // namespace
+ 
+ VerticalPinnedTabContainerView::VerticalPinnedTabContainerView(
+@@ -74,45 +75,46 @@ views::ProposedLayout VerticalPinnedTabContainerView::CalculateProposedLayout(
+     return layouts;
+   }
+ 
+-  // Child width will be uniform and match the largest child's width.
+-  bool contains_split = false;
+-  for (const auto& i : collection_node_->children()) {
+-    if (i->type() == TabCollectionNode::Type::SPLIT) {
+-      contains_split = true;
+-    }
+-  }
+-  int child_width = GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth) *
+-                    (contains_split ? 2 : 1);
++  const auto collapse_state = GetTabStripCollapseState();
++  const bool is_expanded =
++      collapse_state == tabs::VerticalTabStripCollapseState::kExpanded;
++  const bool is_collapsed =
++      tabs::IsVerticalTabsExpandOnHoverFeatureEnabled() &&
++      collapse_state == tabs::VerticalTabStripCollapseState::kCollapsed;
++  const int minimum_child_width =
++      is_expanded ? kExpandedPinnedTabMinWidth
++                  : GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth);
++  int child_width = minimum_child_width;
+ 
+   // If the width is bounded, calculate how many children can fit on a row.
+   // Since all children are allocated the same width this will be the same for
+   // every row.
+   if (size_bounds.width().is_bounded() && size_bounds.width().value() > 0) {
+-    auto collapse_state = GetTabStripCollapseState();
+-
+     // Apply horizontal padding immediately at start of collapse animation by
+     // including collapsing state.
+-    int available_width =
+-        size_bounds.width().value() -
+-        GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding);
++    const int available_width =
++        std::max(minimum_child_width,
++                 size_bounds.width().value() -
++                     GetLayoutConstant(
++                         LayoutConstant::kVerticalTabStripHorizontalPadding));
+ 
+     // When we are in collapsed state, only one child should be shown per row.
+     // During collapse animation and other cases, fit as many as possible.
+     children_on_row =
+-        tabs::IsVerticalTabsExpandOnHoverFeatureEnabled() &&
+-                collapse_state ==
+-                    tabs::VerticalTabStripCollapseState::kCollapsed
++        is_collapsed
+             ? 1
+             : std::min(
+                   children_on_row,
+-                  static_cast<int>(std::floor((available_width - child_width) /
+-                                              (child_width + kTabPadding)) +
+-                                   1));
+-
+-    // Allocate extra space to the tabs.
+-    available_width -=
+-        (children_on_row * child_width) + (kTabPadding * (children_on_row - 1));
+-    child_width += std::floor(available_width / children_on_row);
++                  std::max(1, (available_width + kPinnedTabGridGap) /
++                                  (minimum_child_width + kPinnedTabGridGap)));
++
++    // Allocate remaining width evenly without shrinking below the expanded
++    // 64 DIP contract or clipping the trailing tile.
++    child_width =
++        std::max(minimum_child_width,
++                 (available_width -
++                  kPinnedTabGridGap * static_cast<int>(children_on_row - 1)) /
++                     children_on_row);
+   }
+ 
+   int row_index = 0;
+@@ -136,12 +138,12 @@ views::ProposedLayout VerticalPinnedTabContainerView::CalculateProposedLayout(
+     bounds.set_x(child_x);
+ 
+     if (row_index != 0) {
+-      bounds.set_x(bounds.x() + kTabPadding);
++      bounds.set_x(bounds.x() + kPinnedTabGridGap);
+     }
+ 
+     if (!drag_data || !drag_data->should_float) {
+       if (row_index != 0) {
+-        x += kTabPadding;
++        x += kPinnedTabGridGap;
+       }
+       x += bounds.width();
+       total_width = std::max(total_width, x);
+@@ -149,7 +151,7 @@ views::ProposedLayout VerticalPinnedTabContainerView::CalculateProposedLayout(
+ 
+       row_index++;
+       if (row_index >= children_on_row) {
+-        y = total_height + kTabPadding;
++        y = total_height + kPinnedTabGridGap;
+         row_index = 0;
+         x = 0;
+       }
+@@ -181,11 +183,15 @@ gfx::Size VerticalPinnedTabContainerView::GetMinimumSize() const {
+                                                                         : 1.0f),
+       static_cast<float>(num_children));
+   const int min_height =
+-      base::ClampCeil(GetLayoutConstant(LayoutConstant::kVerticalTabHeight) *
+-                      min_rows) +
+-      (num_children > 1 ? kTabPadding : 0);
+-  return gfx::Size(GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth),
+-                   min_height);
++      base::ClampCeil(
++          GetLayoutConstant(LayoutConstant::kVerticalTabPinnedHeight) *
++          min_rows) +
++      (num_children > 1 ? kPinnedTabGridGap : 0);
++  const int min_width =
++      collapse_state == tabs::VerticalTabStripCollapseState::kExpanded
++          ? kExpandedPinnedTabMinWidth
++          : GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth);
++  return gfx::Size(min_width, min_height);
+ }
+ 
+ bool VerticalPinnedTabContainerView::IsDragging() const {
+@@ -282,7 +288,8 @@ VerticalPinnedTabContainerView::GetLinkDropIndexForExpanded(
+     CHECK(view);
+     // Check if the current point is within the vertical bounds of the row
+     // this child belongs to, including half the padding between rows.
+-    if (loc_in_container.y() >= view->bounds().bottom() + kTabPadding / 2) {
++    if (loc_in_container.y() >=
++        view->bounds().bottom() + kPinnedTabGridGap / 2) {
+       continue;
+     }
+ 
+@@ -293,7 +300,7 @@ VerticalPinnedTabContainerView::GetLinkDropIndexForExpanded(
+     // The x-based calculation uses a margin to determine if the link should
+     // be inserted before/after, so the cutoff point between tabs in a row
+     // doesn't have to be exact.
+-    if (logical_x >= view->bounds().right() + kTabPadding) {
++    if (logical_x >= view->bounds().right() + kPinnedTabGridGap) {
+       continue;
+     }
+ 
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc
+index 1970367feaccf631955d558a8ecc1acda4724ff1..8c013c86e0cd3e3142dfe4ca915fbfcb98d9c27b 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc
+@@ -100,10 +100,18 @@ void VerticalSplitTabView::OnPaint(gfx::Canvas* canvas) {
+     const std::vector<views::View*> children =
+         collection_node_ ? collection_node_->GetDirectChildren()
+                          : std::vector<views::View*>();
++    VerticalTabView* background_tab = nullptr;
++    for (views::View* child : children) {
++      auto* tab = views::AsViewClass<VerticalTabView>(child);
++      if (!background_tab || tab->ShouldPaintActivePinnedOutline()) {
++        background_tab = tab;
++      }
++      if (tab->ShouldPaintActivePinnedOutline()) {
++        break;
++      }
++    }
+     std::optional<SkColor> background_color =
+-        !children.empty() ? views::AsViewClass<VerticalTabView>(children[0])
+-                                ->GetBackgroundColor()
+-                          : std::nullopt;
++        background_tab ? background_tab->GetBackgroundColor() : std::nullopt;
+     if (background_color.has_value()) {
+       cc::PaintFlags flags;
+       flags.setAntiAlias(true);
+@@ -243,13 +251,28 @@ void VerticalSplitTabView::OnDataChanged() {
+ 
+ void VerticalSplitTabView::UpdateBorder() {
+   if (pinned_) {
+-    const bool is_frame_active =
+-        GetWidget() ? GetWidget()->ShouldPaintAsActive() : true;
+-    SetBorder(views::CreateRoundedRectBorder(
+-        GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness),
+-        GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius),
+-        is_frame_active ? kColorTabDividerFrameActive
+-                        : kColorTabDividerFrameInactive));
++    const int border_thickness =
++        GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness);
++    bool has_active_tab = false;
++    if (collection_node_) {
++      for (views::View* child : collection_node_->GetDirectChildren()) {
++        if (views::AsViewClass<VerticalTabView>(child)
++                ->ShouldPaintActivePinnedOutline()) {
++          has_active_tab = true;
++          break;
++        }
++      }
++    }
++
++    if (has_active_tab) {
++      SetBorder(views::CreateRoundedRectBorder(
++          border_thickness,
++          GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius),
++          kColorVerticalTabPinnedOutline));
++    } else {
++      SetBorder(views::CreateEmptyBorder(gfx::Insets(border_thickness)));
++    }
++    SchedulePaint();
+   } else if (GetBorder()) {
+     SetBorder(nullptr);
+   }
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h
+index 50f7bbb8e79df391e060e8006459bd82327b9947..94c474433bd1f2d5092916d4763155bc7e3695dc 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h
+@@ -59,10 +59,13 @@ class VerticalSplitTabView : public views::View, public views::LayoutDelegate {
+ 
+   const TabCollectionNode* collection_node() const { return collection_node_; }
+ 
++  // Called when either child changes activation state so split-pinned tabs use
++  // one coherent, stable outer outline.
++  void UpdateBorder();
++
+  private:
+   void ResetCollectionNode();
+   void OnDataChanged();
+-  void UpdateBorder();
+   void UpdateHovered(bool hovered);
+ 
+   void OnCollapseStateChanged(tabs::VerticalTabStripCollapseState state);
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc
+index 63a17434753087cc0f0f31ecf3b17fb0264a9b04..f894acd98c9beb168bfca88092b4eaf9eaab8caf 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc
+@@ -6,14 +6,17 @@
+ #include <vector>
+ 
+ #include "base/test/run_until.h"
++#include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/views/frame/browser_root_view.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
++#include "chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h"
++#include "chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_group_view.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h"
+@@ -30,6 +33,10 @@
+ #include "ui/base/dragdrop/os_exchange_data.h"
+ #include "ui/gfx/animation/animation_test_api.h"
+ #include "ui/gfx/geometry/point_f.h"
++#include "ui/views/background.h"
++#include "ui/views/controls/image_view.h"
++#include "ui/views/layout/layout_types.h"
++#include "ui/views/layout/proposed_layout.h"
+ #include "ui/views/view_utils.h"
+ 
+ class VerticalTabStripLinkDragTest
+@@ -303,6 +310,42 @@ IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest, DropInGroups) {
+   }
+ }
+ 
++IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest,
++                       ExpandedRailKeepsZenNavigationCues) {
++  EnsureTabCount(2);
++  tab_strip_model()->SetTabPinned(0, true);
++  region_view()->OnResize(1000, true);
++  RunScheduledLayouts();
++
++  ASSERT_EQ(1u, WaitForPinnedTabs(1).size());
++  ASSERT_EQ(1u, WaitForTabs(1).size());
++  EXPECT_TRUE(region_view()->tabs_separator_for_testing()->GetVisible());
++  EXPECT_GT(region_view()->tabs_separator_for_testing()->width(), 0);
++
++  ASSERT_FALSE(region_view()->GetBottomContainer()->children().empty());
++  auto* const new_tab_button = views::AsViewClass<TabStripFlatEdgeButton>(
++      region_view()->GetBottomContainer()->children().front());
++  ASSERT_TRUE(new_tab_button);
++  EXPECT_TRUE(new_tab_button->label()->GetVisible());
++  EXPECT_FALSE(new_tab_button->label()->GetText().empty());
++}
++
++IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest,
++                       GroupHeaderUsesNeutralFolderTreatment) {
++  EnsureTabCount(2);
++  tab_strip_model()->AddToNewGroup({0, 1});
++  RunScheduledLayouts();
++
++  VerticalTabGroupHeaderView* const header = WaitForGroupView()->group_header();
++  ASSERT_TRUE(header->GetBackground());
++  EXPECT_EQ(header->GetBackground()->color(),
++            header->GetWidget()->ShouldPaintAsActive()
++                ? kColorTabBackgroundInactiveFrameActive
++                : kColorTabBackgroundInactiveFrameInactive);
++  EXPECT_TRUE(
++      header->folder_icon_for_testing()->GetImageModel().IsVectorIcon());
++}
++
+ IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest, DropInCollapsedGroups) {
+   EnsureTabCount(3);
+   tab_strip_model()->ActivateTabAt(
+@@ -384,6 +427,50 @@ IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest, DropInPinnedTabs) {
+   }
+ }
+ 
++IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest, PinnedTileGridGeometry) {
++  EnsureTabCount(5);
++  for (int index = 0; index < tab_strip_model()->count(); ++index) {
++    tab_strip_model()->SetTabPinned(index, true);
++  }
++  ASSERT_EQ(5u, WaitForPinnedTabs(5).size());
++
++  const views::ProposedLayout two_column_layout =
++      pinned_container()->CalculateProposedLayout(views::SizeBounds(151, {}));
++  ASSERT_EQ(5u, two_column_layout.child_layouts.size());
++  EXPECT_EQ(two_column_layout.child_layouts[0].bounds.y(),
++            two_column_layout.child_layouts[1].bounds.y());
++  EXPECT_LT(two_column_layout.child_layouts[1].bounds.y(),
++            two_column_layout.child_layouts[2].bounds.y());
++  EXPECT_EQ(44, two_column_layout.child_layouts[0].bounds.height());
++  EXPECT_EQ(8, two_column_layout.child_layouts[1].bounds.x() -
++                   two_column_layout.child_layouts[0].bounds.right());
++  EXPECT_EQ(8, two_column_layout.child_layouts[2].bounds.y() -
++                   two_column_layout.child_layouts[0].bounds.bottom());
++
++  const views::ProposedLayout three_column_layout =
++      pinned_container()->CalculateProposedLayout(views::SizeBounds(260, {}));
++  ASSERT_EQ(5u, three_column_layout.child_layouts.size());
++  EXPECT_EQ(three_column_layout.child_layouts[0].bounds.y(),
++            three_column_layout.child_layouts[2].bounds.y());
++  EXPECT_LT(three_column_layout.child_layouts[2].bounds.y(),
++            three_column_layout.child_layouts[3].bounds.y());
++  EXPECT_EQ(8, three_column_layout.child_layouts[2].bounds.x() -
++                   three_column_layout.child_layouts[1].bounds.right());
++
++  region_view()->OnResize(-1000, true);
++  RunScheduledLayouts();
++  const views::ProposedLayout collapsed_layout =
++      pinned_container()->CalculateProposedLayout(views::SizeBounds(44, {}));
++  ASSERT_EQ(5u, collapsed_layout.child_layouts.size());
++  EXPECT_EQ(32, collapsed_layout.child_layouts[0].bounds.width());
++  for (const views::ChildLayout& child_layout :
++       collapsed_layout.child_layouts) {
++    EXPECT_EQ(0, child_layout.bounds.x());
++  }
++  EXPECT_EQ(8, collapsed_layout.child_layouts[1].bounds.y() -
++                   collapsed_layout.child_layouts[0].bounds.bottom());
++}
++
+ IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest,
+                        DropInRegionViewOutsideTabStrip) {
+   EnsureTabCount(3);
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.cc
+index afcfdc886261e044f0d0033086d1e2c87c47685d..1078e4957ccdd541cdebf9d067ae3a237e7da17e 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.cc
+@@ -11,6 +11,7 @@
+ #include "build/buildflag.h"
+ #include "chrome/app/vector_icons/vector_icons.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
++#include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/tabs/tab_group_data.h"
+ #include "chrome/browser/ui/tabs/tab_group_theme.h"
+ #include "chrome/browser/ui/ui_features.h"
+@@ -22,6 +23,7 @@
+ #include "components/data_sharing/public/features.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "components/tab_groups/tab_group_visual_data.h"
++#include "components/vector_icons/vector_icons.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/base/models/image_model.h"
+@@ -52,6 +54,7 @@ constexpr int kGroupHeaderHorizontalInset = 8;
+ constexpr int kIconSize = 16;
+ constexpr int kFocusRingInset = 2;
+ constexpr int kAttentionIndicatorWidth = 8;
++constexpr int kFolderIconLabelPadding = 8;
+ // The amount of padding between the label and any sync icon.
+ constexpr int kSyncIconLabelPadding = 2;
+ 
+@@ -137,6 +140,7 @@ VerticalTabGroupHeaderView::VerticalTabGroupHeaderView(
+     const tab_groups::TabGroupVisualData* tab_group_visual_data)
+     : HoverCardAnchorTarget(this),
+       tab_group_visual_data_(*tab_group_visual_data),
++      folder_icon_(AddChildView(std::make_unique<views::ImageView>())),
+       sync_icon_(AddChildView(std::make_unique<views::ImageView>())),
+       group_header_label_(
+           AddChildView(std::make_unique<VerticalTabGroupHeaderLabel>())),
+@@ -187,6 +191,8 @@ VerticalTabGroupHeaderView::VerticalTabGroupHeaderView(
+ 
+   sync_icon_->SetProperty(views::kMarginsKey,
+                           gfx::Insets::TLBR(0, 0, 0, kSyncIconLabelPadding));
++  folder_icon_->SetProperty(
++      views::kMarginsKey, gfx::Insets::TLBR(0, 0, 0, kFolderIconLabelPadding));
+   attention_indicator_->SetProperty(
+       views::kMarginsKey, gfx::Insets::TLBR(0, kSyncIconLabelPadding, 0, 0));
+ 
+@@ -458,10 +464,22 @@ void VerticalTabGroupHeaderView::OnDataChanged(
+ 
+   group_header_label_->SetText(tab_group_visual_data_.title());
+   if (GetColorProvider()) {
+-    SkColor background_color = GetColorProvider()->GetColor(
+-        GetTabGroupTabStripColorId(tab_group_visual_data_.color(),
+-                                   GetWidget()->ShouldPaintAsActive()));
+-    SkColor foreground_color = GetForegroundColor();
++    const bool is_frame_active = GetWidget()->ShouldPaintAsActive();
++    const SkColor group_color =
++        GetColorProvider()->GetColor(GetTabGroupTabStripColorId(
++            tab_group_visual_data_.color(), is_frame_active));
++    const ui::ColorId background_color =
++        is_frame_active ? kColorTabBackgroundInactiveFrameActive
++                        : kColorTabBackgroundInactiveFrameInactive;
++    const SkColor foreground_color = GetForegroundColor();
++
++    // Treat a group as a calm folder row. The selected hue remains visible in
++    // the folder glyph and group line without filling the entire header.
++    folder_icon_->SetImage(ui::ImageModel::FromVectorIcon(
++        features::IsRoundedIconsEnabled()
++            ? vector_icons::kFolderFlippableIcon
++            : vector_icons::kFolderChromeRefreshOldIcon,
++        group_color, kIconSize));
+ 
+     // Update label.
+     group_header_label_->SetEnabledColor(foreground_color);
+@@ -596,10 +614,10 @@ void VerticalTabGroupHeaderView::UpdateAccessibleName() {
+ 
+ SkColor VerticalTabGroupHeaderView::GetForegroundColor() const {
+   if (GetColorProvider()) {
+-    SkColor background_color = GetColorProvider()->GetColor(
+-        GetTabGroupTabStripColorId(tab_group_visual_data_.color(),
+-                                   GetWidget()->ShouldPaintAsActive()));
+-    return color_utils::GetColorWithMaxContrast(background_color);
++    return GetColorProvider()->GetColor(
++        GetWidget()->ShouldPaintAsActive()
++            ? kColorTabForegroundInactiveFrameActive
++            : kColorTabForegroundInactiveFrameInactive);
+   }
+   return SK_ColorBLACK;
+ }
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h
+index 060713491fad09c839d6500545af22bac3ec192e..c43532b657d0eaf26038927e93eb2f341e71cc83 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h
+@@ -32,7 +32,7 @@ class ImageView;
+ class Label;
+ }  // namespace views
+ 
+-// The view for the tab group header. It displays the tab group
++// The view for the tab group header. It displays the folder glyph, tab group
+ // title, editor icon and the collapsed/expand icon.
+ class VerticalTabGroupHeaderView : public views::FlexLayoutView,
+                                    public views::ContextMenuController,
+@@ -108,6 +108,7 @@ class VerticalTabGroupHeaderView : public views::FlexLayoutView,
+   void OnDataChanged(const tabs::TabGroupData& tab_group_data);
+ 
+   views::LabelButton* editor_bubble_button() { return editor_bubble_button_; }
++  views::ImageView* folder_icon_for_testing() { return folder_icon_; }
+   views::ImageView* collapse_icon_for_testing() { return collapse_icon_; }
+   views::ImageView* attention_indicator_for_testing() {
+     return attention_indicator_;
+@@ -132,6 +133,10 @@ class VerticalTabGroupHeaderView : public views::FlexLayoutView,
+   bool needs_attention_ = false;
+   bool is_shared_ = false;
+ 
++  // A folder glyph that carries the user-selected group hue while the header
++  // itself stays on a neutral rail surface.
++  const raw_ptr<views::ImageView> folder_icon_ = nullptr;
++
+   // The sync icon that is displayed in the tab group header of saved groups in
+   // the tabstrip.
+   const raw_ptr<views::ImageView> sync_icon_ = nullptr;
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+index 32c64e73c5e2ef5ca5561c349381d35754b72d87..1594c8989d6f394317fa7c1060b9d3156ef0655a 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+@@ -42,6 +42,8 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
+           record_new_tab_button_pressed);
+ 
+   new_tab_button_ = AddChildView(std::move(new_tab_button));
++  // Keep the primary action legible whenever the rail has room for its label.
++  new_tab_button_->SetShouldShowLabel(true);
+ 
+   OnCollapseStateChanged(state_controller->GetCollapseState());
+   collapsed_state_change_subscription_ =
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc
+index d09396a6077ef46c9f334721af66111800b445c4..15767e91120e12347028196a9b2be5333216a9a2 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc
+@@ -154,9 +154,10 @@ views::ProposedLayout VerticalTabStripView::CalculateProposedLayout(
+   const int unpinned_preferred_height =
+       unpinned_tabs_scroll_view_->GetPreferredSize(size_bounds).height();
+ 
+-  const bool should_show_separator = pinned_preferred_height != 0 &&
+-                                     unpinned_preferred_height != 0 &&
+-                                     is_collapsed_;
++  // Keep persistent destinations visually distinct from ordinary tabs in both
++  // expanded and collapsed layouts.
++  const bool should_show_separator =
++      pinned_preferred_height != 0 && unpinned_preferred_height != 0;
+ 
+   // If the height is bounded, calculate the available space for laying out the
+   // pinned and unpinned containers.
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc
+index eb9e13ce3d2dca019b4a9758bcd7ef4dc7846dc8..432164fcad0acd75b598c00eecb99b28815c577e 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc
+@@ -88,6 +88,7 @@
+ 
+ namespace {
+ constexpr int kIconDesignWidth = 16;
++static_assert(kIconDesignWidth == gfx::kFaviconSize);
+ constexpr int kTitleMinWidth = 10;
+ constexpr int kHorizontalInset = 8;
+ constexpr int kDefaultPadding = 4;
+@@ -285,7 +286,7 @@ bool VerticalTabView::IsHoverAnimationActive() const {
+ }
+ 
+ std::optional<SkColor> VerticalTabView::GetBackgroundColor() {
+-  if (active_ || IsHoverAnimationActive() ||
++  if (pinned_ || active_ || IsHoverAnimationActive() ||
+       should_fill_background_tab_color_) {
+     return tab_style_->GetCurrentTabBackgroundColor(
+         GetSelectionState(), IsHoverAnimationActive(), GetHoverAnimationValue(),
+@@ -606,6 +607,12 @@ bool VerticalTabView::ShouldPaintTabBackgroundColor(
+     TabStyle::TabSelectionState selection_state,
+     bool has_custom_background,
+     bool hovered) const {
++  // Pinned tabs are persistent destinations, so keep a calm tile surface even
++  // while they are inactive. Custom themes still supply the actual colors.
++  if (pinned_) {
++    return true;
++  }
++
+   if (selection_state == TabStyle::TabSelectionState::kActive) {
+     return true;
+   }
+@@ -1043,16 +1050,19 @@ void VerticalTabView::UpdateTitle(std::u16string title,
+ 
+ void VerticalTabView::UpdateBorder() {
+   if (pinned_) {
++    const int border_thickness =
++        GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness);
+     if (split_) {
+       // Insets for border handled by the `VerticalSplitTabView`.
+-      SetBorder(views::CreateEmptyBorder(gfx::Insets(GetLayoutConstant(
+-          LayoutConstant::kVerticalTabPinnedBorderThickness))));
+-    } else {
++      SetBorder(views::CreateEmptyBorder(gfx::Insets(border_thickness)));
++    } else if (ShouldPaintActivePinnedOutline()) {
+       SetBorder(views::CreateRoundedRectBorder(
+-          GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness),
++          border_thickness,
+           GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius),
+-          IsFrameActive() ? kColorVerticalTabPinnedOutline
+-                          : kColorTabDividerFrameInactive));
++          kColorVerticalTabPinnedOutline));
++    } else {
++      // Match the active border's inset so selection never shifts the favicon.
++      SetBorder(views::CreateEmptyBorder(gfx::Insets(border_thickness)));
+     }
+   } else if (GetBorder()) {
+     SetBorder(nullptr);
+@@ -1103,6 +1113,11 @@ void VerticalTabView::UpdateColors() {
+   alert_indicator_->OnParentTabButtonColorChanged();
+ 
+   UpdateBorder();
++  if (split_) {
++    if (auto* split_view = views::AsViewClass<VerticalSplitTabView>(parent())) {
++      split_view->UpdateBorder();
++    }
++  }
+ 
+   // TODO(crbug.com/465159185): Update focus ring colors.
+   SchedulePaint();
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.h
+index 30bddac23a66df179d081a021600b76d82d378a1..7cde502ff505da921cbd5f340a6acc417aefdf30 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.h
+@@ -84,6 +84,7 @@ class VerticalTabView : public views::View,
+   float radial_highlight_opacity() { return radial_highlight_opacity_; }
+   const tabs::TabData& data() const { return tab_data_; }
+   bool IsActive() const { return active_; }
++  bool ShouldPaintActivePinnedOutline() const { return pinned_ && active_; }
+ 
+   TabCloseButton* close_button_for_testing() { return close_button_; }
+ 
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc
+index b007fd08048281088fa7a2af0ae4da4021e1ea51..12f991733acba7daa8716fec2812d86f548ab8e2 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc
+@@ -11,6 +11,7 @@
+ #include "base/test/run_until.h"
+ #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+ #include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
++#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+ #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+ #include "chrome/browser/ui/animation/browser_animation_controller.h"
+ #include "chrome/browser/ui/browser.h"
+@@ -25,6 +26,7 @@
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
+ #include "chrome/browser/ui/views/tabs/hovercard/tab_hover_card_bubble_view.h"
++#include "chrome/browser/ui/views/tabs/tab/tab_accessibility.h"
+ #include "chrome/browser/ui/views/tabs/tab/tab_close_button.h"
+ #include "chrome/browser/ui/views/tabs/tab/tab_icon.h"
+ #include "chrome/browser/ui/views/tabs/vertical/root_tab_collection_node.h"
+@@ -599,6 +601,82 @@ IN_PROC_BROWSER_TEST_F(VerticalTabViewTest, PinnedTabsRenderBorder) {
+   EXPECT_FALSE(unpinned_tab->GetBorder());
+ }
+ 
++IN_PROC_BROWSER_TEST_F(VerticalTabViewTest,
++                       PinnedTabsUseStableActiveOnlyOutline) {
++  AppendPinnedTab();
++  AppendPinnedTab();
++  ASSERT_EQ(2u, pinned_collection_node()->children().size());
++
++  VerticalTabView* first = views::AsViewClass<VerticalTabView>(
++      pinned_collection_node()->children()[0]->view());
++  VerticalTabView* second = views::AsViewClass<VerticalTabView>(
++      pinned_collection_node()->children()[1]->view());
++  ASSERT_TRUE(first->GetBorder());
++  ASSERT_TRUE(second->GetBorder());
++
++  EXPECT_FALSE(first->ShouldPaintActivePinnedOutline());
++  EXPECT_TRUE(second->ShouldPaintActivePinnedOutline());
++  EXPECT_EQ(gfx::Insets(2), first->GetInsets());
++  EXPECT_EQ(first->GetInsets(), second->GetInsets());
++  EXPECT_TRUE(first->GetBackgroundColor().has_value());
++  EXPECT_TRUE(second->GetBackgroundColor().has_value());
++
++  tab_strip_model()->ActivateTabAt(0);
++  ASSERT_TRUE(base::test::RunUntil([&]() {
++    return first->ShouldPaintActivePinnedOutline() &&
++           !second->ShouldPaintActivePinnedOutline();
++  }));
++  EXPECT_EQ(gfx::Insets(2), first->GetInsets());
++  EXPECT_EQ(first->GetInsets(), second->GetInsets());
++}
++
++IN_PROC_BROWSER_TEST_F(VerticalTabViewTest,
++                       ExplicitUserUnloadShowsPersistentTabStatus) {
++  ASSERT_TRUE(embedded_test_server()->Start());
++  const GURL original_url =
++      embedded_test_server()->GetURL("example.com", "/title2.html");
++  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), original_url));
++  tab_strip_model()->SetTabPinned(0, true);
++
++  tabs::TabInterface* const unloaded_tab = tab_strip_model()->GetTabAtIndex(0);
++  VerticalTabView* const unloaded_view = views::AsViewClass<VerticalTabView>(
++      pinned_collection_node()->children()[0]->view());
++  TabIcon* const unloaded_icon = views::AsViewClass<TabIcon>(
++      unloaded_view->GetViewByElementId(kTabIconElementId));
++  const std::u16string original_title = unloaded_view->data().title;
++  const ui::ImageModel original_favicon = unloaded_view->data().favicon;
++
++  AppendTab();
++  resource_coordinator::TabLifecycleUnitExternal* const lifecycle =
++      resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
++          unloaded_tab->GetContents());
++  ASSERT_TRUE(lifecycle);
++  ASSERT_TRUE(lifecycle->CanUnloadTab());
++  ASSERT_TRUE(lifecycle->UnloadTab());
++
++  ASSERT_TRUE(base::test::RunUntil([&]() {
++    return unloaded_view->data().is_tab_discarded &&
++           unloaded_view->data().should_show_discard_status &&
++           unloaded_icon->GetShowingDiscardIndicator();
++  }));
++
++  const std::u16string pinned_name = l10n_util::GetStringFUTF16(
++      IDS_TAB_AX_LABEL_PINNED_FORMAT,
++      browser()->GetTitleForTab(unloaded_tab->GetHandle()));
++  const std::u16string expected_accessible_name =
++      l10n_util::GetStringFUTF16(IDS_TAB_AX_INACTIVE_TAB, pinned_name);
++  EXPECT_EQ(expected_accessible_name,
++            unloaded_view->GetViewAccessibility().GetCachedName());
++  EXPECT_EQ(expected_accessible_name,
++            tabs::GetAccessibleTabLabel(unloaded_tab, /*is_for_tab=*/true));
++
++  EXPECT_EQ(0, tab_strip_model()->GetIndexOfTab(unloaded_tab));
++  EXPECT_TRUE(unloaded_tab->IsPinned());
++  EXPECT_EQ(original_url, unloaded_tab->GetContents()->GetLastCommittedURL());
++  EXPECT_EQ(original_title, unloaded_view->data().title);
++  EXPECT_EQ(original_favicon, unloaded_view->data().favicon);
++}
++
+ IN_PROC_BROWSER_TEST_F(VerticalTabViewTest, LogsTabCloseMetrics) {
+   base::UserActionTester user_action_tester;
+ 

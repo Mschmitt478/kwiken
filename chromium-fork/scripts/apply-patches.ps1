@@ -7,6 +7,12 @@ param(
 $ChromiumRoot = Resolve-KwikenBuildRoot -Value $ChromiumRoot `
   -DefaultValue (Get-DefaultChromiumRoot) -Name "ChromiumRoot"
 $sourceRoot = Assert-ChromiumCheckout -ChromiumRoot $ChromiumRoot
+$currentSourceDeltaHash = Get-ChromiumSourceDeltaSha256 -SourceRoot $sourceRoot
+if ($currentSourceDeltaHash -eq $script:ExpectedSourceDeltaSha256) {
+  Write-Output "The complete reviewed Kwiken source delta is already applied to $sourceRoot ($currentSourceDeltaHash)."
+  return
+}
+
 $patchRoot = Join-Path $script:ForkRoot "patches"
 $patchPaths = @(Get-ChildItem -LiteralPath $patchRoot -Filter "*.patch" -File |
     Sort-Object -Property Name)

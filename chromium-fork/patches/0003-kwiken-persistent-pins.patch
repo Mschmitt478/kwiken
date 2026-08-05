@@ -1,0 +1,1615 @@
+diff --git a/chrome/browser/ui/browser_live_tab_context.cc b/chrome/browser/ui/browser_live_tab_context.cc
+index d6f1a55fd6b8e3d51e380ede860182071243cb76..7ec0ab62e66e699c10ca7973421a33dd2be28333 100644
+--- a/chrome/browser/ui/browser_live_tab_context.cc
++++ b/chrome/browser/ui/browser_live_tab_context.cc
+@@ -32,6 +32,8 @@
+ #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+ #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+ #include "chrome/browser/ui/tabs/features.h"
++#include "chrome/browser/ui/tabs/pinned_tab_service.h"
++#include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -160,6 +162,12 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
+   glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
+                               &extra_data);
+ 
++  if (PinnedTabService* pinned_tabs =
++          PinnedTabServiceFactory::GetForProfile(&profile_.get())) {
++    pinned_tabs->PopulateExtraDataForTab(tab_strip_model_->GetTabAtIndex(index),
++                                         &extra_data);
++  }
++
+   return extra_data;
+ }
+ 
+diff --git a/chrome/browser/ui/browser_tabrestore.cc b/chrome/browser/ui/browser_tabrestore.cc
+index 9291009f10ea351d0a693a1c2c985470e4383ead..7c8895959b91685a8c34fea9bcd1dd96a5f8c8f0 100644
+--- a/chrome/browser/ui/browser_tabrestore.cc
++++ b/chrome/browser/ui/browser_tabrestore.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_window.h"
+ #include "chrome/browser/ui/tab_ui_helper.h"
++#include "chrome/browser/ui/tabs/pinned_tab_service.h"
+ #include "chrome/browser/ui/tabs/public/tab_features.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+@@ -85,6 +86,7 @@ std::unique_ptr<WebContents> CreateRestoredTab(
+                                extension_app_id);
+ 
+   glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
++  PinnedTabService::StageRestoredPinId(web_contents.get(), extra_data);
+ 
+   std::vector<std::unique_ptr<NavigationEntry>> entries =
+       ContentSerializedNavigationBuilder::ToNavigationEntries(
+diff --git a/chrome/browser/ui/browser_tabrestore_browsertest.cc b/chrome/browser/ui/browser_tabrestore_browsertest.cc
+index e6bb13a7d452e148ea6d3b1c198aab2b983c7fb9..3119f89f60ffd734f6e34c4e5efcfd0732f6a628 100644
+--- a/chrome/browser/ui/browser_tabrestore_browsertest.cc
++++ b/chrome/browser/ui/browser_tabrestore_browsertest.cc
+@@ -7,6 +7,8 @@
+ #include <map>
+ #include <string>
+ 
++#include "base/run_loop.h"
++#include "base/uuid.h"
+ #include "chrome/browser/sessions/tab_restore_service_factory.h"
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_commands.h"
+@@ -14,6 +16,9 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
++#include "chrome/browser/ui/tabs/pinned_tab_codec.h"
++#include "chrome/browser/ui/tabs/pinned_tab_service.h"
++#include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
+ #include "chrome/browser/ui/tabs/recent_tabs_sub_menu_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/test/base/chrome_test_utils.h"
+@@ -174,6 +179,46 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest,
+   EXPECT_FALSE(web_contents->GetController().GetPendingEntry());
+ }
+ 
++IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest,
++                       PersistentPinIdentityRestoresBeforeTabInsertion) {
++  constexpr char kRestoredId[] = "33333333-3333-4333-8333-333333333333";
++  ASSERT_TRUE(PinnedTabServiceFactory::GetForProfile(browser()->profile()));
++
++  sessions::SerializedNavigationEntry navigation_entry;
++  navigation_entry.set_index(0);
++  navigation_entry.set_virtual_url(GURL(url::kAboutBlankURL));
++  std::vector<sessions::SerializedNavigationEntry> navigations = {
++      navigation_entry};
++  const std::map<std::string, std::string> extra_data = {
++      {PinnedTabService::kPinnedTabIdExtraDataKey, kRestoredId}};
++
++  for (int i = 0; i < 2; ++i) {
++    ASSERT_TRUE(chrome::AddRestoredTab(
++        browser(), navigations, /*tab_index=*/i,
++        /*selected_navigation=*/0, /*extension_app_id=*/std::string(),
++        /*group=*/std::nullopt, /*select=*/false, /*pin=*/true,
++        /*last_active_time_ticks=*/base::TimeTicks::Now(),
++        /*last_active_time=*/base::Time::Now(),
++        /*storage_namespace=*/nullptr,
++        /*user_agent_override=*/sessions::SerializedUserAgentOverride(),
++        extra_data, /*from_session_restore=*/true,
++        /*is_active_browser=*/true));
++  }
++  base::RunLoop().RunUntilIdle();
++
++  // The first tab binds the session UUID exactly. Reusing that UUID is corrupt
++  // session data: the second intentional duplicate-URL pin is retained but
++  // repaired to a fresh identity rather than being deduplicated by URL.
++  PersistentPinnedTabs records =
++      PinnedTabCodec::ReadPersistentPinnedTabs(browser()->profile());
++  ASSERT_EQ(2u, records.size());
++  EXPECT_EQ(kRestoredId, records[0].id);
++  EXPECT_EQ(GURL(url::kAboutBlankURL), records[0].url);
++  EXPECT_EQ(GURL(url::kAboutBlankURL), records[1].url);
++  EXPECT_TRUE(base::Uuid::ParseLowercase(records[1].id).is_valid());
++  EXPECT_NE(records[0].id, records[1].id);
++}
++
+ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest, DelegateRestoreTabDisposition) {
+   // Create tabs.
+   CreateTestTabs(browser());
+diff --git a/chrome/browser/ui/tabs/pinned_tab_codec.cc b/chrome/browser/ui/tabs/pinned_tab_codec.cc
+index fcee60557595f8001594c05a107b7b59745f13b8..3990c7ad924fad7e91b0e5287a4a00cda1cb4b12 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_codec.cc
++++ b/chrome/browser/ui/tabs/pinned_tab_codec.cc
+@@ -6,59 +6,170 @@
+ 
+ #include <stddef.h>
+ 
++#include <optional>
++#include <string>
++#include <string_view>
+ #include <utility>
+ 
++#include "base/containers/flat_set.h"
++#include "base/strings/string_util.h"
++#include "base/strings/utf_string_conversions.h"
++#include "base/uuid.h"
+ #include "base/values.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_service.h"
+-#include "components/prefs/scoped_user_pref_update.h"
+-#include "content/public/browser/navigation_entry.h"
+-#include "content/public/browser/web_contents.h"
+-
+-using content::NavigationEntry;
+ 
+ namespace {
+ 
+-// Key used in dictionaries for the url.
+-const char kURL[] = "url";
++constexpr int kCurrentRecordVersion = 1;
++constexpr char kRecordVersion[] = "record_version";
++constexpr char kId[] = "id";
++constexpr char kURL[] = "url";
++constexpr char kTitle[] = "title";
++
++bool CanPersistPinnedTabs(Profile* profile) {
++  return profile && !profile->IsOffTheRecord() && !profile->IsGuestSession();
++}
++
++std::string GenerateId() {
++  return base::Uuid::GenerateRandomV4().AsLowercaseString();
++}
+ 
+-// Returns a base::DictValue representing the supplied StartupTab.
+-base::DictValue EncodeTab(const GURL& url) {
++std::optional<std::string> CanonicalizeId(std::string_view id) {
++  base::Uuid parsed = base::Uuid::ParseCaseInsensitive(id);
++  if (!parsed.is_valid()) {
++    return std::nullopt;
++  }
++  return parsed.AsLowercaseString();
++}
++
++bool IsUnknownFutureRecord(const base::Value& value) {
++  if (!value.is_dict()) {
++    return false;
++  }
++  std::optional<int> version = value.GetDict().FindInt(kRecordVersion);
++  return version.has_value() && version.value() > kCurrentRecordVersion;
++}
++
++base::DictValue EncodeTab(const PersistentPinnedTab& tab) {
+   base::DictValue dict;
+-  dict.Set(kURL, url.spec());
++  dict.Set(kRecordVersion, kCurrentRecordVersion);
++  dict.Set(kId, tab.id);
++  dict.Set(kURL, tab.url.spec());
++  dict.Set(kTitle, base::UTF16ToUTF8(tab.title));
+   return dict;
+ }
+ 
+-// Encodes all the pinned tabs from |browser| into |serialized_tabs|.
+-void EncodePinnedTabs(BrowserWindowInterface* browser,
+-                      base::ListValue& serialized_tabs) {
+-  const TabStripModel* const tab_model = browser->GetTabStripModel();
+-  for (const tabs::TabInterface* tab : *tab_model) {
+-    if (!tab->IsPinned()) {
+-      break;
++std::optional<PersistentPinnedTab> DecodeTab(const base::DictValue& value,
++                                             bool* needs_migration) {
++  const std::string* url_string = value.FindString(kURL);
++  if (!url_string) {
++    return std::nullopt;
++  }
++
++  GURL url(*url_string);
++  if (!url.is_valid() || url.is_empty()) {
++    return std::nullopt;
++  }
++
++  PersistentPinnedTab tab;
++  tab.url = std::move(url);
++
++  const std::optional<int> version = value.FindInt(kRecordVersion);
++  if (!version.has_value()) {
++    // Chromium's legacy format was a dictionary containing only `url`.
++    tab.id = GenerateId();
++    *needs_migration = true;
++    return tab;
++  }
++  if (version.value() != kCurrentRecordVersion) {
++    return std::nullopt;
++  }
++
++  const std::string* id = value.FindString(kId);
++  std::optional<std::string> canonical_id =
++      id ? CanonicalizeId(*id) : std::nullopt;
++  if (!canonical_id.has_value()) {
++    tab.id = GenerateId();
++    *needs_migration = true;
++  } else {
++    tab.id = std::move(canonical_id.value());
++    *needs_migration |= tab.id != *id;
++  }
++
++  if (const std::string* title = value.FindString(kTitle)) {
++    if (base::IsStringUTF8(*title)) {
++      tab.title = base::UTF8ToUTF16(*title);
++    } else {
++      *needs_migration = true;
+     }
++  } else {
++    *needs_migration = true;
++  }
++  return tab;
++}
+ 
+-    content::WebContents* web_contents = tab->GetContents();
+-    NavigationEntry* entry =
+-        web_contents->GetController().GetLastCommittedEntry();
+-    if (entry) {
+-      serialized_tabs.Append(EncodeTab(entry->GetURL()));
++std::string ReuseOrGenerateId(const GURL& url,
++                              const std::u16string& title,
++                              const PersistentPinnedTabs& existing,
++                              base::flat_set<std::string>* used_ids) {
++  for (bool require_title : {true, false}) {
++    for (const PersistentPinnedTab& candidate : existing) {
++      if (used_ids->contains(candidate.id) || candidate.url != url ||
++          (require_title && candidate.title != title)) {
++        continue;
++      }
++      used_ids->insert(candidate.id);
++      return candidate.id;
+     }
+   }
++
++  std::string id;
++  do {
++    id = GenerateId();
++  } while (used_ids->contains(id));
++  used_ids->insert(id);
++  return id;
+ }
+ 
+-// Decodes the previously written values in |value| to |tab|, returning true
+-// on success.
+-std::optional<StartupTab> DecodeTab(const base::DictValue& value) {
+-  const std::string* const url_string = value.FindString(kURL);
+-  return url_string ? std::make_optional(StartupTab(GURL(*url_string),
+-                                                    StartupTab::Type::kPinned))
+-                    : std::nullopt;
++PersistentPinnedTabs ReadLivePinnedTabs(Profile* profile) {
++  PersistentPinnedTabs existing =
++      PinnedTabCodec::ReadPersistentPinnedTabs(profile);
++  PersistentPinnedTabs live_tabs;
++  base::flat_set<std::string> used_ids;
++
++  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
++      [profile, &existing, &live_tabs,
++       &used_ids](BrowserWindowInterface* browser) {
++        if (browser->GetType() != BrowserWindowInterface::TYPE_NORMAL ||
++            browser->GetProfile() != profile) {
++          return true;
++        }
++
++        for (const tabs::TabInterface* tab : *browser->GetTabStripModel()) {
++          if (!tab->IsPinned()) {
++            break;
++          }
++          const GURL url = tab->GetURL();
++          if (!url.is_valid() || url.is_empty()) {
++            continue;
++          }
++
++          PersistentPinnedTab record;
++          record.id =
++              ReuseOrGenerateId(url, tab->GetTitle(), existing, &used_ids);
++          record.url = url;
++          record.title = tab->GetTitle();
++          live_tabs.push_back(std::move(record));
++        }
++        return true;
++      });
++  return live_tabs;
+ }
+ 
+ }  // namespace
+@@ -71,57 +182,128 @@ void PinnedTabCodec::RegisterProfilePrefs(
+ 
+ // static
+ void PinnedTabCodec::WritePinnedTabs(Profile* profile) {
+-  PrefService* prefs = profile->GetPrefs();
+-  if (!prefs) {
++  if (!CanPersistPinnedTabs(profile)) {
+     return;
+   }
+-
+-  base::ListValue values;
+-  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+-      [profile, &values](BrowserWindowInterface* browser) {
+-        if (browser->GetType() == BrowserWindowInterface::TYPE_NORMAL &&
+-            browser->GetProfile() == profile) {
+-          EncodePinnedTabs(browser, values);
+-        }
+-        return true;
+-      });
+-  prefs->SetList(prefs::kPinnedTabs, std::move(values));
++  WritePersistentPinnedTabs(profile, ReadLivePinnedTabs(profile));
+ }
+ 
+ // static
+ void PinnedTabCodec::WritePinnedTabs(Profile* profile,
+                                      const StartupTabs& tabs) {
+-  PrefService* prefs = profile->GetPrefs();
+-  if (!prefs) {
++  if (!CanPersistPinnedTabs(profile)) {
+     return;
+   }
+ 
+-  ScopedListPrefUpdate update(prefs, prefs::kPinnedTabs);
+-  base::ListValue& values = update.Get();
+-  values.clear();
+-  for (const auto& tab : tabs) {
+-    values.Append(EncodeTab(tab.url));
++  PersistentPinnedTabs existing = ReadPersistentPinnedTabs(profile);
++  PersistentPinnedTabs records;
++  base::flat_set<std::string> used_ids;
++  for (const StartupTab& tab : tabs) {
++    if (!tab.url.is_valid() || tab.url.is_empty()) {
++      continue;
++    }
++    PersistentPinnedTab record;
++    record.id =
++        ReuseOrGenerateId(tab.url, std::u16string(), existing, &used_ids);
++    record.url = tab.url;
++    records.push_back(std::move(record));
+   }
++  WritePersistentPinnedTabs(profile, records);
+ }
+ 
+ // static
+ StartupTabs PinnedTabCodec::ReadPinnedTabs(Profile* profile) {
+-  PrefService* prefs = profile->GetPrefs();
+-  if (!prefs) {
+-    return {};
++  StartupTabs results;
++  for (const PersistentPinnedTab& tab : ReadPersistentPinnedTabs(profile)) {
++    results.emplace_back(tab.url, StartupTab::Type::kPinned);
+   }
++  return results;
++}
+ 
+-  StartupTabs results;
++// static
++void PinnedTabCodec::WritePersistentPinnedTabs(
++    Profile* profile,
++    const PersistentPinnedTabs& tabs) {
++  if (!CanPersistPinnedTabs(profile) || !profile->GetPrefs()) {
++    return;
++  }
++
++  base::ListValue values;
++  base::flat_set<std::string> used_ids;
++  for (const PersistentPinnedTab& input : tabs) {
++    if (!input.url.is_valid() || input.url.is_empty()) {
++      continue;
++    }
+ 
+-  for (const auto& serialized_tab : prefs->GetList(prefs::kPinnedTabs)) {
++    PersistentPinnedTab tab = input;
++    std::optional<std::string> canonical_id = CanonicalizeId(tab.id);
++    if (!canonical_id.has_value() || used_ids.contains(*canonical_id)) {
++      do {
++        tab.id = GenerateId();
++      } while (used_ids.contains(tab.id));
++    } else {
++      tab.id = std::move(canonical_id.value());
++    }
++    used_ids.insert(tab.id);
++    values.Append(EncodeTab(tab));
++  }
++  // A downgraded build must not destroy records written by a newer schema.
++  // They are not materialized until understood, but are retained byte-for-byte
++  // after the canonical records it can safely update.
++  for (const base::Value& old_value :
++       profile->GetPrefs()->GetList(prefs::kPinnedTabs)) {
++    if (IsUnknownFutureRecord(old_value)) {
++      values.Append(old_value.Clone());
++    }
++  }
++  profile->GetPrefs()->SetList(prefs::kPinnedTabs, std::move(values));
++}
++
++// static
++PersistentPinnedTabs PinnedTabCodec::ReadPersistentPinnedTabs(
++    Profile* profile,
++    bool* needs_migration) {
++  bool migration = false;
++  PersistentPinnedTabs results;
++  if (!CanPersistPinnedTabs(profile) || !profile->GetPrefs()) {
++    if (needs_migration) {
++      *needs_migration = false;
++    }
++    return results;
++  }
++
++  base::flat_set<std::string> used_ids;
++  for (const base::Value& serialized_tab :
++       profile->GetPrefs()->GetList(prefs::kPinnedTabs)) {
+     if (!serialized_tab.is_dict()) {
++      migration = true;
++      continue;
++    }
++    if (IsUnknownFutureRecord(serialized_tab)) {
+       continue;
+     }
+-    std::optional<StartupTab> tab = DecodeTab(serialized_tab.GetDict());
+-    if (tab.has_value()) {
+-      results.push_back(tab.value());
++
++    std::optional<PersistentPinnedTab> tab =
++        DecodeTab(serialized_tab.GetDict(), &migration);
++    if (!tab.has_value()) {
++      migration = true;
++      continue;
+     }
++    if (used_ids.contains(tab->id)) {
++      // Preserve both valid duplicate-URL records, but repair a corrupted
++      // duplicate identity so each logical pin remains independently
++      // addressable.
++      do {
++        tab->id = GenerateId();
++      } while (used_ids.contains(tab->id));
++      migration = true;
++    }
++    used_ids.insert(tab->id);
++    results.push_back(std::move(tab.value()));
+   }
+ 
++  if (needs_migration) {
++    *needs_migration = migration;
++  }
+   return results;
+ }
+diff --git a/chrome/browser/ui/tabs/pinned_tab_codec.h b/chrome/browser/ui/tabs/pinned_tab_codec.h
+index 4197f779212fa51bf4842b77b847d069b176814f..e20757ad10db56ac91d195e92754f826448e0d1f 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_codec.h
++++ b/chrome/browser/ui/tabs/pinned_tab_codec.h
+@@ -5,7 +5,11 @@
+ #ifndef CHROME_BROWSER_UI_TABS_PINNED_TAB_CODEC_H_
+ #define CHROME_BROWSER_UI_TABS_PINNED_TAB_CODEC_H_
+ 
++#include <string>
++#include <vector>
++
+ #include "chrome/browser/ui/startup/startup_tab.h"
++#include "url/gurl.h"
+ 
+ class Profile;
+ 
+@@ -13,6 +17,20 @@ namespace user_prefs {
+ class PrefRegistrySyncable;
+ }
+ 
++// The profile-persistent representation of a pinned tab. The UUID identifies
++// the record independently of its URL so duplicate URLs remain distinct.
++//
++// Favicons are intentionally not copied into this preference. Restoring the
++// same page URL lets Chromium's profile-scoped history/favicon cache remain the
++// source of truth, avoiding stale unbounded image data in Preferences.
++struct PersistentPinnedTab {
++  std::string id;
++  GURL url;
++  std::u16string title;
++};
++
++using PersistentPinnedTabs = std::vector<PersistentPinnedTab>;
++
+ // PinnedTabCodec is used to read and write the set of pinned tabs to
+ // preferences. When Chrome exits the sets of pinned tabs are written to prefs.
+ // On startup if the user has not chosen to restore the last session the set of
+@@ -37,6 +55,15 @@ class PinnedTabCodec {
+   // Reads and returns the set of pinned tabs to restore from preferences.
+   static StartupTabs ReadPinnedTabs(Profile* profile);
+ 
++  // Writes and reads the canonical, versioned persistent records. Invalid
++  // records are ignored. Legacy URL-only records receive a UUID and set
++  // `needs_migration`, allowing the keyed service to rewrite them once.
++  static void WritePersistentPinnedTabs(Profile* profile,
++                                        const PersistentPinnedTabs& tabs);
++  static PersistentPinnedTabs ReadPersistentPinnedTabs(
++      Profile* profile,
++      bool* needs_migration = nullptr);
++
+  private:
+   PinnedTabCodec();
+   ~PinnedTabCodec();
+diff --git a/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc b/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc
+index 51c57a2c19fe91342311004840cf603909cb2898..504f38ee8dddfb19c99c32bb35bfb0d69bf00c58 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc
++++ b/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc
+@@ -7,14 +7,18 @@
+ #include <string>
+ #include <vector>
+ 
++#include "base/uuid.h"
++#include "base/values.h"
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_tabstrip.h"
+ #include "chrome/browser/ui/startup/startup_tab.h"
+ #include "chrome/browser/ui/tabs/pinned_tab_test_utils.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "chrome/common/pref_names.h"
+ #include "chrome/test/base/in_process_browser_test.h"
+ #include "chrome/test/base/testing_profile.h"
+ #include "chrome/test/base/ui_test_utils.h"
++#include "components/prefs/pref_service.h"
+ #include "content/public/test/browser_test.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ #include "ui/base/page_transition_types.h"
+@@ -75,3 +79,96 @@ IN_PROC_BROWSER_TEST_F(PinnedTabCodecBrowserTest, PinnedAndNonPinned) {
+       PinnedTabCodec::ReadPinnedTabs(browser()->profile()));
+   EXPECT_EQ("https://www.google.com/:pinned", result);
+ }
++
++IN_PROC_BROWSER_TEST_F(PinnedTabCodecBrowserTest,
++                       VersionedRecordsPreserveDuplicateUrlIdentityAndOrder) {
++  constexpr char kFirstId[] = "11111111-1111-4111-8111-111111111111";
++  constexpr char kSecondId[] = "22222222-2222-4222-8222-222222222222";
++  const GURL duplicate_url("https://example.test/same");
++  PersistentPinnedTabs records = {
++      {kFirstId, duplicate_url, u"First duplicate"},
++      {kSecondId, duplicate_url, u"Second duplicate"},
++  };
++
++  PinnedTabCodec::WritePersistentPinnedTabs(browser()->profile(), records);
++  PersistentPinnedTabs decoded =
++      PinnedTabCodec::ReadPersistentPinnedTabs(browser()->profile());
++
++  ASSERT_EQ(2u, decoded.size());
++  EXPECT_EQ(kFirstId, decoded[0].id);
++  EXPECT_EQ(kSecondId, decoded[1].id);
++  EXPECT_EQ(duplicate_url, decoded[0].url);
++  EXPECT_EQ(duplicate_url, decoded[1].url);
++  EXPECT_EQ(u"First duplicate", decoded[0].title);
++  EXPECT_EQ(u"Second duplicate", decoded[1].title);
++
++  const base::ListValue& pref =
++      browser()->profile()->GetPrefs()->GetList(prefs::kPinnedTabs);
++  ASSERT_EQ(2u, pref.size());
++  EXPECT_EQ(1, pref[0].GetDict().FindInt("record_version"));
++  EXPECT_EQ(kFirstId, *pref[0].GetDict().FindString("id"));
++  EXPECT_EQ(duplicate_url.spec(), *pref[0].GetDict().FindString("url"));
++  // Favicon continuity is deliberately derived from Chromium's
++  // profile-scoped history/favicon cache using this URL. Raw image bytes do
++  // not belong in the persistent pin preference.
++  EXPECT_FALSE(pref[0].GetDict().Find("favicon"));
++}
++
++IN_PROC_BROWSER_TEST_F(PinnedTabCodecBrowserTest,
++                       LegacyAndDuplicateIdsAreRepairedWithoutDroppingPins) {
++  constexpr char kDuplicatedId[] = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
++  base::ListValue pref;
++  base::DictValue legacy;
++  legacy.Set("url", "https://example.test/legacy");
++  pref.Append(std::move(legacy));
++  for (const char* url :
++       {"https://example.test/one", "https://example.test/two"}) {
++    base::DictValue record;
++    record.Set("record_version", 1);
++    record.Set("id", kDuplicatedId);
++    record.Set("url", url);
++    record.Set("title", "duplicate id");
++    pref.Append(std::move(record));
++  }
++  browser()->profile()->GetPrefs()->SetList(prefs::kPinnedTabs,
++                                            std::move(pref));
++
++  bool needs_migration = false;
++  PersistentPinnedTabs decoded = PinnedTabCodec::ReadPersistentPinnedTabs(
++      browser()->profile(), &needs_migration);
++
++  ASSERT_TRUE(needs_migration);
++  ASSERT_EQ(3u, decoded.size());
++  EXPECT_TRUE(base::Uuid::ParseLowercase(decoded[0].id).is_valid());
++  EXPECT_EQ(kDuplicatedId, decoded[1].id);
++  EXPECT_TRUE(base::Uuid::ParseLowercase(decoded[2].id).is_valid());
++  EXPECT_NE(decoded[1].id, decoded[2].id);
++  EXPECT_EQ(GURL("https://example.test/two"), decoded[2].url);
++}
++
++IN_PROC_BROWSER_TEST_F(PinnedTabCodecBrowserTest,
++                       FutureVersionIsIgnoredButPreservedOnWrite) {
++  base::DictValue future;
++  future.Set("record_version", 2);
++  future.Set("id", "44444444-4444-4444-8444-444444444444");
++  future.Set("url", "https://future.example.test/");
++  future.Set("future_field", "opaque");
++  base::ListValue pref;
++  pref.Append(future.Clone());
++  browser()->profile()->GetPrefs()->SetList(prefs::kPinnedTabs,
++                                            std::move(pref));
++
++  bool needs_migration = true;
++  EXPECT_TRUE(PinnedTabCodec::ReadPersistentPinnedTabs(browser()->profile(),
++                                                       &needs_migration)
++                  .empty());
++  EXPECT_FALSE(needs_migration);
++
++  PinnedTabCodec::WritePersistentPinnedTabs(
++      browser()->profile(), {{"55555555-5555-4555-8555-555555555555",
++                              GURL("https://known.example.test/"), u"Known"}});
++  const base::ListValue& after =
++      browser()->profile()->GetPrefs()->GetList(prefs::kPinnedTabs);
++  ASSERT_EQ(2u, after.size());
++  EXPECT_EQ(future, after[1].GetDict());
++}
+diff --git a/chrome/browser/ui/tabs/pinned_tab_service.cc b/chrome/browser/ui/tabs/pinned_tab_service.cc
+index 61f36bddf006077936e36eea122654ea473397f7..b05b85955fd35faa8899a4b781fc73d9e46a4c55 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_service.cc
++++ b/chrome/browser/ui/tabs/pinned_tab_service.cc
+@@ -4,83 +4,619 @@
+ 
+ #include "chrome/browser/ui/tabs/pinned_tab_service.h"
+ 
++#include <algorithm>
++#include <map>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <utility>
++#include <vector>
++
++#include "base/auto_reset.h"
+ #include "base/functional/bind.h"
++#include "base/task/sequenced_task_runner.h"
++#include "base/uuid.h"
+ #include "chrome/browser/lifetime/application_lifetime_desktop.h"
++#include "chrome/browser/lifetime/browser_shutdown.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/sessions/session_restore.h"
++#include "chrome/browser/sessions/session_service.h"
++#include "chrome/browser/sessions/session_service_factory.h"
++#include "chrome/browser/ui/browser_tabstrip.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+-#include "chrome/browser/ui/tabs/pinned_tab_codec.h"
++#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "components/sessions/content/session_tab_helper.h"
++#include "content/public/browser/web_contents.h"
++#include "content/public/browser/web_contents_user_data.h"
++#include "url/gurl.h"
++#include "url/url_constants.h"
++
++namespace {
++
++std::optional<std::string> CanonicalizePinId(std::string_view value) {
++  base::Uuid id = base::Uuid::ParseCaseInsensitive(value);
++  if (!id.is_valid()) {
++    return std::nullopt;
++  }
++  return id.AsLowercaseString();
++}
++
++class RestoredPinnedTabId
++    : public content::WebContentsUserData<RestoredPinnedTabId> {
++ public:
++  ~RestoredPinnedTabId() override = default;
++
++  const std::string& id() const { return id_; }
++
++ private:
++  friend class content::WebContentsUserData<RestoredPinnedTabId>;
++
++  RestoredPinnedTabId(content::WebContents* web_contents, std::string id)
++      : content::WebContentsUserData<RestoredPinnedTabId>(*web_contents),
++        id_(std::move(id)) {}
++
++  WEB_CONTENTS_USER_DATA_KEY_DECL();
++
++  const std::string id_;
++};
++
++WEB_CONTENTS_USER_DATA_KEY_IMPL(RestoredPinnedTabId);
++
++}  // namespace
+ 
+ PinnedTabService::PinnedTabService(Profile* profile) : profile_(profile) {
++  bool needs_migration = false;
++  records_ =
++      PinnedTabCodec::ReadPersistentPinnedTabs(profile_, &needs_migration);
++  if (needs_migration) {
++    WriteRecords();
++  }
++
+   closing_all_browsers_subscription_ = chrome::AddClosingAllBrowsersCallback(
+       base::BindRepeating(&PinnedTabService::OnClosingAllBrowsersChanged,
+                           base::Unretained(this)));
++  session_restored_subscription_ =
++      SessionRestore::RegisterOnSessionRestoredCallback(base::BindRepeating(
++          &PinnedTabService::OnSessionRestored, weak_factory_.GetWeakPtr()));
+ 
+   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+       [this](BrowserWindowInterface* browser) {
+         OnBrowserCreated(browser);
+         return true;
+       });
+-
+   browser_collection_observation_.Observe(
+       GlobalBrowserCollection::GetInstance());
++  ScheduleReconcile();
+ }
+ 
+ PinnedTabService::~PinnedTabService() = default;
+ 
++void PinnedTabService::PopulateExtraDataForTab(
++    tabs::TabInterface* tab,
++    std::map<std::string, std::string>* extra_data) const {
++  auto it = live_pin_ids_.find(tab);
++  if (it != live_pin_ids_.end() && tab->IsPinned()) {
++    (*extra_data)[kPinnedTabIdExtraDataKey] = it->second;
++  }
++}
++
++// static
++void PinnedTabService::StageRestoredPinId(
++    content::WebContents* web_contents,
++    const std::map<std::string, std::string>& extra_data) {
++  auto it = extra_data.find(kPinnedTabIdExtraDataKey);
++  if (!web_contents || it == extra_data.end()) {
++    return;
++  }
++
++  std::optional<std::string> id = CanonicalizePinId(it->second);
++  if (id.has_value()) {
++    RestoredPinnedTabId::CreateForWebContents(web_contents,
++                                              std::move(id.value()));
++  }
++}
++
++void PinnedTabService::RemovePersistentPin(tabs::TabInterface* tab) {
++  if (!tab) {
++    return;
++  }
++  BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
++  if (tab->IsPinned() && browser) {
++    TabStripModel* tab_strip_model = browser->GetTabStripModel();
++    const int index = tab_strip_model->GetIndexOfTab(tab);
++    if (index != TabStripModel::kNoTab) {
++      tab_strip_model->SetTabPinned(index, false);
++      return;
++    }
++  }
++  RemoveRecordForTab(tab);
++  WriteRecords();
++}
++
++void PinnedTabService::Shutdown() {
++  shutting_down_ = true;
++  // Shutdown is not an explicit removal route. Persist the current records
++  // one final time before detaching from the profile and browser models.
++  WriteRecords();
++  weak_factory_.InvalidateWeakPtrs();
++  closing_all_browsers_subscription_ = {};
++  session_restored_subscription_ = {};
++  browser_collection_observation_.Reset();
++  TabStripModelObserver::StopObservingAll(this);
++  live_pin_ids_.clear();
++  closing_models_.clear();
++  profile_ = nullptr;
++}
++
+ void PinnedTabService::OnClosingAllBrowsersChanged(bool closing) {
+-  // Saving of tabs happens when the user exits the application or closes the
+-  // last browser window. After saving, |need_to_write_pinned_tabs_| is set to
+-  // false to make sure subsequent window closures don't overwrite the pinned
+-  // tab state. Saving is re-enabled when a browser window or tab is opened
+-  // again. Note, cancelling a shutdown (via onbeforeunload) will not re-enable
+-  // pinned tab saving immediately, to prevent the following situation:
+-  //   * two windows are open, one with pinned tabs
+-  //   * user exits
+-  //   * pinned tabs are saved
+-  //   * window with pinned tabs is closed
+-  //   * other window blocks close with onbeforeunload
+-  //   * user saves work, etc. then closes the window
+-  //   * pinned tabs are saved, without the window with the pinned tabs,
+-  //     over-writing the correct state.
+-  // Saving is re-enabled if a new tab or window is opened.
+-  if (closing && TabStripModelObserver::IsObservingAny(this)) {
+-    WritePinnedTabsIfNecessary();
++  closing_all_browsers_ = closing;
++  if (closing) {
++    // Never rebuild tabs while browser teardown is mutating tab strips. The
++    // records are already current and deliberately survive shutdown.
++    WriteRecords();
++  } else {
++    ScheduleReconcile();
++  }
++}
++
++void PinnedTabService::OnSessionRestored(Profile* profile,
++                                         int /*num_tabs_restored*/) {
++  if (profile == profile_) {
++    ScheduleReconcile();
+   }
+ }
+ 
+ void PinnedTabService::OnBrowserCreated(BrowserWindowInterface* browser) {
+-  if (browser->GetProfile() != profile_ ||
+-      browser->GetType() != BrowserWindowInterface::TYPE_NORMAL) {
++  if (!ShouldObserve(browser)) {
+     return;
+   }
+ 
+-  need_to_write_pinned_tabs_ = true;
+-  // TODO(crbug.com/452120900): TabStripModel auto-unregistered by dtor
+   browser->GetTabStripModel()->AddObserver(this);
++  ScheduleReconcile();
++}
++
++void PinnedTabService::OnBrowserClosed(BrowserWindowInterface* browser) {
++  if (!ShouldObserve(browser)) {
++    return;
++  }
++  TabStripModel* tab_strip_model = browser->GetTabStripModel();
++  closing_models_.erase(tab_strip_model);
++  ForgetTabsInModel(tab_strip_model);
++  ScheduleReconcile();
+ }
+ 
+ void PinnedTabService::OnTabStripModelChanged(
+     TabStripModel* tab_strip_model,
+     const TabStripModelChange& change,
+-    const TabStripSelectionChange& selection) {
++    const TabStripSelectionChange& /*selection*/) {
++  if (internal_change_ || shutting_down_) {
++    return;
++  }
++
+   if (change.type() == TabStripModelChange::kInserted) {
+-    need_to_write_pinned_tabs_ = true;
++    const TabStripModelChange::Insert* insert = change.GetInsert();
++    for (const TabStripModelChange::ContentsWithIndex& inserted :
++         insert->contents) {
++      if (inserted.tab->IsPinned()) {
++        BindOrCreateTab(inserted.tab, !initial_reconciliation_complete_);
++      } else {
++        // A restored but unpinned tab must not retain an old explicit-removal
++        // identity if the user pins it later.
++        TakeStagedPinId(inserted.tab);
++      }
++    }
++    UpdateRecordOrderFromLiveTabs();
++    WriteRecords();
++    ScheduleReconcile();
++    return;
++  }
++
++  if (change.type() == TabStripModelChange::kRemoved) {
++    const TabStripModelChange::Remove* remove = change.GetRemove();
++    bool removed_persistent_pin = false;
++    for (const TabStripModelChange::RemovedTab& removed : remove->contents) {
++      if (removed.tab_detach_reason ==
++          tabs::TabInterface::DetachReason::kInsertIntoOtherWindow) {
++        continue;
++      }
++      removed_persistent_pin |= live_pin_ids_.erase(removed.tab) != 0;
++    }
++    if (removed_persistent_pin && !closing_models_.contains(tab_strip_model)) {
++      ScheduleReconcile();
++    }
++    return;
++  }
++
++  if (change.type() == TabStripModelChange::kMoved) {
++    if (UpdateRecordOrderFromLiveTabs()) {
++      WriteRecords();
++    }
++  } else if (change.type() == TabStripModelChange::kReplaced) {
++    const TabStripModelChange::Replace* replace = change.GetReplace();
++    if (replace) {
++      auto binding = live_pin_ids_.find(replace->tab);
++      if (binding != live_pin_ids_.end()) {
++        // A discard swaps WebContents while TabInterface survives. Refresh
++        // the ongoing-session command for the replacement's SessionTabHelper.
++        WriteIdentityToSession(replace->tab, binding->second);
++      }
++      if (UpdateRecordFromTab(replace->tab)) {
++        WriteRecords();
++      }
++    }
+   }
+ }
+ 
++void PinnedTabService::OnTabChangedAt(tabs::TabInterface* tab,
++                                      int /*index*/,
++                                      TabChangeType /*change_type*/) {
++  if (!internal_change_ && UpdateRecordFromTab(tab)) {
++    WriteRecords();
++  }
++}
++
++void PinnedTabService::OnTabPinnedStateChanged(tabs::TabInterface* tab,
++                                               int /*index*/) {
++  if (internal_change_ || shutting_down_) {
++    return;
++  }
++
++  if (tab->IsPinned()) {
++    BindOrCreateTab(tab, !initial_reconciliation_complete_);
++    UpdateRecordOrderFromLiveTabs();
++  } else {
++    // This observer is the deletion boundary. Tab close/removal never reaches
++    // this branch, so shutdown and memory discard cannot erase a record.
++    RemoveRecordForTab(tab);
++  }
++  WriteRecords();
++}
++
+ void PinnedTabService::WillCloseAllTabs(TabStripModel* tab_strip_model) {
+-  if (TabStripModelObserver::CountObservedModels(this) == 1) {
+-    WritePinnedTabsIfNecessary();
++  closing_models_.insert(tab_strip_model);
++  WriteRecords();
++}
++
++void PinnedTabService::CloseAllTabsStopped(TabStripModel* tab_strip_model,
++                                           CloseAllStoppedReason /*reason*/) {
++  closing_models_.erase(tab_strip_model);
++  ScheduleReconcile();
++}
++
++void PinnedTabService::OnTabStripModelDestroyed(
++    TabStripModel* tab_strip_model) {
++  closing_models_.erase(tab_strip_model);
++  ForgetTabsInModel(tab_strip_model);
++  ScheduleReconcile();
++}
++
++bool PinnedTabService::ShouldObserve(BrowserWindowInterface* browser) const {
++  return browser && browser->GetProfile() == profile_ &&
++         browser->GetType() == BrowserWindowInterface::TYPE_NORMAL;
++}
++
++BrowserWindowInterface* PinnedTabService::FindRestoreTarget() const {
++  if (!profile_) {
++    return nullptr;
++  }
++  ProfileBrowserCollection* collection =
++      ProfileBrowserCollection::GetForProfile(profile_);
++  if (!collection) {
++    return nullptr;
++  }
++
++  BrowserWindowInterface* target = nullptr;
++  collection->ForEach(
++      [this, &target](BrowserWindowInterface* browser) {
++        if (ShouldObserve(browser) && !browser->IsDeleteScheduled()) {
++          target = browser;
++          return false;
++        }
++        return true;
++      },
++      BrowserCollection::Order::kCreation);
++  return target;
++}
++
++PersistentPinnedTab* PinnedTabService::FindRecord(std::string_view id) {
++  auto it = std::ranges::find(records_, id, &PersistentPinnedTab::id);
++  return it == records_.end() ? nullptr : &*it;
++}
++
++const PersistentPinnedTab* PinnedTabService::FindRecord(
++    std::string_view id) const {
++  auto it = std::ranges::find(records_, id, &PersistentPinnedTab::id);
++  return it == records_.end() ? nullptr : &*it;
++}
++
++std::optional<std::string> PinnedTabService::TakeStagedPinId(
++    tabs::TabInterface* tab) {
++  content::WebContents* web_contents = tab->GetContents();
++  RestoredPinnedTabId* data =
++      RestoredPinnedTabId::FromWebContents(web_contents);
++  if (!data) {
++    return std::nullopt;
++  }
++
++  std::string id = data->id();
++  web_contents->RemoveUserData(RestoredPinnedTabId::UserDataKey());
++  return id;
++}
++
++std::string PinnedTabService::GenerateUniqueId() const {
++  std::string id;
++  do {
++    id = base::Uuid::GenerateRandomV4().AsLowercaseString();
++  } while (FindRecord(id));
++  return id;
++}
++
++void PinnedTabService::BindTab(tabs::TabInterface* tab, std::string id) {
++  auto existing_binding = live_pin_ids_.find(tab);
++  if (existing_binding != live_pin_ids_.end()) {
++    WriteIdentityToSession(tab, existing_binding->second);
++    return;
++  }
++
++  const bool id_is_already_live = std::ranges::any_of(
++      live_pin_ids_,
++      [&id](const auto& binding) { return binding.second == id; });
++  if (id_is_already_live) {
++    // A duplicated session extra-data UUID is corrupt. Preserve the second tab
++    // as an intentional pin, but repair it to a fresh independent identity.
++    id = GenerateUniqueId();
++  }
++
++  if (!FindRecord(id)) {
++    GURL url = tab->GetURL();
++    if (!url.is_valid() || url.is_empty()) {
++      url = GURL(url::kAboutBlankURL);
++    }
++    records_.push_back({std::move(id), std::move(url), tab->GetTitle()});
++    id = records_.back().id;
++  }
++  live_pin_ids_.emplace(tab, id);
++  UpdateRecordFromTab(tab);
++  WriteIdentityToSession(tab, id);
++}
++
++void PinnedTabService::BindOrCreateTab(tabs::TabInterface* tab,
++                                       bool allow_legacy_match) {
++  auto existing = live_pin_ids_.find(tab);
++  if (existing != live_pin_ids_.end()) {
++    UpdateRecordFromTab(tab);
++    WriteIdentityToSession(tab, existing->second);
++    return;
++  }
++
++  if (std::optional<std::string> restored_id = TakeStagedPinId(tab)) {
++    BindTab(tab, std::move(restored_id.value()));
++    return;
++  }
++
++  if (allow_legacy_match) {
++    base::flat_set<std::string> used_ids;
++    for (const auto& binding : live_pin_ids_) {
++      used_ids.insert(binding.second);
++    }
++    for (bool require_title : {true, false}) {
++      for (const PersistentPinnedTab& record : records_) {
++        if (used_ids.contains(record.id) || record.url != tab->GetURL() ||
++            (require_title && record.title != tab->GetTitle())) {
++          continue;
++        }
++        BindTab(tab, record.id);
++        return;
++      }
++    }
++  }
++
++  BindTab(tab, GenerateUniqueId());
++}
++
++void PinnedTabService::WriteIdentityToSession(tabs::TabInterface* tab,
++                                              std::string_view id) const {
++  if (!profile_ || !tab->GetBrowserWindowInterface()) {
++    return;
++  }
++  SessionService* session_service =
++      SessionServiceFactory::GetForProfile(profile_);
++  sessions::SessionTabHelper* tab_helper =
++      sessions::SessionTabHelper::FromWebContents(tab->GetContents());
++  if (!session_service || !tab_helper) {
++    return;
++  }
++
++  session_service->AddTabExtraData(
++      tab->GetBrowserWindowInterface()->GetSessionID(),
++      tab_helper->session_id(), kPinnedTabIdExtraDataKey, std::string(id));
++}
++
++void PinnedTabService::ForgetTabsInModel(TabStripModel* tab_strip_model) {
++  for (tabs::TabInterface* tab : *tab_strip_model) {
++    live_pin_ids_.erase(tab);
++  }
++}
++
++void PinnedTabService::RemoveRecordForTab(tabs::TabInterface* tab) {
++  auto binding = live_pin_ids_.find(tab);
++  if (binding == live_pin_ids_.end()) {
++    return;
++  }
++  const std::string id = binding->second;
++  live_pin_ids_.erase(binding);
++  std::erase_if(records_, [&id](const PersistentPinnedTab& record) {
++    return record.id == id;
++  });
++}
++
++bool PinnedTabService::UpdateRecordFromTab(tabs::TabInterface* tab) {
++  auto binding = live_pin_ids_.find(tab);
++  if (binding == live_pin_ids_.end()) {
++    return false;
++  }
++  PersistentPinnedTab* record = FindRecord(binding->second);
++  if (!record) {
++    return false;
++  }
++
++  bool changed = false;
++  const GURL url = tab->GetURL();
++  if (url.is_valid() && !url.is_empty() && record->url != url) {
++    record->url = url;
++    changed = true;
+   }
++  const std::u16string title = tab->GetTitle();
++  if (!title.empty() && record->title != title) {
++    record->title = title;
++    changed = true;
++  }
++  return changed;
+ }
+ 
+-void PinnedTabService::WritePinnedTabsIfNecessary() {
+-  if (need_to_write_pinned_tabs_) {
+-    PinnedTabCodec::WritePinnedTabs(profile_);
++bool PinnedTabService::UpdateRecordOrderFromLiveTabs() {
++  if (!profile_) {
++    return false;
++  }
++  ProfileBrowserCollection* collection =
++      ProfileBrowserCollection::GetForProfile(profile_);
++  if (!collection) {
++    return false;
++  }
++
++  std::vector<std::string> live_order;
++  collection->ForEach(
++      [this, &live_order](BrowserWindowInterface* browser) {
++        if (!ShouldObserve(browser) || browser->IsDeleteScheduled()) {
++          return true;
++        }
++        for (tabs::TabInterface* tab : *browser->GetTabStripModel()) {
++          if (!tab->IsPinned()) {
++            break;
++          }
++          auto binding = live_pin_ids_.find(tab);
++          if (binding != live_pin_ids_.end()) {
++            live_order.push_back(binding->second);
++          }
++        }
++        return true;
++      },
++      BrowserCollection::Order::kCreation);
++
++  base::flat_set<std::string> live_ids(live_order.begin(), live_order.end());
++  std::vector<size_t> live_slots;
++  for (size_t i = 0; i < records_.size(); ++i) {
++    if (live_ids.contains(records_[i].id)) {
++      live_slots.push_back(i);
++    }
++  }
++  if (live_slots.size() != live_order.size()) {
++    return false;
++  }
++
++  bool changed = false;
++  PersistentPinnedTabs reordered = records_;
++  for (size_t i = 0; i < live_slots.size(); ++i) {
++    auto record =
++        std::ranges::find(records_, live_order[i], &PersistentPinnedTab::id);
++    if (record == records_.end()) {
++      return false;
++    }
++    changed |= reordered[live_slots[i]].id != record->id;
++    reordered[live_slots[i]] = *record;
++  }
++  if (changed) {
++    records_ = std::move(reordered);
++  }
++  return changed;
++}
++
++void PinnedTabService::WriteRecords() {
++  if (profile_ && !profile_->IsOffTheRecord() && !profile_->IsGuestSession()) {
++    PinnedTabCodec::WritePersistentPinnedTabs(profile_, records_);
++  }
++}
++
++void PinnedTabService::ScheduleReconcile() {
++  if (reconcile_scheduled_ || shutting_down_ || closing_all_browsers_ ||
++      browser_shutdown::HasShutdownStarted()) {
++    return;
++  }
++  reconcile_scheduled_ = true;
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, base::BindOnce(&PinnedTabService::ReconcileAndRestore,
++                                weak_factory_.GetWeakPtr()));
++}
++
++void PinnedTabService::ReconcileAndRestore() {
++  reconcile_scheduled_ = false;
++  if (shutting_down_ || closing_all_browsers_ ||
++      browser_shutdown::HasShutdownStarted() ||
++      SessionRestore::IsRestoring(profile_)) {
++    return;
++  }
++
++  BrowserWindowInterface* target = FindRestoreTarget();
++  if (!target) {
++    return;
++  }
++
++  ProfileBrowserCollection* collection =
++      ProfileBrowserCollection::GetForProfile(profile_);
++  collection->ForEach(
++      [this](BrowserWindowInterface* browser) {
++        if (!ShouldObserve(browser) || browser->IsDeleteScheduled()) {
++          return true;
++        }
++        for (tabs::TabInterface* tab : *browser->GetTabStripModel()) {
++          if (!tab->IsPinned()) {
++            break;
++          }
++          BindOrCreateTab(tab, !initial_reconciliation_complete_);
++        }
++        return true;
++      },
++      BrowserCollection::Order::kCreation);
++  UpdateRecordOrderFromLiveTabs();
++  initial_reconciliation_complete_ = true;
++
++  std::map<std::string, tabs::TabInterface*> live_by_id;
++  for (const auto& [tab, id] : live_pin_ids_) {
++    live_by_id.emplace(id, tab.get());
++  }
++
++  TabStripModel* target_model = target->GetTabStripModel();
++  int target_pinned_index = 0;
++  base::AutoReset<bool> internal_change(&internal_change_, true);
++  for (const PersistentPinnedTab& record : records_) {
++    auto live = live_by_id.find(record.id);
++    if (live != live_by_id.end()) {
++      tabs::TabInterface* tab = live->second;
++      if (tab->GetBrowserWindowInterface() == target) {
++        const int current_index = target_model->GetIndexOfTab(tab);
++        if (current_index != TabStripModel::kNoTab &&
++            current_index != target_pinned_index) {
++          target_model->MoveWebContentsAt(current_index, target_pinned_index,
++                                          false);
++        }
++        ++target_pinned_index;
++      }
++      continue;
++    }
++
++    content::WebContents* web_contents = chrome::AddAndReturnTabAt(
++        target, record.url, target_pinned_index, /*foreground=*/false,
++        /*group=*/std::nullopt, /*pinned=*/true);
++    if (!web_contents) {
++      continue;
++    }
++    tabs::TabInterface* tab = tabs::TabInterface::GetFromContents(web_contents);
++    BindTab(tab, record.id);
++    live_by_id.emplace(record.id, tab);
++    ++target_pinned_index;
+   }
+-  need_to_write_pinned_tabs_ = false;
++  WriteRecords();
+ }
+diff --git a/chrome/browser/ui/tabs/pinned_tab_service.h b/chrome/browser/ui/tabs/pinned_tab_service.h
+index a3cb859d1e1ccfbcc72546e801cfadbf61cdd9ee..643308ff89c0184104bb3bc262f14f37d8bfbbbc 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_service.h
++++ b/chrome/browser/ui/tabs/pinned_tab_service.h
+@@ -5,58 +5,120 @@
+ #ifndef CHROME_BROWSER_UI_TABS_PINNED_TAB_SERVICE_H_
+ #define CHROME_BROWSER_UI_TABS_PINNED_TAB_SERVICE_H_
+ 
++#include <map>
++#include <optional>
++#include <string>
++#include <string_view>
++
+ #include "base/callback_list.h"
++#include "base/containers/flat_map.h"
++#include "base/containers/flat_set.h"
+ #include "base/memory/raw_ptr.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/scoped_observation.h"
+ #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
++#include "chrome/browser/ui/tabs/pinned_tab_codec.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+ #include "components/keyed_service/core/keyed_service.h"
+ 
+-class Profile;
+ class BrowserWindowInterface;
+ class GlobalBrowserCollection;
++class Profile;
+ 
+-// PinnedTabService is responsible for updating preferences with the set of
+-// pinned tabs to restore at startup. PinnedTabService listens for the
+-// appropriate set of notifications to know it should update preferences.
++namespace content {
++class WebContents;
++}
++
++// Owns the profile-persistent pinned-tab records and reconciles them with live
++// tabs. A record outlives its WebContents and browser windows. Closing a pin
++// therefore unloads/rematerializes it; only explicit unpinning deletes it.
+ class PinnedTabService : public BrowserCollectionObserver,
+                          public TabStripModelObserver,
+                          public KeyedService {
+  public:
++  inline static constexpr char kPinnedTabIdExtraDataKey[] =
++      "kwiken_pinned_tab_id";
++
+   explicit PinnedTabService(Profile* profile);
+   PinnedTabService(const PinnedTabService&) = delete;
+   PinnedTabService& operator=(const PinnedTabService&) = delete;
+   ~PinnedTabService() override;
+ 
++  // Adds this tab's identity to session/tab-restore extra data when it is a
++  // persistent pin. This keeps duplicate URLs distinct across session restore.
++  void PopulateExtraDataForTab(
++      tabs::TabInterface* tab,
++      std::map<std::string, std::string>* extra_data) const;
++
++  // Stages a validated identity on a not-yet-inserted restored WebContents.
++  // The service consumes it synchronously from the kInserted notification.
++  static void StageRestoredPinId(
++      content::WebContents* web_contents,
++      const std::map<std::string, std::string>& extra_data);
++
++  // Explicit removal route for UI commands. Normal close must never call this:
++  // it unpins the live tab, and OnTabPinnedStateChanged deletes the record.
++  void RemovePersistentPin(tabs::TabInterface* tab);
++
++  // KeyedService:
++  void Shutdown() override;
++
+  private:
+-  // Invoked with true when all browsers start closing.
+   void OnClosingAllBrowsersChanged(bool closing);
++  void OnSessionRestored(Profile* profile, int num_tabs_restored);
+ 
+   // BrowserCollectionObserver:
+   void OnBrowserCreated(BrowserWindowInterface* browser) override;
++  void OnBrowserClosed(BrowserWindowInterface* browser) override;
+ 
+   // TabStripModelObserver:
+   void OnTabStripModelChanged(
+       TabStripModel* tab_strip_model,
+       const TabStripModelChange& change,
+       const TabStripSelectionChange& selection) override;
++  void OnTabChangedAt(tabs::TabInterface* tab,
++                      int index,
++                      TabChangeType change_type) override;
++  void OnTabPinnedStateChanged(tabs::TabInterface* tab, int index) override;
+   void WillCloseAllTabs(TabStripModel* tab_strip_model) override;
++  void CloseAllTabsStopped(TabStripModel* tab_strip_model,
++                           CloseAllStoppedReason reason) override;
++  void OnTabStripModelDestroyed(TabStripModel* tab_strip_model) override;
+ 
+-  // Writes the pinned tabs for |profile_|, but only if a new tab or browser
+-  // window has been added since the last time the method was called.
+-  void WritePinnedTabsIfNecessary();
++  bool ShouldObserve(BrowserWindowInterface* browser) const;
++  BrowserWindowInterface* FindRestoreTarget() const;
++  PersistentPinnedTab* FindRecord(std::string_view id);
++  const PersistentPinnedTab* FindRecord(std::string_view id) const;
++  std::optional<std::string> TakeStagedPinId(tabs::TabInterface* tab);
++  std::string GenerateUniqueId() const;
++  void BindTab(tabs::TabInterface* tab, std::string id);
++  void BindOrCreateTab(tabs::TabInterface* tab, bool allow_legacy_match);
++  void WriteIdentityToSession(tabs::TabInterface* tab,
++                              std::string_view id) const;
++  void ForgetTabsInModel(TabStripModel* tab_strip_model);
++  void RemoveRecordForTab(tabs::TabInterface* tab);
++  bool UpdateRecordFromTab(tabs::TabInterface* tab);
++  bool UpdateRecordOrderFromLiveTabs();
++  void WriteRecords();
++  void ScheduleReconcile();
++  void ReconcileAndRestore();
+ 
+   raw_ptr<Profile> profile_;
++  PersistentPinnedTabs records_;
++  base::flat_map<raw_ptr<tabs::TabInterface>, std::string> live_pin_ids_;
++  base::flat_set<raw_ptr<TabStripModel>> closing_models_;
+ 
+-  // True if we should save the pinned tabs when a browser window closes or the
+-  // user exits the application. This is set to false after writing pinned tabs,
+-  // and set back to true when new tabs or windows are added.
+-  bool need_to_write_pinned_tabs_ = true;
++  bool closing_all_browsers_ = false;
++  bool internal_change_ = false;
++  bool reconcile_scheduled_ = false;
++  bool initial_reconciliation_complete_ = false;
++  bool shutting_down_ = false;
+ 
+   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
+       browser_collection_observation_{this};
+-
+   base::CallbackListSubscription closing_all_browsers_subscription_;
++  base::CallbackListSubscription session_restored_subscription_;
++  base::WeakPtrFactory<PinnedTabService> weak_factory_{this};
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_TABS_PINNED_TAB_SERVICE_H_
+diff --git a/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc b/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
+index 7b2bcbcb1a4ac2580b8510fc7ca09644447a1859..6894dd9336ab85c7f7a9aadb0223bc4fb8c1ca73 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
++++ b/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
+@@ -4,12 +4,20 @@
+ 
+ #include "chrome/browser/ui/tabs/pinned_tab_service.h"
+ 
++#include <map>
++#include <string>
++
+ #include "base/memory/raw_ptr.h"
++#include "base/run_loop.h"
+ #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
+ #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+ #include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/browser_live_tab_context.h"
++#include "chrome/browser/ui/browser_tabstrip.h"
+ #include "chrome/browser/ui/browser_window.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+ #include "chrome/browser/ui/tabs/pinned_tab_codec.h"
+ #include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
+@@ -22,6 +30,19 @@
+ 
+ using PinnedTabServiceBrowserTest = InProcessBrowserTest;
+ 
++IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest,
++                       IncognitoHasNoPersistentPinServiceOrCodecState) {
++  Profile* otr = browser()->profile()->GetPrimaryOTRProfile(
++      /*create_if_needed=*/true);
++  ASSERT_TRUE(otr->IsOffTheRecord());
++  EXPECT_FALSE(PinnedTabServiceFactory::GetForProfile(otr));
++
++  PinnedTabCodec::WritePersistentPinnedTabs(
++      otr, {{"11111111-1111-4111-8111-111111111111",
++             GURL("https://example.test/private"), u"Private"}});
++  EXPECT_TRUE(PinnedTabCodec::ReadPersistentPinnedTabs(otr).empty());
++}
++
+ // Makes sure pinned tabs are updated when tabstrip is empty.
+ // http://crbug.com/40519327
+ IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest, TabStripEmpty) {
+@@ -112,3 +133,91 @@ IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest, Popup) {
+       PinnedTabTestUtils::TabsToString(PinnedTabCodec::ReadPinnedTabs(profile));
+   EXPECT_EQ("https://www.google.com/:pinned", result);
+ }
++
++IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest,
++                       CloseRematerializesButExplicitUnpinRemoves) {
++  ASSERT_TRUE(embedded_test_server()->Start());
++  const GURL persistent_url = embedded_test_server()->GetURL("/title1.html");
++  Profile* profile = browser()->profile();
++  PinnedTabService* service = PinnedTabServiceFactory::GetForProfile(profile);
++  ASSERT_TRUE(service);
++
++  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), persistent_url));
++  chrome::AddTabAt(browser(), GURL("about:blank"), /*index=*/-1,
++                   /*foreground=*/true);
++  TabStripModel* model = browser()->tab_strip_model();
++  model->SetTabPinned(0, true);
++  base::RunLoop().RunUntilIdle();
++
++  PersistentPinnedTabs before =
++      PinnedTabCodec::ReadPersistentPinnedTabs(profile);
++  ASSERT_EQ(1u, before.size());
++  const std::string stable_id = before[0].id;
++
++  model->CloseWebContentsAt(0, TabCloseTypes::CLOSE_NONE);
++  base::RunLoop().RunUntilIdle();
++
++  ASSERT_EQ(2, model->count());
++  EXPECT_TRUE(model->IsTabPinned(0));
++  PersistentPinnedTabs after_close =
++      PinnedTabCodec::ReadPersistentPinnedTabs(profile);
++  ASSERT_EQ(1u, after_close.size());
++  EXPECT_EQ(stable_id, after_close[0].id);
++  EXPECT_EQ(persistent_url, after_close[0].url);
++
++  service->RemovePersistentPin(model->GetTabAtIndex(0));
++  base::RunLoop().RunUntilIdle();
++
++  EXPECT_FALSE(model->IsTabPinned(0));
++  EXPECT_TRUE(PinnedTabCodec::ReadPersistentPinnedTabs(profile).empty());
++}
++
++IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest,
++                       DiscardPreservesIdentityAndSessionExtraData) {
++  ASSERT_TRUE(embedded_test_server()->Start());
++  const GURL discardable_url = embedded_test_server()->GetURL("/title2.html");
++  Profile* profile = browser()->profile();
++  PinnedTabService* service = PinnedTabServiceFactory::GetForProfile(profile);
++  ASSERT_TRUE(service);
++
++  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), discardable_url));
++  chrome::AddTabAt(browser(), GURL("about:blank"), /*index=*/-1,
++                   /*foreground=*/true);
++  TabStripModel* model = browser()->tab_strip_model();
++  model->SetTabPinned(0, true);
++  base::RunLoop().RunUntilIdle();
++
++  PersistentPinnedTabs before =
++      PinnedTabCodec::ReadPersistentPinnedTabs(profile);
++  ASSERT_EQ(1u, before.size());
++  content::WebContents* old_contents = model->GetWebContentsAt(0);
++
++  std::map<std::string, std::string> extra_data =
++      browser()->GetFeatures().live_tab_context()->GetExtraDataForTab(0);
++  ASSERT_TRUE(extra_data.contains(PinnedTabService::kPinnedTabIdExtraDataKey));
++  EXPECT_EQ(before[0].id,
++            extra_data[PinnedTabService::kPinnedTabIdExtraDataKey]);
++
++  auto* lifecycle =
++      resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
++          old_contents);
++  ASSERT_TRUE(lifecycle);
++  ASSERT_TRUE(
++      lifecycle->DiscardTab(::mojom::LifecycleUnitDiscardReason::EXTERNAL));
++  base::RunLoop().RunUntilIdle();
++
++  EXPECT_NE(old_contents, model->GetWebContentsAt(0));
++  PersistentPinnedTabs after =
++      PinnedTabCodec::ReadPersistentPinnedTabs(profile);
++  ASSERT_EQ(1u, after.size());
++  EXPECT_EQ(before[0].id, after[0].id);
++  EXPECT_EQ(before[0].url, after[0].url);
++
++  // BrowserLiveTabContext and the ongoing SessionService command both derive
++  // the restored identity from the surviving TabInterface binding.
++  extra_data =
++      browser()->GetFeatures().live_tab_context()->GetExtraDataForTab(0);
++  ASSERT_TRUE(extra_data.contains(PinnedTabService::kPinnedTabIdExtraDataKey));
++  EXPECT_EQ(before[0].id,
++            extra_data[PinnedTabService::kPinnedTabIdExtraDataKey]);
++}
+diff --git a/chrome/browser/ui/tabs/pinned_tab_service_factory.cc b/chrome/browser/ui/tabs/pinned_tab_service_factory.cc
+index 4346af57201ad44ede9f3fdf4d1642e54db65e59..bfe85cc12702b5cdba2f2515ed175581159cae1e 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_service_factory.cc
++++ b/chrome/browser/ui/tabs/pinned_tab_service_factory.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
+ 
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/sessions/session_service_factory.h"
+ #include "chrome/browser/ui/tabs/pinned_tab_service.h"
+ 
+ // static
+@@ -23,13 +24,13 @@ PinnedTabServiceFactory::PinnedTabServiceFactory()
+           "PinnedTabService",
+           ProfileSelections::Builder()
+               .WithRegular(ProfileSelection::kOriginalOnly)
+-              // TODO(crbug.com/40257657): Check if this service is needed in
+-              // Guest mode.
+-              .WithGuest(ProfileSelection::kOriginalOnly)
+-              // TODO(crbug.com/41488885): Check if this service is needed for
+-              // Ash Internals.
+-              .WithAshInternals(ProfileSelection::kOriginalOnly)
+-              .Build()) {}
++              // Persistent pins belong only to the durable regular profile.
++              // Never redirect OTR, Guest, or internal sessions to it.
++              .WithGuest(ProfileSelection::kNone)
++              .WithAshInternals(ProfileSelection::kNone)
++              .Build()) {
++  DependsOn(SessionServiceFactory::GetInstance());
++}
+ 
+ PinnedTabServiceFactory::~PinnedTabServiceFactory() = default;
+ 

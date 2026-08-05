@@ -1,0 +1,393 @@
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc b/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
+index ac697c533405b018bd352296b14ca45b67b690b9..3896f7105ba17bde8a73e760e9bf4115f29525d5 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
+@@ -277,11 +277,10 @@ LocalTabGroupListener::Liveness LocalTabGroupListener::UpdateFromSync() {
+   TabGroup* local_tab_group =
+       tab_strip_model->group_model()->GetTabGroup(local_id_);
+   CHECK(local_tab_group);
+-  const bool is_collapsed = local_tab_group->visual_data()->is_collapsed();
+   tab_strip_model->ChangeTabGroupVisuals(
+       local_id_,
+       tab_groups::TabGroupVisualData(saved_group->title(), saved_group->color(),
+-                                     is_collapsed),
++                                     saved_group->is_collapsed()),
+       /*is_customized=*/true);
+ 
+   // Add, navigate, and reorder local tabs to match saved tabs.
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.cc b/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.cc
+index cdd4a4be2be426942dc682e8a3c5da8b9128033f..fb34f2f35cb5957edfd7fcf22552dbf1c425fae2 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.cc
+@@ -124,9 +124,59 @@ void SavedTabGroupModelListener::OnTabGroupChanged(
+     }
+ 
+     // kEditorOpened doesn't affect the SavedTabGroup.
+-    case TabGroupChange::kEditorOpened:
+-    // kMoved doesn't affect the order of the saved tab groups.
++    case TabGroupChange::kEditorOpened: {
++      return;
++    }
+     case TabGroupChange::kMoved: {
++      const std::optional<SavedTabGroup> moved_group =
++          service_->GetGroup(change.group);
++      if (!moved_group.has_value()) {
++        return;
++      }
++
++      TabGroup* const local_group =
++          change.model->group_model()->GetTabGroup(change.group);
++      if (!local_group) {
++        return;
++      }
++
++      // The saved-group model owns a profile-wide order while the tab strip
++      // supplies only the nearest live neighbors. Anchor the moved folder to a
++      // saved neighbor without disturbing any closed folders unnecessarily.
++      const gfx::Range range = local_group->ListTabs();
++      std::optional<SavedTabGroup> previous_saved_group;
++      for (int index = static_cast<int>(range.start()) - 1; index >= 0;
++           --index) {
++        const std::optional<tab_groups::TabGroupId> candidate_id =
++            change.model->GetTabGroupForTab(index);
++        if (candidate_id.has_value()) {
++          previous_saved_group = service_->GetGroup(candidate_id.value());
++          if (previous_saved_group.has_value()) {
++            break;
++          }
++        }
++      }
++
++      std::optional<SavedTabGroup> next_saved_group;
++      for (int index = static_cast<int>(range.end());
++           index < change.model->count(); ++index) {
++        const std::optional<tab_groups::TabGroupId> candidate_id =
++            change.model->GetTabGroupForTab(index);
++        if (candidate_id.has_value()) {
++          next_saved_group = service_->GetGroup(candidate_id.value());
++          if (next_saved_group.has_value()) {
++            break;
++          }
++        }
++      }
++
++      if (next_saved_group.has_value()) {
++        service_->ReorderGroupBefore(moved_group->saved_guid(),
++                                     next_saved_group->saved_guid());
++      } else if (previous_saved_group.has_value()) {
++        service_->ReorderGroupAfter(moved_group->saved_guid(),
++                                    previous_saved_group->saved_guid());
++      }
+       return;
+     }
+   }
+@@ -342,6 +392,7 @@ SavedTabGroupModelListener::CreateSavedTabGroupAndTabMapping(
+   tab_groups::SavedTabGroup saved_tab_group(
+       tab_group->visual_data()->title(), tab_group->visual_data()->color(), {},
+       std::nullopt, std::nullopt, group_id);
++  saved_tab_group.SetIsCollapsed(tab_group->visual_data()->is_collapsed());
+   saved_tab_group.SetPinned(
+       /*pinned=*/tab_groups::SavedTabGroupUtils::ShouldAutoPinNewTabGroups(
+           profile_));
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc
+index 8dbfeb49c909dbcff0ca5d02fac5766167aaa047..87e4657582c7a06680c6e3d9c0170ed98d2bfbf4 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc
+@@ -897,6 +897,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
+   // Verify that the group is saved.
+   std::optional<SavedTabGroup> saved_group = service_->GetGroup(local_id);
+   ASSERT_TRUE(saved_group.has_value());
++  EXPECT_TRUE(saved_group->is_collapsed());
+ 
+   // Simulate a remote update to the group.
+   model_->MergeRemoteGroupMetadata(
+@@ -914,6 +915,82 @@ IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
+ 
+   // The local group should still be collapsed.
+   EXPECT_TRUE(local_group->visual_data()->is_collapsed());
++  saved_group = service_->GetGroup(local_id);
++  ASSERT_TRUE(saved_group.has_value());
++  EXPECT_TRUE(saved_group->is_collapsed());
++}
++
++IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
++                       CollapsedStateRestoredWhenSavedFolderReopened) {
++  chrome::AddTabAt(browser(), GURL("about:blank"), 1, false);
++  const LocalTabGroupID local_id =
++      browser()->tab_strip_model()->AddToNewGroup({0});
++  browser()->tab_strip_model()->ChangeTabGroupVisuals(
++      local_id,
++      TabGroupVisualData(u"Durable folder", TabGroupColorId::kPurple,
++                         /*is_collapsed=*/true),
++      /*is_customized=*/true);
++
++  const std::optional<SavedTabGroup> saved_group = service_->GetGroup(local_id);
++  ASSERT_TRUE(saved_group.has_value());
++  ASSERT_TRUE(saved_group->is_collapsed());
++  const base::Uuid saved_guid = saved_group->saved_guid();
++
++  browser()->tab_strip_model()->CloseAllTabsInGroup(local_id);
++  ASSERT_TRUE(base::test::RunUntil([&]() {
++    const std::optional<SavedTabGroup> closed_group =
++        service_->GetGroup(saved_guid);
++    return closed_group.has_value() &&
++           !closed_group->local_group_id().has_value();
++  }));
++
++  const std::optional<LocalTabGroupID> reopened_id = service_->OpenTabGroup(
++      saved_guid, std::make_unique<TabGroupActionContextDesktop>(
++                      browser(), OpeningSource::kOpenedFromRevisitUi));
++  ASSERT_TRUE(reopened_id.has_value());
++  const TabGroup* reopened_group =
++      browser()->tab_strip_model()->group_model()->GetTabGroup(
++          reopened_id.value());
++  ASSERT_THAT(reopened_group, NotNull());
++  EXPECT_TRUE(reopened_group->visual_data()->is_collapsed());
++  EXPECT_EQ(u"Durable folder", reopened_group->visual_data()->title());
++}
++
++IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
++                       MovingLiveFolderPersistsSavedFolderOrder) {
++  chrome::AddTabAt(browser(), GURL("about:blank"), 1, false);
++  chrome::AddTabAt(browser(), GURL("about:blank"), 2, false);
++  TabStripModel* const model = browser()->tab_strip_model();
++  const LocalTabGroupID first = model->AddToNewGroup({0});
++  const LocalTabGroupID second = model->AddToNewGroup({1});
++  const LocalTabGroupID third = model->AddToNewGroup({2});
++
++  const std::optional<SavedTabGroup> first_group = service_->GetGroup(first);
++  const std::optional<SavedTabGroup> second_group = service_->GetGroup(second);
++  const std::optional<SavedTabGroup> third_group = service_->GetGroup(third);
++  ASSERT_TRUE(first_group.has_value());
++  ASSERT_TRUE(second_group.has_value());
++  ASSERT_TRUE(third_group.has_value());
++  const base::Uuid first_guid = first_group->saved_guid();
++  const base::Uuid second_guid = second_group->saved_guid();
++  const base::Uuid third_guid = third_group->saved_guid();
++  const std::vector<SavedTabGroup> original_order = service_->GetAllGroups();
++  ASSERT_EQ(3u, original_order.size());
++  ASSERT_EQ(first_guid, original_order[0].saved_guid());
++  ASSERT_EQ(second_guid, original_order[1].saved_guid());
++  ASSERT_EQ(third_guid, original_order[2].saved_guid());
++
++  model->MoveGroupTo(third, 0);
++
++  ASSERT_TRUE(base::test::RunUntil([&]() {
++    const std::vector<SavedTabGroup> groups = service_->GetAllGroups();
++    return groups.size() == 3u && groups[0].saved_guid() == third_guid;
++  }));
++  const std::vector<SavedTabGroup> reordered = service_->GetAllGroups();
++  ASSERT_EQ(3u, reordered.size());
++  EXPECT_EQ(third_guid, reordered[0].saved_guid());
++  EXPECT_EQ(first_guid, reordered[1].saved_guid());
++  EXPECT_EQ(second_guid, reordered[2].saved_guid());
+ }
+ 
+ // TODO(crbug.com/438395752): Re-enable this test on Linux.
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
+index e7495c5e7d72f162b628b3984dca00e64f7deff3..38ae533fb077b58e84b371bac55eb9dab4b08d79 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
+@@ -390,7 +390,7 @@ TabGroupId TabGroupSyncDelegateDesktop::AddOpenedTabsToGroup(
+ 
+   // Update the group to use the saved title and color.
+   TabGroupVisualData visual_data(saved_group.title(), saved_group.color(),
+-                                 /*is_collapsed=*/false);
++                                 saved_group.is_collapsed());
+   tab_strip_model->ChangeTabGroupVisuals(tab_group_id, visual_data);
+ 
+   const std::optional<SavedTabGroup> saved_group2 =
+diff --git a/components/saved_tab_groups/internal/saved_tab_group_model.cc b/components/saved_tab_groups/internal/saved_tab_group_model.cc
+index 57299c1a0441acb26b4c7710efb39d1fadd4e11c..67f17d699f8007837fa19f99b70d2085a299e021 100644
+--- a/components/saved_tab_groups/internal/saved_tab_group_model.cc
++++ b/components/saved_tab_groups/internal/saved_tab_group_model.cc
+@@ -219,6 +219,9 @@ void SavedTabGroupModel::UpdateVisualDataLocally(
+   }
+ 
+   const std::optional<int> index = GetIndexOf(tab_group_id);
++  // Collapse is local presentation state. Persist it for local visual changes,
++  // but never let a remote title/color update overwrite this device's choice.
++  saved_tab_groups_[index.value()].SetIsCollapsed(visual_data->is_collapsed());
+   UpdateVisualDataImpl(index.value(), visual_data);
+   base::Uuid updated_guid = Get(tab_group_id)->saved_guid();
+   for (auto& observer : observers_) {
+diff --git a/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc b/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc
+index f34b465c6fd8ddf8b61978df5aea692bc6495189..c7c8fcc63edf35aa75bc689c4f230e6d73a96ce2 100644
+--- a/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc
++++ b/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc
+@@ -356,6 +356,21 @@ TEST_F(SavedTabGroupModelTest, UpdateElement) {
+       group->local_group_id().value(), &change_color_visual_data);
+   EXPECT_EQ(group->title(), original_title);
+   EXPECT_EQ(group->color(), random_color);
++
++  // Collapse is profile-local presentation state and is persisted only for a
++  // local visual change.
++  const tab_groups::TabGroupVisualData collapse_visual_data(
++      original_title, random_color, /*is_collapsed=*/true);
++  saved_tab_group_model_->UpdateVisualDataLocally(
++      group->local_group_id().value(), &collapse_visual_data);
++  EXPECT_TRUE(group->is_collapsed());
++
++  // A remote title/color update must not overwrite the local collapse choice.
++  const tab_groups::TabGroupVisualData remote_visual_data(
++      u"Remote Title", TabGroupColorId::kBlue, /*is_collapsed=*/false);
++  saved_tab_group_model_->UpdatedVisualDataFromSync(
++      group->local_group_id().value(), &remote_visual_data);
++  EXPECT_TRUE(group->is_collapsed());
+ }
+ 
+ // Tests that the correct tabs are added to the correct position in group 1.
+diff --git a/components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc b/components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc
+index 965f9330f355e8afd870b619efdb9e8fd324049c..0c5c0d1ad2de34b3e395d2bf25254001041cb4a1 100644
+--- a/components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc
++++ b/components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc
+@@ -74,6 +74,8 @@ class SavedTabGroupConversionTest : public testing::Test {
+                   .last_user_interaction_time_windows_epoch_micros());
+     EXPECT_EQ(sp1.local_tab_group_data().archival_time_windows_epoch_micros(),
+               sp2.local_tab_group_data().archival_time_windows_epoch_micros());
++    EXPECT_EQ(sp1.local_tab_group_data().is_collapsed(),
++              sp2.local_tab_group_data().is_collapsed());
+   }
+ 
+   // Compare SavedTabGroups
+@@ -95,6 +97,7 @@ class SavedTabGroupConversionTest : public testing::Test {
+               group2.created_before_syncing_tab_groups());
+     EXPECT_EQ(group1.archival_time(), group2.archival_time());
+     EXPECT_EQ(group1.bookmark_node_id(), group2.bookmark_node_id());
++    EXPECT_EQ(group1.is_collapsed(), group2.is_collapsed());
+   }
+ 
+   void CompareTabs(const SavedTabGroupTab& tab1, const SavedTabGroupTab& tab2) {
+@@ -128,6 +131,7 @@ TEST_F(SavedTabGroupConversionTest, GroupToDataRetainsData) {
+   group.SetOriginatingTabGroupGuid(kOriginatingSavedTabGroupGuid,
+                                    /*use_originating_tab_group_guid=*/true);
+   group.SetIsHidden(true);
++  group.SetIsCollapsed(true);
+   group.SetArchivalTime(time_);
+ 
+   group.SetBookmarkNodeId(base::Uuid::GenerateRandomV4());
+@@ -140,6 +144,19 @@ TEST_F(SavedTabGroupConversionTest, GroupToDataRetainsData) {
+ 
+   CompareGroups(group,
+                 SavedTabGroupSyncBridge::DataToSavedTabGroupForTest(proto));
++  EXPECT_TRUE(proto.local_tab_group_data().is_collapsed());
++}
++
++TEST_F(SavedTabGroupConversionTest,
++       MissingLocalCollapsedStateDefaultsToExpanded) {
++  proto::SavedTabGroupData pb_data;
++  pb_data.mutable_specifics()->set_guid(
++      base::Uuid::GenerateRandomV4().AsLowercaseString());
++  pb_data.mutable_specifics()->mutable_group();
++
++  const SavedTabGroup group =
++      SavedTabGroupSyncBridge::DataToSavedTabGroupForTest(pb_data);
++  EXPECT_FALSE(group.is_collapsed());
+ }
+ 
+ TEST_F(SavedTabGroupConversionTest, TabToDataRetainsData) {
+diff --git a/components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc b/components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc
+index 5479150419cccbe14013e28dfd2ef8ec79a8350d..d7906c617dc5b09f1c64ee9dc0ded6810108dc7b 100644
+--- a/components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc
++++ b/components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc
+@@ -173,6 +173,7 @@ SavedTabGroup DataToSavedTabGroup(const proto::SavedTabGroupData& data) {
+   base::Time last_user_interaction_time;
+   base::Uuid originating_tab_group_guid;
+   bool is_hidden = false;
++  bool is_collapsed = false;
+   std::optional<base::Time> archival_time;
+   if (data.has_local_tab_group_data()) {
+     created_before_syncing_tab_groups =
+@@ -185,6 +186,7 @@ SavedTabGroup DataToSavedTabGroup(const proto::SavedTabGroupData& data) {
+           data.local_tab_group_data().originating_tab_group_guid());
+     }
+     is_hidden = data.local_tab_group_data().is_group_hidden();
++    is_collapsed = data.local_tab_group_data().is_collapsed();
+     if (data.local_tab_group_data().has_archival_time_windows_epoch_micros()) {
+       archival_time = TimeFromWindowsEpochMicros(
+           data.local_tab_group_data().archival_time_windows_epoch_micros());
+@@ -209,6 +211,7 @@ SavedTabGroup DataToSavedTabGroup(const proto::SavedTabGroupData& data) {
+                                      /*use_originating_tab_group_guid=*/true);
+   }
+   group.SetIsHidden(is_hidden);
++  group.SetIsCollapsed(is_collapsed);
+   group.SetArchivalTime(archival_time);
+ 
+   if (specific.group().has_bookmark_node_id()) {
+@@ -319,6 +322,7 @@ proto::SavedTabGroupData SavedTabGroupToData(
+         group.GetOriginatingTabGroupGuid().value().AsLowercaseString());
+   }
+   local_data->set_is_group_hidden(group.is_hidden());
++  local_data->set_is_collapsed(group.is_collapsed());
+   if (group.archival_time().has_value()) {
+     local_data->set_archival_time_windows_epoch_micros(
+         group.archival_time()
+diff --git a/components/saved_tab_groups/proto/local_tab_group_data.proto b/components/saved_tab_groups/proto/local_tab_group_data.proto
+index 5ebd5a4f44232f8e925850bddfd8e1ca1b54296a..37c53e6fb12dbef82873f160c6f48a171324ba95 100644
+--- a/components/saved_tab_groups/proto/local_tab_group_data.proto
++++ b/components/saved_tab_groups/proto/local_tab_group_data.proto
+@@ -37,4 +37,9 @@ message LocalTabGroupData {
+   // set if the tab group is currently archived. Restoring the group from
+   // archive will reset this field.
+   optional int64 archival_time_windows_epoch_micros = 8;
++
++  // Whether the local folder is collapsed in the tab strip. This is
++  // presentation state for this profile/device and must never be uploaded
++  // through sync.
++  optional bool is_collapsed = 9 [default = false];
+ }
+diff --git a/components/saved_tab_groups/public/saved_tab_group.cc b/components/saved_tab_groups/public/saved_tab_group.cc
+index 9f4dce4ab968145a5f5fa768ead4333fff973f35..393fdb65823c43b06a9c27bd724dfa9fb9a41d06 100644
+--- a/components/saved_tab_groups/public/saved_tab_group.cc
++++ b/components/saved_tab_groups/public/saved_tab_group.cc
+@@ -174,6 +174,11 @@ SavedTabGroup& SavedTabGroup::SetColor(tab_groups::TabGroupColorId color) {
+   return *this;
+ }
+ 
++SavedTabGroup& SavedTabGroup::SetIsCollapsed(bool is_collapsed) {
++  is_collapsed_ = is_collapsed;
++  return *this;
++}
++
+ SavedTabGroup& SavedTabGroup::SetLocalGroupId(
+     std::optional<LocalTabGroupID> tab_group_id) {
+   local_group_id_ = tab_group_id;
+@@ -509,6 +514,7 @@ void SavedTabGroup::RemoveTabImpl(const base::Uuid& saved_tab_guid,
+ 
+ SavedTabGroup SavedTabGroup::CopyBaseFieldsWithTabs() const {
+   SavedTabGroup cloned_group(title(), color(), /*urls=*/{}, position_);
++  cloned_group.SetIsCollapsed(is_collapsed());
+ 
+   for (size_t i = 0; i < saved_tabs().size(); ++i) {
+     const SavedTabGroupTab& tab = saved_tabs()[i];
+diff --git a/components/saved_tab_groups/public/saved_tab_group.h b/components/saved_tab_groups/public/saved_tab_group.h
+index a52ccb116c12ca060a81ad36ccba3a1dcccb5d1c..d3e833e21f58eb28769e8ecc3572ce2b320ee07d 100644
+--- a/components/saved_tab_groups/public/saved_tab_group.h
++++ b/components/saved_tab_groups/public/saved_tab_group.h
+@@ -89,6 +89,7 @@ class SavedTabGroup {
+ 
+   const std::u16string& title() const { return title_; }
+   const tab_groups::TabGroupColorId& color() const { return color_; }
++  bool is_collapsed() const { return is_collapsed_; }
+   const std::vector<SavedTabGroupTab>& saved_tabs() const {
+     return saved_tabs_;
+   }
+@@ -158,6 +159,7 @@ class SavedTabGroup {
+   // Metadata mutators.
+   SavedTabGroup& SetTitle(std::u16string title);
+   SavedTabGroup& SetColor(tab_groups::TabGroupColorId color);
++  SavedTabGroup& SetIsCollapsed(bool is_collapsed);
+   SavedTabGroup& SetLocalGroupId(std::optional<LocalTabGroupID> tab_group_id);
+   SavedTabGroup& SetCreatorCacheGuid(std::optional<std::string> new_cache_guid);
+   SavedTabGroup& SetLastUpdaterCacheGuid(std::optional<std::string> cache_guid);
+@@ -312,6 +314,10 @@ class SavedTabGroup {
+   // The color of the saved tab group.
+   tab_groups::TabGroupColorId color_;
+ 
++  // Whether this folder is collapsed in the local tab strip. This state is
++  // profile-backed but intentionally not syncable.
++  bool is_collapsed_ = false;
++
+   // The URLS and later webcontents (such as favicons) of the saved tab group.
+   std::vector<SavedTabGroupTab> saved_tabs_;
+ 

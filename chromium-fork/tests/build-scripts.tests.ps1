@@ -251,6 +251,9 @@ Invoke-Test "source patches are discovered and applied in lexical order" {
     -Message "The discovered patch series is not iterated."
   Assert-True -Condition ($applyScript -notmatch 'patches\\0001-kwiken-browser\.patch') `
     -Message "apply-patches.ps1 is still hard-coded to the baseline patch."
+  Assert-True -Condition (
+      $applyScript -match 'Get-ChromiumSourceDeltaSha256[\s\S]+ExpectedSourceDeltaSha256[\s\S]+already applied') `
+    -Message "apply-patches.ps1 cannot recognize the complete reviewed stack on a rerun."
 }
 
 Invoke-Test "all PowerShell scripts parse" {

@@ -1,5 +1,5 @@
 diff --git a/chrome/app/theme/chromium/BRANDING b/chrome/app/theme/chromium/BRANDING
-index f8363d5b29..e6ccf0d3bf 100644
+index f8363d5b294fe210ebfdd18374e95b54d6ff5c17..e6ccf0d3bf078db54234a4cbb81c7e8271fb1fb7 100644
 --- a/chrome/app/theme/chromium/BRANDING
 +++ b/chrome/app/theme/chromium/BRANDING
 @@ -1,10 +1,10 @@
@@ -20,8 +20,34 @@ index f8363d5b29..e6ccf0d3bf 100644
 +MAC_BUNDLE_ID=com.kwiken.browser
  MAC_CREATOR_CODE=Cr24
  MAC_TEAM_ID=
+diff --git a/chrome/browser/background/extensions/background_mode_manager.cc b/chrome/browser/background/extensions/background_mode_manager.cc
+index d92f6fa9ac3cd3c2781eb24a23174d94c9d516ee..e4a965b698f097fe569abb312875da6761fc837b 100644
+--- a/chrome/browser/background/extensions/background_mode_manager.cc
++++ b/chrome/browser/background/extensions/background_mode_manager.cc
+@@ -348,7 +348,7 @@ BackgroundModeManager::~BackgroundModeManager() {
+ 
+ // static
+ void BackgroundModeManager::RegisterPrefs(PrefRegistrySimple* registry) {
+-  registry->RegisterBooleanPref(prefs::kBackgroundModeEnabled, true);
++  registry->RegisterBooleanPref(prefs::kBackgroundModeEnabled, false);
+ }
+ 
+ void BackgroundModeManager::RegisterProfile(Profile* profile) {
+diff --git a/chrome/browser/preloading/preloading_prefs.cc b/chrome/browser/preloading/preloading_prefs.cc
+index 69ba78f694f87fbc0b9c818f93cbd4175e2874fe..12fbe21a8f6b186074577bcffde38a6e01a27aab 100644
+--- a/chrome/browser/preloading/preloading_prefs.cc
++++ b/chrome/browser/preloading/preloading_prefs.cc
+@@ -16,7 +16,7 @@ void RegisterPredictionOptionsProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterIntegerPref(
+       prefs::kNetworkPredictionOptions,
+-      static_cast<int>(NetworkPredictionOptions::kDefault),
++      static_cast<int>(NetworkPredictionOptions::kDisabled),
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+ }
+ 
 diff --git a/chrome/browser/signin/account_consistency_mode_manager.cc b/chrome/browser/signin/account_consistency_mode_manager.cc
-index f11db47c92..bf766b1131 100644
+index f11db47c92ff8bc14da47d494f6a14cd64832d41..bf766b11310399ae8a6a6a90b835f3544d0ade9e 100644
 --- a/chrome/browser/signin/account_consistency_mode_manager.cc
 +++ b/chrome/browser/signin/account_consistency_mode_manager.cc
 @@ -146,7 +146,7 @@ AccountConsistencyModeManager::~AccountConsistencyModeManager() = default;
@@ -34,7 +60,7 @@ index f11db47c92..bf766b1131 100644
  
  // static
 diff --git a/chrome/browser/ui/browser_ui_prefs.cc b/chrome/browser/ui/browser_ui_prefs.cc
-index c5d48d196d..8dff7daca0 100644
+index c5d48d196da2f7b9dcad76d09bf66adf06bad9ce..8dff7daca02f8f66ea083f6a7766efc344060301 100644
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
 @@ -146,7 +146,7 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
@@ -47,20 +73,20 @@ index c5d48d196d..8dff7daca0 100644
  #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
    registry->RegisterBooleanPref(prefs::kPrintPreviewUseSystemDefaultPrinter,
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index 9dfe5e7cd5..5ee6a5668b 100644
+index 9dfe5e7cd531dda152988c6b0ba89098a18cf53a..e33f8a4753b05ac5baa268970d454291497213f0 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
-@@ -23,10 +23,140 @@
+@@ -23,10 +23,139 @@
  #include "chrome/browser/ui/color/product_specifications_color_mixer.h"
  #include "chrome/browser/ui/color/projects_panel_color_mixer.h"
  #include "chrome/browser/ui/color/tab_strip_color_mixer.h"
 +#include "third_party/skia/include/core/SkColor.h"
 +#include "ui/color/color_id.h"
 +#include "ui/color/color_mixer.h"
-+#include "ui/color/color_recipe.h"
 +#include "ui/color/color_provider.h"
 +#include "ui/color/color_provider_key.h"
  #include "ui/color/color_provider_utils.h"
++#include "ui/color/color_recipe.h"
  
  namespace {
  
@@ -78,14 +104,14 @@ index 9dfe5e7cd5..5ee6a5668b 100644
 +          ui::ColorProviderKey::UserColorSource::kGrayscale;
 +  const SkColor sidebar = private_palette ? SkColorSetRGB(0x17, 0x13, 0x1D)
 +                                          : SkColorSetRGB(0x14, 0x18, 0x11);
-+  const SkColor sidebar_raised =
-+      private_palette ? SkColorSetRGB(0x22, 0x1B, 0x2B)
-+                      : SkColorSetRGB(0x1D, 0x23, 0x19);
++  const SkColor sidebar_raised = private_palette
++                                     ? SkColorSetRGB(0x22, 0x1B, 0x2B)
++                                     : SkColorSetRGB(0x1D, 0x23, 0x19);
 +  const SkColor accent = private_palette ? SkColorSetRGB(0xC9, 0xAD, 0xFF)
 +                                         : SkColorSetRGB(0xC8, 0xFF, 0x5A);
-+  const SkColor accent_strong =
-+      private_palette ? SkColorSetRGB(0xAD, 0x8C, 0xF1)
-+                      : SkColorSetRGB(0xAE, 0xE6, 0x3A);
++  const SkColor accent_strong = private_palette
++                                    ? SkColorSetRGB(0xAD, 0x8C, 0xF1)
++                                    : SkColorSetRGB(0xAE, 0xE6, 0x3A);
 +  constexpr SkColor text = SkColorSetRGB(0xF2, 0xF5, 0xED);
 +  constexpr SkColor muted = SkColorSetRGB(0x8D, 0x96, 0x86);
 +  constexpr SkColor paper = SkColorSetRGB(0xF6, 0xF7, 0xF3);
@@ -126,8 +152,7 @@ index 9dfe5e7cd5..5ee6a5668b 100644
 +  mixer[kColorTabForegroundActiveFrameInactive] = {text};
 +  mixer[kColorTabForegroundInactiveFrameActive] = {muted};
 +  mixer[kColorTabForegroundInactiveFrameInactive] = {muted};
-+  mixer[kColorTabDividerFrameActive] = {
-+      SkColorSetARGB(0x20, 0xFF, 0xFF, 0xFF)};
++  mixer[kColorTabDividerFrameActive] = {SkColorSetARGB(0x20, 0xFF, 0xFF, 0xFF)};
 +  mixer[kColorTabDividerFrameInactive] = {
 +      SkColorSetARGB(0x18, 0xFF, 0xFF, 0xFF)};
 +  mixer[kColorVerticalTabPinnedOutline] = {accent_strong};
@@ -156,8 +181,8 @@ index 9dfe5e7cd5..5ee6a5668b 100644
 +  mixer[kColorToolbarTopSeparatorFrameInactive] = {paper_line};
 +  mixer[kColorCaptionForegroundActive] = {text};
 +  mixer[kColorCaptionForegroundInactive] = {muted};
-+  mixer[kColorVerticalTabsCaptionButtonForegroundActive] = {text};
-+  mixer[kColorVerticalTabsCaptionButtonForegroundInactive] = {muted};
++  mixer[kColorCaptionButtonForegroundActive] = {text};
++  mixer[kColorCaptionButtonForegroundInactive] = {muted};
 +
 +  mixer[kColorLocationBarBackground] = {paper_raised};
 +  mixer[kColorLocationBarBackgroundHovered] = {paper_raised};
@@ -199,7 +224,7 @@ index 9dfe5e7cd5..5ee6a5668b 100644
 +  AddKwikenColorMixer(provider, key);
  }
 diff --git a/chrome/browser/ui/startup/infobar_utils.cc b/chrome/browser/ui/startup/infobar_utils.cc
-index 4907b9a951..7603f04a48 100644
+index 4907b9a951040624eab323061636a222315194e5..7603f04a4829dd35fdcfe64d8334a36caea35ba2 100644
 --- a/chrome/browser/ui/startup/infobar_utils.cc
 +++ b/chrome/browser/ui/startup/infobar_utils.cc
 @@ -18,7 +18,6 @@
@@ -230,7 +255,7 @@ index 4907b9a951..7603f04a48 100644
      PrefService* local_state = g_browser_process->local_state();
      if (!local_state ||
 diff --git a/chrome/browser/ui/tabs/features.cc b/chrome/browser/ui/tabs/features.cc
-index df3758a6a8..3b9e312ea1 100644
+index df3758a6a88c44c9a50eeb6077c87d2b99f31a33..3b9e312ea1787bccb5bda3bbdb07b26bf18ac189 100644
 --- a/chrome/browser/ui/tabs/features.cc
 +++ b/chrome/browser/ui/tabs/features.cc
 @@ -24,7 +24,7 @@ BASE_FEATURE_PARAM(bool,
@@ -243,7 +268,7 @@ index df3758a6a8..3b9e312ea1 100644
  BASE_FEATURE(kVerticalTabsLaunch, base::FEATURE_DISABLED_BY_DEFAULT);
  BASE_FEATURE_PARAM(bool,
 diff --git a/chrome/browser/ui/tabs/tab_strip_prefs.cc b/chrome/browser/ui/tabs/tab_strip_prefs.cc
-index b0d357c347..ad7aabeffe 100644
+index b0d357c347745dc16244d9bb1a4b30360abd55b3..ad7aabeffe5d8b283d81fff1b87058fc7fb54723 100644
 --- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
 @@ -46,7 +46,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
@@ -256,7 +281,7 @@ index b0d357c347..ad7aabeffe 100644
        prefs::kVerticalTabsExpandOnHoverEnabled,
        tabs::kVerticalTabsExpandOnHoverDefaultEnabled.Get());
 diff --git a/chrome/browser/ui/tabs/vertical_tab_strip_state.h b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
-index b46ad7ecdf..cc236842ac 100644
+index b46ad7ecdfff7f3cf106d6bdfe72230245f4aba1..cc236842acb86c56fe86b81a2505300c0c6016e9 100644
 --- a/chrome/browser/ui/tabs/vertical_tab_strip_state.h
 +++ b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
 @@ -7,7 +7,7 @@
@@ -269,7 +294,7 @@ index b46ad7ecdf..cc236842ac 100644
  // Per-window state for the vertical tab strip.
  struct VerticalTabStripState {
 diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
-index 5de1dce2f4..329e68ee4f 100644
+index 5de1dce2f4ec8f4ba9bf0e83a3d74d544833eb3c..329e68ee4f14baa2b724072d8403f1c3ecdaffcd 100644
 --- a/chrome/browser/ui/ui_features.cc
 +++ b/chrome/browser/ui/ui_features.cc
 @@ -424,7 +424,7 @@ BASE_FEATURE_PARAM(bool,
@@ -282,7 +307,7 @@ index 5de1dce2f4..329e68ee4f 100644
  
  #if !BUILDFLAG(IS_ANDROID)
 diff --git a/chrome/install_static/chromium_install_modes.h b/chrome/install_static/chromium_install_modes.h
-index f29a8228fe..d9fa80f9ea 100644
+index f29a8228fe611cc2d0a9dcab08cd624f60d2ebdc..d9fa80f9ead3cb333aaafebdd9fc5965e63e65c9 100644
 --- a/chrome/install_static/chromium_install_modes.h
 +++ b/chrome/install_static/chromium_install_modes.h
 @@ -21,7 +21,7 @@ inline constexpr wchar_t kCompanyPathName[] = L"";
@@ -358,7 +383,7 @@ index f29a8228fe..d9fa80f9ea 100644
                                  0xffd4,
                                  0x4075,
 diff --git a/chrome/installer/mini_installer/mini_installer_constants.cc b/chrome/installer/mini_installer/mini_installer_constants.cc
-index c2a03ccbb6..e328ba0284 100644
+index c2a03ccbb64608add5c92e12da8985ea6fc4963d..e328ba0284b34fae5308337794cb29602efdd008 100644
 --- a/chrome/installer/mini_installer/mini_installer_constants.cc
 +++ b/chrome/installer/mini_installer/mini_installer_constants.cc
 @@ -67,12 +67,12 @@ const wchar_t kCleanupRegistryKey[] = L"Software\\Chrome for Testing";
@@ -378,7 +403,7 @@ index c2a03ccbb6..e328ba0284 100644
  
  }  // namespace mini_installer
 diff --git a/chrome/installer/setup/setup_util.cc b/chrome/installer/setup/setup_util.cc
-index 623618d3b7..c0cfb70db4 100644
+index 623618d3b784bea7811942ef602f9408d893b95c..c0cfb70db4689bd039ede01d4727ff4b5e83a34b 100644
 --- a/chrome/installer/setup/setup_util.cc
 +++ b/chrome/installer/setup/setup_util.cc
 @@ -76,7 +76,7 @@ void RemoveBinariesVersionKey(const InstallerState& installer_state) {
@@ -390,8 +415,47 @@ index 623618d3b7..c0cfb70db4 100644
  #endif
    installer::DeleteRegistryKey(installer_state.root_key(), path,
                                 KEY_WOW64_32KEY);
+diff --git a/components/performance_manager/user_tuning/prefs.cc b/components/performance_manager/user_tuning/prefs.cc
+index 40915dcac0a6ccce2d2118716917f00ceed014a0..f602f67a8058e24d6471b3e5b0ccf506225d19a8 100644
+--- a/components/performance_manager/user_tuning/prefs.cc
++++ b/components/performance_manager/user_tuning/prefs.cc
+@@ -32,10 +32,10 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
+       kMemorySaverModeTimeBeforeDiscardInMinutes,
+       kDefaultMemorySaverModeTimeBeforeDiscardInMinutes);
+   registry->RegisterIntegerPref(
+-      kMemorySaverModeState, static_cast<int>(MemorySaverModeState::kDisabled));
++      kMemorySaverModeState, static_cast<int>(MemorySaverModeState::kEnabled));
+   registry->RegisterIntegerPref(
+       kMemorySaverModeAggressiveness,
+-      static_cast<int>(MemorySaverModeAggressiveness::kMedium));
++      static_cast<int>(MemorySaverModeAggressiveness::kAggressive));
+   registry->RegisterIntegerPref(
+       kBatterySaverModeState,
+       static_cast<int>(BatterySaverModeState::kEnabledBelowThreshold));
+diff --git a/components/performance_manager/user_tuning/prefs_unittest.cc b/components/performance_manager/user_tuning/prefs_unittest.cc
+index 7c350fb469b1a918ae7f58de19b0816dc5765785..6779eb6608a5837c70a63e4ada643210eb6c5f1f 100644
+--- a/components/performance_manager/user_tuning/prefs_unittest.cc
++++ b/components/performance_manager/user_tuning/prefs_unittest.cc
+@@ -63,7 +63,7 @@ TEST_F(MemorySaverModePrefMigrationTest,
+   pref_service_.SetBoolean(kMemorySaverModeEnabled, true);
+ 
+   EXPECT_EQ(pref_service_.GetInteger(kMemorySaverModeState),
+-            static_cast<int>(MemorySaverModeState::kDisabled));
++            static_cast<int>(MemorySaverModeState::kEnabled));
+   EXPECT_TRUE(
+       pref_service_.FindPreference(kMemorySaverModeState)->IsDefaultValue());
+ 
+@@ -87,7 +87,7 @@ TEST_F(MemorySaverModePrefMigrationTest,
+   pref_service_.SetBoolean(kMemorySaverModeEnabled, false);
+ 
+   EXPECT_EQ(pref_service_.GetInteger(kMemorySaverModeState),
+-            static_cast<int>(MemorySaverModeState::kDisabled));
++            static_cast<int>(MemorySaverModeState::kEnabled));
+   EXPECT_TRUE(
+       pref_service_.FindPreference(kMemorySaverModeState)->IsDefaultValue());
+ 
 diff --git a/components/search_engines/default_search_manager_unittest.cc b/components/search_engines/default_search_manager_unittest.cc
-index 132813d0ef..977c8d7502 100644
+index 132813d0ef5b20e31267cdbf9c8abba6dd91fed3..977c8d7502f310c949cde877724ca7c2209b5a12 100644
 --- a/components/search_engines/default_search_manager_unittest.cc
 +++ b/components/search_engines/default_search_manager_unittest.cc
 @@ -178,9 +178,9 @@ TEST_F(DefaultSearchManagerTest, DefaultSearchSetByUserPref) {
@@ -431,7 +495,7 @@ index 132813d0ef..977c8d7502 100644
  }
  
 diff --git a/components/search_engines/template_url_prepopulate_data.cc b/components/search_engines/template_url_prepopulate_data.cc
-index 23c3c13f2f..482727afa4 100644
+index 23c3c13f2f0ec7b9c1e38fd75b8e8dd139700c00..482727afa4aa3eadb90f320d081ff93484dbf25a 100644
 --- a/components/search_engines/template_url_prepopulate_data.cc
 +++ b/components/search_engines/template_url_prepopulate_data.cc
 @@ -276,7 +276,7 @@ std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(
@@ -444,7 +508,7 @@ index 23c3c13f2f..482727afa4 100644
  }
  
 diff --git a/components/search_engines/template_url_prepopulate_data.h b/components/search_engines/template_url_prepopulate_data.h
-index 898ab232ec..ce620e93bb 100644
+index 898ab232ec631ac7e676097e86129113f4a8bb49..ce620e93bbd33d56e2d594fe2312dc5f282a1a53 100644
 --- a/components/search_engines/template_url_prepopulate_data.h
 +++ b/components/search_engines/template_url_prepopulate_data.h
 @@ -112,7 +112,7 @@ std::vector<std::unique_ptr<TemplateURLData>> GetLocalPrepopulatedEngines(
@@ -457,7 +521,7 @@ index 898ab232ec..ce620e93bb 100644
  // Search provider overrides are read from `prefs`.
  // The region-specific list is used to ensure we prioritise returning a search
 diff --git a/components/search_engines/template_url_prepopulate_data_unittest.cc b/components/search_engines/template_url_prepopulate_data_unittest.cc
-index 74e14a9110..09d242183a 100644
+index 74e14a9110766ccdf371c348584f20e3635f99b4..09d242183ac85ed482e71d981d77313ddbcb7af3 100644
 --- a/components/search_engines/template_url_prepopulate_data_unittest.cc
 +++ b/components/search_engines/template_url_prepopulate_data_unittest.cc
 @@ -481,16 +481,13 @@ TEST_F(TemplateURLPrepopulateDataTest, ClearProvidersFromPrefs) {
@@ -550,7 +614,7 @@ index 74e14a9110..09d242183a 100644
  
  // Regression test for https://crbug.com/1500526.
 diff --git a/components/signin/internal/identity_manager/primary_account_manager.cc b/components/signin/internal/identity_manager/primary_account_manager.cc
-index e6ef4ee147..24f0041a12 100644
+index e6ef4ee147774c1915a947622535ebc5659fd372..24f0041a1205bd56416dae06ebe08be106cb505b 100644
 --- a/components/signin/internal/identity_manager/primary_account_manager.cc
 +++ b/components/signin/internal/identity_manager/primary_account_manager.cc
 @@ -368,7 +368,7 @@ void PrimaryAccountManager::RegisterProfilePrefs(PrefRegistrySimple* registry) {
@@ -562,78 +626,17 @@ index e6ef4ee147..24f0041a12 100644
    registry->RegisterBooleanPref(prefs::kSignedInWithCredentialProvider, false);
    registry->RegisterBooleanPref(prefs::kExplicitBrowserSignin, false);
    registry->RegisterBooleanPref(
-diff --git a/chrome/browser/background/extensions/background_mode_manager.cc b/chrome/browser/background/extensions/background_mode_manager.cc
---- a/chrome/browser/background/extensions/background_mode_manager.cc
-+++ b/chrome/browser/background/extensions/background_mode_manager.cc
-@@ -348,7 +348,7 @@ BackgroundModeManager::~BackgroundModeManager() {
- 
- // static
- void BackgroundModeManager::RegisterPrefs(PrefRegistrySimple* registry) {
--  registry->RegisterBooleanPref(prefs::kBackgroundModeEnabled, true);
-+  registry->RegisterBooleanPref(prefs::kBackgroundModeEnabled, false);
- }
- 
- void BackgroundModeManager::RegisterProfile(Profile* profile) {
-diff --git a/chrome/browser/preloading/preloading_prefs.cc b/chrome/browser/preloading/preloading_prefs.cc
---- a/chrome/browser/preloading/preloading_prefs.cc
-+++ b/chrome/browser/preloading/preloading_prefs.cc
-@@ -15,7 +15,7 @@ namespace prefetch {
- void RegisterPredictionOptionsProfilePrefs(
-     user_prefs::PrefRegistrySyncable* registry) {
-   registry->RegisterIntegerPref(
--      prefs::kNetworkPredictionOptions,
--      static_cast<int>(NetworkPredictionOptions::kDefault),
-+      prefs::kNetworkPredictionOptions,
-+      static_cast<int>(NetworkPredictionOptions::kDisabled),
-       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
- }
- 
-diff --git a/components/performance_manager/user_tuning/prefs.cc b/components/performance_manager/user_tuning/prefs.cc
---- a/components/performance_manager/user_tuning/prefs.cc
-+++ b/components/performance_manager/user_tuning/prefs.cc
-@@ -33,10 +33,10 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
-       kMemorySaverModeTimeBeforeDiscardInMinutes,
-       kDefaultMemorySaverModeTimeBeforeDiscardInMinutes);
-   registry->RegisterIntegerPref(
--      kMemorySaverModeState, static_cast<int>(MemorySaverModeState::kDisabled));
-+      kMemorySaverModeState, static_cast<int>(MemorySaverModeState::kEnabled));
-   registry->RegisterIntegerPref(
-       kMemorySaverModeAggressiveness,
--      static_cast<int>(MemorySaverModeAggressiveness::kMedium));
-+      static_cast<int>(MemorySaverModeAggressiveness::kAggressive));
-   registry->RegisterIntegerPref(
-       kBatterySaverModeState,
-       static_cast<int>(BatterySaverModeState::kEnabledBelowThreshold));
-diff --git a/components/performance_manager/user_tuning/prefs_unittest.cc b/components/performance_manager/user_tuning/prefs_unittest.cc
---- a/components/performance_manager/user_tuning/prefs_unittest.cc
-+++ b/components/performance_manager/user_tuning/prefs_unittest.cc
-@@ -53,7 +53,7 @@ TEST_F(MemorySaverModePrefMigrationTest,
-   pref_service_.SetBoolean(kMemorySaverModeEnabled, true);
- 
-   EXPECT_EQ(pref_service_.GetInteger(kMemorySaverModeState),
--            static_cast<int>(MemorySaverModeState::kDisabled));
-+            static_cast<int>(MemorySaverModeState::kEnabled));
-   EXPECT_TRUE(
-       pref_service_.FindPreference(kMemorySaverModeState)->IsDefaultValue());
- 
-@@ -71,7 +71,7 @@ TEST_F(MemorySaverModePrefMigrationTest,
-   pref_service_.SetBoolean(kMemorySaverModeEnabled, false);
- 
-   EXPECT_EQ(pref_service_.GetInteger(kMemorySaverModeState),
--            static_cast<int>(MemorySaverModeState::kDisabled));
-+            static_cast<int>(MemorySaverModeState::kEnabled));
-   EXPECT_TRUE(
-       pref_service_.FindPreference(kMemorySaverModeState)->IsDefaultValue());
- 
 diff --git a/content/public/common/content_features.cc b/content/public/common/content_features.cc
+index 060453a7150693e1e7742299c9ce24a8f9781193..a439cac55aa94952fdce3fd3f562b1d921995bdb 100644
 --- a/content/public/common/content_features.cc
 +++ b/content/public/common/content_features.cc
-@@ -1096,7 +1096,7 @@ BASE_FEATURE(kSubframeProcessReuseThresholds,
+@@ -1096,7 +1096,8 @@ BASE_FEATURE(kDisableProcessReuse, base::FEATURE_DISABLED_BY_DEFAULT);
  // Controls whether SpareRenderProcessHostManager tries to always have a warm
  // spare renderer process around for the most recently requested BrowserContext.
  // This feature is only consulted in site-per-process mode.
 -BASE_FEATURE(kSpareRendererForSitePerProcess, base::FEATURE_ENABLED_BY_DEFAULT);
-+BASE_FEATURE(kSpareRendererForSitePerProcess, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kSpareRendererForSitePerProcess,
++             base::FEATURE_DISABLED_BY_DEFAULT);
  
  // Controls whether site isolation should use origins instead of scheme and
  // eTLD+1.

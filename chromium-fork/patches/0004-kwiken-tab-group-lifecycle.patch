@@ -1,0 +1,853 @@
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 4fda0f0a011d4e417372763962e116eea230aa7f..960819159d07c65bab2845b130a6bbcb8baebd86 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -12612,10 +12612,28 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+             other {# members in the group}
+           }
+       </message>
++      <message name="IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS_DESCRIPTION" desc="The accessible description of the tab group action that loads unloaded tabs while leaving loaded tabs unchanged.">
++          Loads unloaded tabs in this group. Tabs that are already loaded stay unchanged.
++      </message>
++      <message name="IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS_DESCRIPTION" desc="The accessible description of the tab group action that unloads eligible tabs while retaining protected tabs.">
++          Unloads eligible tabs in this group. Active, audible, captured, edited, and other protected tabs stay loaded.
++      </message>
++      <message name="IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS_RESULT_DESCRIPTION" desc="The accessible result announced after attempting to load every unloaded tab in a tab group. 'Succeeded' and 'skipped' are counts of tabs.">
++          Load all tabs completed: <ph name="SUCCEEDED_COUNT">$1<ex>3</ex></ph> succeeded; <ph name="SKIPPED_COUNT">$2<ex>1</ex></ph> skipped.
++      </message>
++      <message name="IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS_RESULT_DESCRIPTION" desc="The accessible result announced after attempting to unload every eligible tab in a tab group. 'Succeeded' and 'skipped' are counts of tabs.">
++          Unload all tabs completed: <ph name="SUCCEEDED_COUNT">$1<ex>3</ex></ph> succeeded; <ph name="SKIPPED_COUNT">$2<ex>1</ex></ph> skipped.
++      </message>
+       <if expr="not use_titlecase">
+         <message name="IDS_TAB_GROUP_HEADER_CXMENU_NEW_TAB_IN_GROUP" desc="The label of the tab group header context menu item for adding a new tab into the current group.">
+           New tab in group
+         </message>
++        <message name="IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS" desc="The label of the tab group header context menu item for loading every unloaded tab in the current group.">
++          Load all tabs
++        </message>
++        <message name="IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS" desc="The label of the tab group header context menu item for unloading every eligible tab in the current group.">
++          Unload all tabs
++        </message>
+         <message name="IDS_TAB_GROUP_HEADER_CXMENU_UNGROUP" desc="The label of the tab group header context menu item for ungrouping the current group.">
+           Ungroup
+         </message>
+@@ -12670,6 +12688,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+         <message name="IDS_TAB_GROUP_HEADER_CXMENU_NEW_TAB_IN_GROUP" desc="In Title Case: The label of the tab group header context menu item for adding a new tab into the current group.">
+           New Tab in Group
+         </message>
++        <message name="IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS" desc="In Title Case: The label of the tab group header context menu item for loading every unloaded tab in the current group.">
++          Load All Tabs
++        </message>
++        <message name="IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS" desc="In Title Case: The label of the tab group header context menu item for unloading every eligible tab in the current group.">
++          Unload All Tabs
++        </message>
+         <message name="IDS_TAB_GROUP_HEADER_CXMENU_UNGROUP" desc="In Title Case: The label of the tab group header context menu item for ungrouping the current group.">
+           Ungroup
+         </message>
+diff --git a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
+index 78608dfeb075bf6e3cf36f7a32fb90968b31eec5..4ed6f1235e56a0563c999fe3de05a301c43a80ff 100644
+--- a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
++++ b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
+@@ -17,6 +17,7 @@
+ #include "base/containers/span.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
++#include "base/i18n/number_formatting.h"
+ #include "base/logging.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+@@ -29,6 +30,7 @@
+ #include "chrome/browser/collaboration/collaboration_service_factory.h"
+ #include "chrome/browser/data_sharing/data_sharing_service_factory.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+ #include "chrome/browser/tab_group_sync/feature_utils.h"
+ #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+ #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
+@@ -38,6 +40,7 @@
+ #include "chrome/browser/ui/browser_window.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/chrome_pages.h"
++#include "chrome/browser/ui/tab_ui_helper.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_metrics.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_pref_names.h"
+@@ -83,6 +86,9 @@
+ #include "components/tab_groups/tab_group_id.h"
+ #include "components/tab_groups/tab_group_visual_data.h"
+ #include "components/tabs/public/tab_group.h"
++#include "components/tabs/public/tab_interface.h"
++#include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/web_contents.h"
+ #include "tab_group_editor_bubble_view.h"
+ #include "third_party/skia/include/core/SkColor.h"
+ #include "ui/base/accelerators/accelerator.h"
+@@ -149,6 +155,48 @@ static constexpr int kDefaultIconSize = 20;
+ // more link.
+ constexpr int kFooterDisplayLimit = 5;
+ 
++bool IsTabDiscarded(tabs::TabInterface* tab) {
++  if (!tab) {
++    return false;
++  }
++
++  if (TabUIHelper* const tab_ui_helper = TabUIHelper::From(tab)) {
++    return tab_ui_helper->IsDiscarded();
++  }
++
++  content::WebContents* const contents = tab->GetContents();
++  return contents && contents->WasDiscarded();
++}
++
++resource_coordinator::TabLifecycleUnitExternal* GetTabLifecycleUnit(
++    tabs::TabInterface* tab) {
++  content::WebContents* const contents = tab ? tab->GetContents() : nullptr;
++  return contents
++             ? resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
++                   contents)
++             : nullptr;
++}
++
++void RecordTabGroupLifecycleCounts(bool loading, int attempted, int succeeded) {
++  const int skipped = attempted - succeeded;
++  if (loading) {
++    base::UmaHistogramCounts1000(
++        "TabGroups.TabGroupBubble.LoadAllTabs.Attempted", attempted);
++    base::UmaHistogramCounts1000(
++        "TabGroups.TabGroupBubble.LoadAllTabs.Succeeded", succeeded);
++    base::UmaHistogramCounts1000("TabGroups.TabGroupBubble.LoadAllTabs.Skipped",
++                                 skipped);
++    return;
++  }
++
++  base::UmaHistogramCounts1000(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Attempted", attempted);
++  base::UmaHistogramCounts1000(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Succeeded", succeeded);
++  base::UmaHistogramCounts1000("TabGroups.TabGroupBubble.UnloadAllTabs.Skipped",
++                               skipped);
++}
++
+ int GetHorizontalSpacing() {
+   return ChromeLayoutProvider::Get()->GetDistanceMetric(
+       views::DISTANCE_RELATED_CONTROL_HORIZONTAL);
+@@ -563,6 +611,8 @@ void TabGroupEditorBubbleView::RebuildMenuContents() {
+   color_selector_ = nullptr;
+   save_group_icon_ = nullptr;
+   save_group_label_ = nullptr;
++  load_all_tabs_button_ = nullptr;
++  unload_all_tabs_button_ = nullptr;
+   footer_ = nullptr;
+ 
+   RemoveAllChildViews();
+@@ -572,18 +622,18 @@ void TabGroupEditorBubbleView::RebuildMenuContents() {
+   color_selector_ = AddChildView(BuildColorPicker());
+   AddChildView(BuildSeparator());
+ 
++  simple_menu_items_.push_back(AddChildView(BuildNewTabInGroupButton()));
++  load_all_tabs_button_ = AddChildView(BuildLoadAllTabsButton());
++  simple_menu_items_.push_back(load_all_tabs_button_);
++  unload_all_tabs_button_ = AddChildView(BuildUnloadAllTabsButton());
++  simple_menu_items_.push_back(unload_all_tabs_button_);
++  simple_menu_items_.push_back(AddChildView(BuildMoveGroupToNewWindowButton()));
++
+   if (!CanSaveGroups()) {
+-    simple_menu_items_.push_back(AddChildView(BuildNewTabInGroupButton()));
+-    simple_menu_items_.push_back(
+-        AddChildView(BuildMoveGroupToNewWindowButton()));
+     AddChildView(BuildSeparator());
+     simple_menu_items_.push_back(AddChildView(BuildUngroupButton()));
+     simple_menu_items_.push_back(AddChildView(BuildCloseGroupButton()));
+   } else {
+-    simple_menu_items_.push_back(AddChildView(BuildNewTabInGroupButton()));
+-    simple_menu_items_.push_back(
+-        AddChildView(BuildMoveGroupToNewWindowButton()));
+-
+     if (base::FeatureList::IsEnabled(features::kTabGroupsFocusing)) {
+       if (browser_->tab_strip_model()->GetFocusedGroup() == group_) {
+         simple_menu_items_.push_back(AddChildView(BuildUnfocusGroupButton()));
+@@ -660,6 +710,7 @@ void TabGroupEditorBubbleView::UpdateMenuContentsVisibility() {
+   if (manage_shared_group_button_) {
+     manage_shared_group_button_->SetVisible(IsGroupShared());
+   }
++  UpdateLifecycleButtonStates();
+ }
+ 
+ std::unique_ptr<views::Separator> TabGroupEditorBubbleView::BuildSeparator() {
+@@ -705,6 +756,34 @@ TabGroupEditorBubbleView::BuildNewTabInGroupButton() {
+   return menu_item;
+ }
+ 
++std::unique_ptr<views::LabelButton>
++TabGroupEditorBubbleView::BuildLoadAllTabsButton() {
++  std::unique_ptr<views::LabelButton> menu_item = CreateMenuItem(
++      TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS,
++      l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS),
++      base::BindRepeating(&TabGroupEditorBubbleView::LoadAllTabsPressed,
++                          base::Unretained(this)),
++      ui::ImageModel::FromVectorIcon(kRefreshIcon, ui::kColorMenuIcon,
++                                     kDefaultIconSize));
++  menu_item->GetViewAccessibility().SetDescription(l10n_util::GetStringUTF16(
++      IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS_DESCRIPTION));
++  return menu_item;
++}
++
++std::unique_ptr<views::LabelButton>
++TabGroupEditorBubbleView::BuildUnloadAllTabsButton() {
++  std::unique_ptr<views::LabelButton> menu_item = CreateMenuItem(
++      TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS,
++      l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS),
++      base::BindRepeating(&TabGroupEditorBubbleView::UnloadAllTabsPressed,
++                          base::Unretained(this)),
++      ui::ImageModel::FromVectorIcon(kPauseCircleIcon, ui::kColorMenuIcon,
++                                     kDefaultIconSize));
++  menu_item->GetViewAccessibility().SetDescription(l10n_util::GetStringUTF16(
++      IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS_DESCRIPTION));
++  return menu_item;
++}
++
+ std::unique_ptr<views::LabelButton>
+ TabGroupEditorBubbleView::BuildUngroupButton() {
+   return CreateMenuItem(
+@@ -906,6 +985,142 @@ void TabGroupEditorBubbleView::NewTabInGroupPressed() {
+   GetWidget()->Close();
+ }
+ 
++void TabGroupEditorBubbleView::LoadAllTabsPressed() {
++  base::RecordAction(
++      base::UserMetricsAction("TabGroups_TabGroupBubble_LoadAllTabs"));
++
++  // Loading can synchronously notify observers, so resolve the stable group
++  // identity once and snapshot its current TabInterfaces before doing work.
++  const std::vector<tabs::TabInterface*> tabs = GetCurrentGroupTabs();
++  int succeeded = 0;
++  for (tabs::TabInterface* tab : tabs) {
++    if (!IsCurrentGroupMember(tab) || !IsTabDiscarded(tab)) {
++      continue;
++    }
++
++    bool loaded = false;
++    if (resource_coordinator::TabLifecycleUnitExternal* const lifecycle =
++            GetTabLifecycleUnit(tab)) {
++      loaded = lifecycle->LoadTab();
++    }
++
++    if (!loaded && IsCurrentGroupMember(tab) && IsTabDiscarded(tab)) {
++      const bool needed_reload =
++          tab->GetContents()->GetController().NeedsReload();
++      tab->LoadIfNeeded();
++      loaded = IsCurrentGroupMember(tab) &&
++               (!IsTabDiscarded(tab) ||
++                (needed_reload &&
++                 !tab->GetContents()->GetController().NeedsReload()));
++    }
++
++    if (loaded) {
++      ++succeeded;
++    }
++  }
++
++  const int attempted = static_cast<int>(tabs.size());
++  RecordTabGroupLifecycleCounts(/*loading=*/true, attempted, succeeded);
++  ReportLifecycleResult(/*loading=*/true, succeeded, attempted - succeeded);
++  UpdateLifecycleButtonStates();
++}
++
++void TabGroupEditorBubbleView::UnloadAllTabsPressed() {
++  base::RecordAction(
++      base::UserMetricsAction("TabGroups_TabGroupBubble_UnloadAllTabs"));
++
++  // CanUnloadTab() powers the enabled state, while UnloadTab() rechecks the
++  // same synchronous safety gate here at execution. Protected members stay in
++  // place and loaded; no member is moved or closed.
++  const std::vector<tabs::TabInterface*> tabs = GetCurrentGroupTabs();
++  int succeeded = 0;
++  for (tabs::TabInterface* tab : tabs) {
++    if (!IsCurrentGroupMember(tab)) {
++      continue;
++    }
++    resource_coordinator::TabLifecycleUnitExternal* const lifecycle =
++        GetTabLifecycleUnit(tab);
++    if (lifecycle && lifecycle->CanUnloadTab() && lifecycle->UnloadTab()) {
++      ++succeeded;
++    }
++  }
++
++  const int attempted = static_cast<int>(tabs.size());
++  RecordTabGroupLifecycleCounts(/*loading=*/false, attempted, succeeded);
++  ReportLifecycleResult(/*loading=*/false, succeeded, attempted - succeeded);
++  UpdateLifecycleButtonStates();
++}
++
++std::vector<tabs::TabInterface*> TabGroupEditorBubbleView::GetCurrentGroupTabs()
++    const {
++  std::vector<tabs::TabInterface*> tabs;
++  TabStripModel* const model = browser_->tab_strip_model();
++  if (!model->group_model()->ContainsTabGroup(group_)) {
++    return tabs;
++  }
++
++  const gfx::Range range =
++      model->group_model()->GetTabGroup(group_)->ListTabs();
++  tabs.reserve(range.length());
++  for (size_t index = range.start(); index < range.end(); ++index) {
++    tabs.push_back(model->GetTabAtIndex(static_cast<int>(index)));
++  }
++  return tabs;
++}
++
++bool TabGroupEditorBubbleView::IsCurrentGroupMember(
++    tabs::TabInterface* tab) const {
++  TabStripModel* const model = browser_->tab_strip_model();
++  const int index = model->GetIndexOfTab(tab);
++  return index != TabStripModel::kNoTab && tab->GetGroup() == group_;
++}
++
++bool TabGroupEditorBubbleView::CanLoadAllTabs() const {
++  for (tabs::TabInterface* tab : GetCurrentGroupTabs()) {
++    if (IsTabDiscarded(tab)) {
++      return true;
++    }
++  }
++  return false;
++}
++
++bool TabGroupEditorBubbleView::CanUnloadAllTabs() const {
++  for (tabs::TabInterface* tab : GetCurrentGroupTabs()) {
++    resource_coordinator::TabLifecycleUnitExternal* const lifecycle =
++        GetTabLifecycleUnit(tab);
++    if (lifecycle && lifecycle->CanUnloadTab()) {
++      return true;
++    }
++  }
++  return false;
++}
++
++void TabGroupEditorBubbleView::UpdateLifecycleButtonStates() {
++  if (load_all_tabs_button_) {
++    load_all_tabs_button_->SetEnabled(CanLoadAllTabs());
++  }
++  if (unload_all_tabs_button_) {
++    unload_all_tabs_button_->SetEnabled(CanUnloadAllTabs());
++  }
++}
++
++void TabGroupEditorBubbleView::ReportLifecycleResult(bool loading,
++                                                     int succeeded,
++                                                     int skipped) {
++  views::LabelButton* const button =
++      loading ? load_all_tabs_button_ : unload_all_tabs_button_;
++  if (!button) {
++    return;
++  }
++
++  const std::u16string result = l10n_util::GetStringFUTF16(
++      loading ? IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS_RESULT_DESCRIPTION
++              : IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS_RESULT_DESCRIPTION,
++      base::FormatNumber(succeeded), base::FormatNumber(skipped));
++  button->GetViewAccessibility().SetDescription(result);
++  button->GetViewAccessibility().AnnounceText(result);
++}
++
+ void TabGroupEditorBubbleView::UngroupPressed() {
+   base::RecordAction(
+       base::UserMetricsAction("TabGroups_TabGroupBubble_Ungroup"));
+diff --git a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.h b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.h
+index 3992b4020f71587a5caee110e4e3609cfc056567..6173eb564ee46d82e176ff37d30db30de69884b4 100644
+--- a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.h
++++ b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.h
+@@ -32,6 +32,10 @@ enum class TabGroupColorId;
+ class TabGroupId;
+ }  // namespace tab_groups
+ 
++namespace tabs {
++class TabInterface;
++}  // namespace tabs
++
+ namespace views {
+ class Separator;
+ }  // namespace views
+@@ -59,6 +63,8 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
+   static constexpr int TAB_GROUP_HEADER_CXMENU_RECENT_ACTIVITY = 10;
+   static constexpr int TAB_GROUP_HEADER_CXMENU_CONVERT_TO_BOOKMARK = 11;
+   static constexpr int TAB_GROUP_HEADER_CXMENU_FOCUS_GROUP = 12;
++  static constexpr int TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS = 13;
++  static constexpr int TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS = 14;
+ 
+   friend class TabGroupEditorBubbleInteractiveUiTest;
+ 
+@@ -118,6 +124,8 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
+   std::unique_ptr<views::Separator> BuildSeparator();
+   std::unique_ptr<ColorPickerView> BuildColorPicker();
+   std::unique_ptr<views::LabelButton> BuildNewTabInGroupButton();
++  std::unique_ptr<views::LabelButton> BuildLoadAllTabsButton();
++  std::unique_ptr<views::LabelButton> BuildUnloadAllTabsButton();
+   std::unique_ptr<views::LabelButton> BuildUngroupButton();
+   std::unique_ptr<views::LabelButton> BuildCloseGroupButton();
+   std::unique_ptr<views::LabelButton> BuildConvertToBookmarkButton();
+@@ -131,6 +139,8 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
+   std::unique_ptr<views::LabelButton> BuildRecentActivityButton();
+ 
+   void NewTabInGroupPressed();
++  void LoadAllTabsPressed();
++  void UnloadAllTabsPressed();
+   void UngroupPressed();
+   void ShareOrManagePressed();
+   void CloseGroupPressed();
+@@ -142,6 +152,15 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
+   void UnfocusGroupPressed();
+   void RecentActivityPressed();
+ 
++  // Resolves the current group members from the stable group identity. Action
++  // handlers snapshot this vector before loading or unloading any member.
++  std::vector<tabs::TabInterface*> GetCurrentGroupTabs() const;
++  bool IsCurrentGroupMember(tabs::TabInterface* tab) const;
++  bool CanLoadAllTabs() const;
++  bool CanUnloadAllTabs() const;
++  void UpdateLifecycleButtonStates();
++  void ReportLifecycleResult(bool loading, int succeeded, int skipped);
++
+   // The action for moving a group to a new window is only enabled when the
+   // tabstrip contains more than just the tabs in the current group.
+   bool CanMoveGroupToNewWindow();
+@@ -242,6 +261,8 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
+   raw_ptr<ManageSharingRow> manage_shared_group_button_ = nullptr;
+   raw_ptr<views::ImageView> save_group_icon_ = nullptr;
+   raw_ptr<views::Label> save_group_label_ = nullptr;
++  raw_ptr<views::LabelButton> load_all_tabs_button_ = nullptr;
++  raw_ptr<views::LabelButton> unload_all_tabs_button_ = nullptr;
+ 
+   // The different menu items, used for referring back to specific children for
+   // styling.
+diff --git a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view_browsertest.cc b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view_browsertest.cc
+index e923c3f4f1cddb7176d92185950e6bee6eb85496..4dedc5d24bb3bb566e3ecc0824609aece00e17e8 100644
+--- a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view_browsertest.cc
+@@ -15,9 +15,12 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
++#include "chrome/browser/ui/tab_ui_helper.h"
+ #include "chrome/browser/ui/tabs/features.h"
++#include "chrome/browser/ui/tabs/split_tab_metrics.h"
+ #include "chrome/browser/ui/tabs/tab_group_deletion_dialog_controller.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/test/test_browser_dialog.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/bookmarks/bookmark_editor_view.h"
+@@ -29,14 +32,22 @@
+ #include "chrome/test/base/ui_test_utils.h"
+ #include "components/bookmarks/common/bookmark_pref_names.h"
+ #include "components/data_sharing/public/features.h"
++#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/saved_tab_groups/public/features.h"
++#include "components/split_tabs/split_tab_visual_data.h"
+ #include "components/tab_groups/tab_group_id.h"
++#include "components/tab_groups/tab_group_visual_data.h"
+ #include "components/tabs/public/tab_group.h"
++#include "components/tabs/public/tab_interface.h"
++#include "content/public/browser/web_contents.h"
+ #include "content/public/test/browser_test.h"
++#include "content/public/test/browser_test_utils.h"
++#include "content/public/test/web_contents_tester.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/events/event.h"
+ #include "ui/gfx/geometry/point_f.h"
++#include "ui/gfx/range/range.h"
+ #include "ui/views/bubble/bubble_border.h"
+ #include "ui/views/controls/button/button.h"
+ #include "ui/views/controls/button/label_button.h"
+@@ -94,6 +105,35 @@ class TabGroupEditorBubbleViewDialogBrowserTest : public DialogBrowserTest {
+     return browser()->tab_strip_model()->group_model();
+   }
+ 
++  static views::LabelButton* GetEditorButton(views::Widget* widget, int id) {
++    return views::AsViewClass<views::LabelButton>(
++        widget->GetContentsView()->GetViewByID(id));
++  }
++
++  static void PressButton(views::Button* button) {
++    ui::MouseEvent released_event(ui::EventType::kMouseReleased, gfx::PointF(),
++                                  gfx::PointF(), base::TimeTicks(), 0, 0);
++    views::test::ButtonTestApi(button).NotifyClick(released_event);
++  }
++
++  static std::vector<tabs::TabInterface*> GetGroupTabs(
++      TabStripModel* model,
++      const tab_groups::TabGroupId& group) {
++    std::vector<tabs::TabInterface*> tabs;
++    const gfx::Range range =
++        model->group_model()->GetTabGroup(group)->ListTabs();
++    tabs.reserve(range.length());
++    for (size_t index = range.start(); index < range.end(); ++index) {
++      tabs.push_back(model->GetTabAtIndex(static_cast<int>(index)));
++    }
++    return tabs;
++  }
++
++  static bool IsDiscarded(tabs::TabInterface* tab) {
++    TabUIHelper* const helper = TabUIHelper::From(tab);
++    return helper && helper->IsDiscarded();
++  }
++
+   std::optional<tab_groups::TabGroupId> group_;
+   base::test::ScopedFeatureList scoped_feature_list_;
+ };
+@@ -132,6 +172,287 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
+                                       1);
+ }
+ 
++IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
++                       GroupLifecycleRoundTripPreservesCollapsedIdentity) {
++  base::HistogramTester histogram_tester;
++  base::UserActionTester user_action_tester;
++  ASSERT_TRUE(embedded_test_server()->Start());
++
++  const std::vector<GURL> urls = {
++      embedded_test_server()->GetURL("/title1.html"),
++      embedded_test_server()->GetURL("/title2.html"),
++      embedded_test_server()->GetURL("/title3.html")};
++  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), urls[0]));
++  for (size_t index = 1; index < urls.size(); ++index) {
++    InProcessBrowserTest::AddBlankTabAndShow(browser());
++    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), urls[index]));
++  }
++
++  TabStripModel* const model = browser()->tab_strip_model();
++  ASSERT_EQ(3, model->count());
++  EXPECT_EQ(0, model->SetTabPinned(0, true));
++  group_ = model->AddToNewGroup({0, 1, 2});
++  ASSERT_TRUE(group_.has_value());
++  InProcessBrowserTest::AddBlankTabAndShow(browser());
++
++  const tab_groups::TabGroupVisualData visual_data(
++      u"Persistent research", tab_groups::TabGroupColorId::kPurple,
++      /*is_collapsed=*/true);
++  model->ChangeTabGroupVisuals(group_.value(), visual_data,
++                               /*is_customized=*/true);
++  ASSERT_NE(nullptr, model->GetActiveTab());
++  EXPECT_FALSE(model->GetActiveTab()->GetGroup().has_value());
++
++  const std::vector<tabs::TabInterface*> group_tabs =
++      GetGroupTabs(model, group_.value());
++  ASSERT_EQ(3u, group_tabs.size());
++  std::vector<tabs::TabHandle> handles;
++  std::vector<bool> pinned;
++  std::vector<bool> split;
++  handles.reserve(group_tabs.size());
++  pinned.reserve(group_tabs.size());
++  split.reserve(group_tabs.size());
++  for (tabs::TabInterface* tab : group_tabs) {
++    handles.push_back(tab->GetHandle());
++    pinned.push_back(tab->IsPinned());
++    split.push_back(tab->IsSplit());
++    EXPECT_FALSE(tab->IsPinned());
++    EXPECT_FALSE(tab->IsSplit());
++  }
++  const tabs::TabStripModelSelectionState selection_before =
++      model->selection_model();
++
++  model->OpenTabGroupEditor(group_.value());
++  views::Widget* const editor_bubble = WaitForAndGetEditorBubbleWidget();
++  ASSERT_NE(nullptr, editor_bubble);
++  views::LabelButton* const load_button = GetEditorButton(
++      editor_bubble,
++      TabGroupEditorBubbleView::TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS);
++  views::LabelButton* const unload_button = GetEditorButton(
++      editor_bubble,
++      TabGroupEditorBubbleView::TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS);
++  ASSERT_NE(nullptr, load_button);
++  ASSERT_NE(nullptr, unload_button);
++  EXPECT_EQ(
++      l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS),
++      load_button->GetText());
++  EXPECT_EQ(
++      l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS),
++      unload_button->GetText());
++  EXPECT_EQ(l10n_util::GetStringUTF16(
++                IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS_DESCRIPTION),
++            load_button->GetViewAccessibility().GetCachedDescription());
++  EXPECT_EQ(l10n_util::GetStringUTF16(
++                IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS_DESCRIPTION),
++            unload_button->GetViewAccessibility().GetCachedDescription());
++  EXPECT_FALSE(load_button->GetEnabled());
++  EXPECT_TRUE(unload_button->GetEnabled());
++
++  PressButton(unload_button);
++
++  const std::vector<tabs::TabInterface*> unloaded_tabs =
++      GetGroupTabs(model, group_.value());
++  ASSERT_EQ(group_tabs, unloaded_tabs);
++  for (size_t index = 0; index < unloaded_tabs.size(); ++index) {
++    EXPECT_TRUE(IsDiscarded(unloaded_tabs[index]));
++    EXPECT_EQ(handles[index], unloaded_tabs[index]->GetHandle());
++    EXPECT_EQ(urls[index],
++              unloaded_tabs[index]->GetContents()->GetLastCommittedURL());
++    EXPECT_EQ(pinned[index], unloaded_tabs[index]->IsPinned());
++    EXPECT_EQ(split[index], unloaded_tabs[index]->IsSplit());
++  }
++  EXPECT_TRUE(model->group_model()->ContainsTabGroup(group_.value()));
++  EXPECT_EQ(visual_data,
++            *model->group_model()->GetTabGroup(group_.value())->visual_data());
++  EXPECT_TRUE(selection_before == model->selection_model());
++  EXPECT_TRUE(load_button->GetEnabled());
++  EXPECT_FALSE(unload_button->GetEnabled());
++  EXPECT_EQ(l10n_util::GetStringFUTF16(
++                IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS_RESULT_DESCRIPTION,
++                u"3", u"0"),
++            unload_button->GetViewAccessibility().GetCachedDescription());
++
++  PressButton(load_button);
++  for (tabs::TabInterface* tab : group_tabs) {
++    ASSERT_TRUE(content::WaitForLoadStop(tab->GetContents()));
++  }
++
++  const std::vector<tabs::TabInterface*> loaded_tabs =
++      GetGroupTabs(model, group_.value());
++  ASSERT_EQ(group_tabs, loaded_tabs);
++  for (size_t index = 0; index < loaded_tabs.size(); ++index) {
++    EXPECT_FALSE(IsDiscarded(loaded_tabs[index]));
++    EXPECT_EQ(handles[index], loaded_tabs[index]->GetHandle());
++    EXPECT_EQ(urls[index],
++              loaded_tabs[index]->GetContents()->GetLastCommittedURL());
++    EXPECT_EQ(pinned[index], loaded_tabs[index]->IsPinned());
++    EXPECT_EQ(split[index], loaded_tabs[index]->IsSplit());
++  }
++  EXPECT_EQ(visual_data,
++            *model->group_model()->GetTabGroup(group_.value())->visual_data());
++  EXPECT_TRUE(selection_before == model->selection_model());
++  EXPECT_EQ(l10n_util::GetStringFUTF16(
++                IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS_RESULT_DESCRIPTION,
++                u"3", u"0"),
++            load_button->GetViewAccessibility().GetCachedDescription());
++
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Attempted", 3, 1);
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Succeeded", 3, 1);
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Skipped", 0, 1);
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.LoadAllTabs.Attempted", 3, 1);
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.LoadAllTabs.Succeeded", 3, 1);
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.LoadAllTabs.Skipped", 0, 1);
++  EXPECT_EQ(1, user_action_tester.GetActionCount(
++                   "TabGroups_TabGroupBubble_UnloadAllTabs"));
++  EXPECT_EQ(1, user_action_tester.GetActionCount(
++                   "TabGroups_TabGroupBubble_LoadAllTabs"));
++}
++
++IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
++                       UnloadAllTabsSkipsProtectedMembers) {
++  base::HistogramTester histogram_tester;
++  while (browser()->tab_strip_model()->count() < 5) {
++    InProcessBrowserTest::AddBlankTabAndShow(browser());
++  }
++
++  TabStripModel* const model = browser()->tab_strip_model();
++  group_ = model->AddToNewGroup({0, 1, 2, 3, 4});
++  ASSERT_TRUE(group_.has_value());
++  model->ActivateTabAt(0);
++  model->AddToNewSplit(
++      {1},
++      split_tabs::SplitTabVisualData(split_tabs::SplitTabLayout::kSideBySide),
++      split_tabs::SplitTabCreatedSource::kToolbarButton);
++
++  const std::vector<tabs::TabInterface*> group_tabs =
++      GetGroupTabs(model, group_.value());
++  ASSERT_EQ(5u, group_tabs.size());
++  ASSERT_TRUE(group_tabs[0]->IsSplit());
++  ASSERT_TRUE(group_tabs[1]->IsSplit());
++  content::WebContentsTester::For(group_tabs[2]->GetContents())
++      ->SetIsCurrentlyAudible(true);
++  performance_manager::PageLiveStateDecorator::OnIsCapturingVideoChanged(
++      group_tabs[3]->GetContents(), true);
++
++  std::vector<tabs::TabHandle> handles;
++  std::vector<bool> pinned;
++  std::vector<bool> split;
++  handles.reserve(group_tabs.size());
++  pinned.reserve(group_tabs.size());
++  split.reserve(group_tabs.size());
++  for (tabs::TabInterface* tab : group_tabs) {
++    handles.push_back(tab->GetHandle());
++    pinned.push_back(tab->IsPinned());
++    split.push_back(tab->IsSplit());
++  }
++  const tabs::TabStripModelSelectionState selection_before =
++      model->selection_model();
++
++  model->OpenTabGroupEditor(group_.value());
++  views::Widget* const editor_bubble = WaitForAndGetEditorBubbleWidget();
++  ASSERT_NE(nullptr, editor_bubble);
++  views::LabelButton* const load_button = GetEditorButton(
++      editor_bubble,
++      TabGroupEditorBubbleView::TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS);
++  views::LabelButton* const unload_button = GetEditorButton(
++      editor_bubble,
++      TabGroupEditorBubbleView::TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS);
++  ASSERT_NE(nullptr, load_button);
++  ASSERT_NE(nullptr, unload_button);
++  EXPECT_FALSE(load_button->GetEnabled());
++  ASSERT_TRUE(unload_button->GetEnabled());
++
++  PressButton(unload_button);
++
++  const std::vector<tabs::TabInterface*> current_tabs =
++      GetGroupTabs(model, group_.value());
++  ASSERT_EQ(group_tabs, current_tabs);
++  for (size_t index = 0; index < current_tabs.size(); ++index) {
++    EXPECT_EQ(handles[index], current_tabs[index]->GetHandle());
++    EXPECT_EQ(pinned[index], current_tabs[index]->IsPinned());
++    EXPECT_EQ(split[index], current_tabs[index]->IsSplit());
++  }
++  EXPECT_FALSE(IsDiscarded(current_tabs[0]));
++  EXPECT_FALSE(IsDiscarded(current_tabs[1]));
++  EXPECT_FALSE(IsDiscarded(current_tabs[2]));
++  EXPECT_FALSE(IsDiscarded(current_tabs[3]));
++  EXPECT_TRUE(IsDiscarded(current_tabs[4]));
++  EXPECT_TRUE(selection_before == model->selection_model());
++  EXPECT_TRUE(load_button->GetEnabled());
++  EXPECT_FALSE(unload_button->GetEnabled());
++  EXPECT_EQ(l10n_util::GetStringFUTF16(
++                IDS_TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS_RESULT_DESCRIPTION,
++                u"1", u"4"),
++            unload_button->GetViewAccessibility().GetCachedDescription());
++
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Attempted", 5, 1);
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Succeeded", 1, 1);
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Skipped", 4, 1);
++
++  content::WebContentsTester::For(current_tabs[2]->GetContents())
++      ->SetIsCurrentlyAudible(false);
++  performance_manager::PageLiveStateDecorator::OnIsCapturingVideoChanged(
++      current_tabs[3]->GetContents(), false);
++}
++
++IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
++                       UnloadAllTabsHandlesLargeGroup) {
++  constexpr int kLargeGroupSize = 32;
++  base::HistogramTester histogram_tester;
++  while (browser()->tab_strip_model()->count() < kLargeGroupSize) {
++    InProcessBrowserTest::AddBlankTabAndShow(browser());
++  }
++
++  TabStripModel* const model = browser()->tab_strip_model();
++  std::vector<int> indices;
++  indices.reserve(kLargeGroupSize);
++  for (int index = 0; index < kLargeGroupSize; ++index) {
++    indices.push_back(index);
++  }
++  group_ = model->AddToNewGroup(indices);
++  ASSERT_TRUE(group_.has_value());
++  InProcessBrowserTest::AddBlankTabAndShow(browser());
++
++  const std::vector<tabs::TabInterface*> group_tabs =
++      GetGroupTabs(model, group_.value());
++  ASSERT_EQ(static_cast<size_t>(kLargeGroupSize), group_tabs.size());
++  model->OpenTabGroupEditor(group_.value());
++  views::Widget* const editor_bubble = WaitForAndGetEditorBubbleWidget();
++  ASSERT_NE(nullptr, editor_bubble);
++  views::LabelButton* const load_button = GetEditorButton(
++      editor_bubble,
++      TabGroupEditorBubbleView::TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS);
++  views::LabelButton* const unload_button = GetEditorButton(
++      editor_bubble,
++      TabGroupEditorBubbleView::TAB_GROUP_HEADER_CXMENU_UNLOAD_ALL_TABS);
++  ASSERT_NE(nullptr, load_button);
++  ASSERT_NE(nullptr, unload_button);
++  EXPECT_FALSE(load_button->GetEnabled());
++  ASSERT_TRUE(unload_button->GetEnabled());
++
++  PressButton(unload_button);
++
++  EXPECT_EQ(group_tabs, GetGroupTabs(model, group_.value()));
++  for (tabs::TabInterface* tab : group_tabs) {
++    EXPECT_TRUE(IsDiscarded(tab));
++  }
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Attempted", kLargeGroupSize, 1);
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Succeeded", kLargeGroupSize, 1);
++  histogram_tester.ExpectUniqueSample(
++      "TabGroups.TabGroupBubble.UnloadAllTabs.Skipped", 0, 1);
++}
++
+ #if BUILDFLAG(IS_CHROMEOS)
+ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
+                        EmojiDoesNotCloseBubble) {
+diff --git a/tools/metrics/histograms/metadata/tab/histograms.xml b/tools/metrics/histograms/metadata/tab/histograms.xml
+index 348f8fef97f2832dba7e5d109c95e1514f9cbc15..4c1d6839df4f517d9b9d06a4573d3fe3d3e6ed0f 100644
+--- a/tools/metrics/histograms/metadata/tab/histograms.xml
++++ b/tools/metrics/histograms/metadata/tab/histograms.xml
+@@ -1684,6 +1684,27 @@ chromium-metrics-reviews@google.com.
+   </summary>
+ </histogram>
+ 
++<histogram name="TabGroups.TabGroupBubble.{Action}.{Outcome}" units="tabs"
++    expires_after="2027-08-04">
++  <owner>sophiechang@chromium.org</owner>
++  <owner>top-chrome-desktop-ui@google.com</owner>
++  <summary>
++    Records how many current members of a tab group were attempted, succeeded,
++    or skipped when the user chose a group-wide load or unload action. Protected
++    tabs are included in Attempted and Skipped, making partial completion
++    observable without interrupting the user.
++  </summary>
++  <token key="Action">
++    <variant name="LoadAllTabs" summary="loading all unloaded group tabs"/>
++    <variant name="UnloadAllTabs" summary="unloading all eligible group tabs"/>
++  </token>
++  <token key="Outcome">
++    <variant name="Attempted" summary="group members considered"/>
++    <variant name="Skipped" summary="group members intentionally retained"/>
++    <variant name="Succeeded" summary="group members successfully changed"/>
++  </token>
++</histogram>
++
+ <histogram name="TabGroups.TabGroupDeclutter.ArchivedTabGroups" units="groups"
+     expires_after="2026-11-22">
+   <owner>wylieb@google.com</owner>
+diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
+index 4c9c64d02e32e44290fca894db317f8643938b86..9ae65ad3589d856650a7313ef4f80ca2ace741a7 100644
+--- a/tools/metrics/actions/actions.xml
++++ b/tools/metrics/actions/actions.xml
+@@ -52170,6 +52170,15 @@ should be able to be added at any place in this file.
+   </description>
+ </action>
+ 
++<action name="TabGroups_TabGroupBubble_LoadAllTabs">
++  <owner>50995795+Mschmitt478@users.noreply.github.com</owner>
++  <owner>top-chrome-desktop-ui@google.com</owner>
++  <description>
++    User chose Load all tabs in a tab-group editor bubble to explicitly load
++    the group's unloaded members without activating them.
++  </description>
++</action>
++
+ <action name="TabGroups_TabGroupBubble_NameChanged">
+   <owner>dpenning@chromium.org</owner>
+   <owner>top-chrome-desktop-ui@google.com</owner>
+@@ -52205,6 +52214,15 @@ should be able to be added at any place in this file.
+   </description>
+ </action>
+ 
++<action name="TabGroups_TabGroupBubble_UnloadAllTabs">
++  <owner>50995795+Mschmitt478@users.noreply.github.com</owner>
++  <owner>top-chrome-desktop-ui@google.com</owner>
++  <description>
++    User chose Unload all tabs in a tab-group editor bubble to explicitly
++    discard eligible background members while retaining the group.
++  </description>
++</action>
++
+ <action name="TabGroups_TabGroupHeader_Collapsed">
+   <owner>dpenning@chromium.org</owner>
+   <owner>top-chrome-desktop-ui@google.com</owner>
