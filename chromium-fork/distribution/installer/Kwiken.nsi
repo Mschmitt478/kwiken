@@ -21,6 +21,12 @@ SetCompressorDictSize 64
   !error "ICON is required"
 !endif
 
+; Chromium's AppContainer services use these named capabilities to map the
+; installed browser executable and DLLs. Archive extraction does not preserve
+; staging ACLs, so the final install root must grant them explicitly.
+!define CHROME_INSTALL_FILES_SID "S-1-15-3-1024-3424233489-972189580-2057154623-747635277-1604371224-316187997-3786583170-1043257646"
+!define LPAC_CHROME_INSTALL_FILES_SID "S-1-15-3-1024-2302894289-466761758-1166120688-1039016420-2430351297-4240214049-4028510897-3317428798"
+
 Name "Kwiken"
 OutFile "${OUTFILE}"
 InstallDir "$LOCALAPPDATA\Programs\Kwiken"
@@ -61,11 +67,45 @@ Function .onInit
 migration_complete:
 FunctionEnd
 
+Function GrantSandboxCapabilityAccess
+  DetailPrint "Granting Chromium AppContainer read/execute access..."
+
+  nsExec::ExecToStack /TIMEOUT=120000 '"$SYSDIR\icacls.exe" "$INSTDIR" /grant:r "*${CHROME_INSTALL_FILES_SID}:(OI)(CI)(RX)" /Q'
+  Pop $0
+  Pop $1
+  StrCmp $0 "0" chrome_install_files_ready
+  Push "Could not grant chromeInstallFiles access (icacls exit $0). $1"
+  Return
+
+chrome_install_files_ready:
+  nsExec::ExecToStack /TIMEOUT=120000 '"$SYSDIR\icacls.exe" "$INSTDIR" /grant:r "*${LPAC_CHROME_INSTALL_FILES_SID}:(OI)(CI)(RX)" /Q'
+  Pop $0
+  Pop $1
+  StrCmp $0 "0" lpac_chrome_install_files_ready
+  Push "Could not grant lpacChromeInstallFiles access (icacls exit $0). $1"
+  Return
+
+lpac_chrome_install_files_ready:
+  Push ""
+FunctionEnd
+
 Section "Kwiken" MainSection
   SetShellVarContext current
   SetOverwrite on
   SetOutPath "$INSTDIR"
   File /r "${STAGING}\*"
+
+  ; Apply this before any first launch. The inherited RX entries also repair an
+  ; existing installation during an upgrade without granting sandbox write.
+  Call GrantSandboxCapabilityAccess
+  Pop $0
+  StrCmp $0 "" sandbox_access_ready
+  DetailPrint "$0"
+  MessageBox MB_OK|MB_ICONSTOP "Kwiken could not configure its Chromium sandbox.$\r$\n$\r$\n$0"
+  SetErrorLevel 1
+  Abort
+
+sandbox_access_ready:
   WriteUninstaller "$INSTDIR\Uninstall Kwiken.exe"
 
   CreateDirectory "$SMPROGRAMS\Kwiken"

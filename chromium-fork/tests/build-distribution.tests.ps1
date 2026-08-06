@@ -4,6 +4,8 @@ Set-StrictMode -Version Latest
 $forkRoot = Split-Path -Parent $PSScriptRoot
 $scriptPath = Join-Path $forkRoot "scripts\build-distribution.ps1"
 $source = Get-Content -LiteralPath $scriptPath -Raw
+$installerPath = Join-Path $forkRoot "distribution\installer\Kwiken.nsi"
+$installerSource = Get-Content -LiteralPath $installerPath -Raw
 $tokens = $null
 $parseErrors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile(
@@ -231,6 +233,55 @@ Assert-Contains -Needle 'KwikenLauncher.cpp' `
   -Message "The native launcher is no longer packaged."
 Assert-Contains -Needle 'Kwiken.nsi' `
   -Message "The NSIS installer is no longer packaged."
+$chromeInstallFilesSid =
+  'S-1-15-3-1024-3424233489-972189580-2057154623-747635277-1604371224-' +
+  '316187997-3786583170-1043257646'
+$lpacChromeInstallFilesSid =
+  'S-1-15-3-1024-2302894289-466761758-1166120688-1039016420-2430351297-' +
+  '4240214049-4028510897-3317428798'
+foreach ($sid in @($chromeInstallFilesSid, $lpacChromeInstallFilesSid)) {
+  Assert-True -Condition ($installerSource.Contains($sid)) `
+    -Message "The installer is missing Chromium sandbox capability SID $sid."
+}
+Assert-True -Condition (([regex]::Matches(
+      $installerSource,
+      [regex]::Escape('/grant:r')
+    )).Count -eq 2) `
+  -Message "The installer must configure exactly two sandbox capability ACLs."
+Assert-True -Condition (([regex]::Matches(
+      $installerSource,
+      [regex]::Escape('(OI)(CI)(RX)')
+    )).Count -eq 2) `
+  -Message "Both sandbox capability ACLs must be inherited read/execute only."
+$sandboxAclCommands = @($installerSource -split "`r?`n" | Where-Object {
+    $_.Contains('/grant:r')
+  })
+foreach ($command in $sandboxAclCommands) {
+  Assert-True -Condition ($command -notmatch '\((?:W|M|F)\)') `
+    -Message "Sandbox capability ACLs must never grant write, modify, or full control."
+}
+Assert-True -Condition ($installerSource.Contains(
+    'nsExec::ExecToStack /TIMEOUT=120000'
+  )) -Message "Sandbox ACL configuration is not bounded or exit-code checked."
+$payloadExtraction = $installerSource.IndexOf(
+  'File /r "${STAGING}\*"',
+  [StringComparison]::Ordinal
+)
+$sandboxAclCall = $installerSource.IndexOf(
+  'Call GrantSandboxCapabilityAccess',
+  [StringComparison]::Ordinal
+)
+$firstLaunch = $installerSource.IndexOf(
+  'ExecWait ''"$INSTDIR\Kwiken.exe" --repair-shortcuts''',
+  [StringComparison]::Ordinal
+)
+Assert-True -Condition ($payloadExtraction -ge 0 -and
+    $sandboxAclCall -gt $payloadExtraction -and
+    $firstLaunch -gt $sandboxAclCall) `
+  -Message "Sandbox ACLs must be applied after extraction and before first launch."
+Assert-True -Condition ($installerSource.Contains('SetErrorLevel 1') -and
+    $installerSource.Contains("`n  Abort")) `
+  -Message "The installer must fail closed when sandbox ACL setup fails."
 Assert-Contains -Needle 'Kwiken-Setup-$script:ReleaseVersion.exe' `
   -Message "The public installer naming contract changed."
 Assert-Contains -Needle 'Signed = $false' `
