@@ -174,7 +174,7 @@ copied into private staging and tree-hash verified before it runs the archive
 validator. The complete NSIS runtime is handled the same way before it creates
 the installer.
 
-The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186-r4.exe`.
+The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186-r5.exe`.
 This local artifact is deliberately reported as unsigned; Authenticode signing
 and release attestation remain required before public distribution.
 
