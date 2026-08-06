@@ -1,0 +1,266 @@
+diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
+index debc414c215aba21b8999a7d399595cdebe114e8..5b1c091623c3919feb2cc9a77efa7af57dcdbafc 100644
+--- a/chrome/browser/ui/color/chrome_color_mixers.cc
++++ b/chrome/browser/ui/color/chrome_color_mixers.cc
+@@ -23,13 +23,12 @@
+ #include "chrome/browser/ui/color/product_specifications_color_mixer.h"
+ #include "chrome/browser/ui/color/projects_panel_color_mixer.h"
+ #include "chrome/browser/ui/color/tab_strip_color_mixer.h"
+-#include "third_party/skia/include/core/SkColor.h"
+ #include "ui/color/color_id.h"
+ #include "ui/color/color_mixer.h"
+ #include "ui/color/color_provider.h"
+ #include "ui/color/color_provider_key.h"
+ #include "ui/color/color_provider_utils.h"
+ #include "ui/color/color_recipe.h"
+ 
+ namespace {
+ 
+@@ -41,173 +39,15 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+     return;
+   }
+ 
+-  const bool private_palette =
+-      key.color_mode == ui::ColorProviderKey::ColorMode::kDark &&
+-      key.user_color_source ==
+-          ui::ColorProviderKey::UserColorSource::kGrayscale;
+-  const SkColor sidebar = private_palette ? SkColorSetRGB(0x2A, 0x20, 0x2F)
+-                                          : SkColorSetRGB(0x7D, 0x68, 0x82);
+-  const SkColor sidebar_raised = private_palette
+-                                     ? SkColorSetRGB(0x38, 0x2A, 0x3E)
+-                                     : SkColorSetRGB(0x75, 0x61, 0x7A);
+-  const SkColor sidebar_hover = private_palette
+-                                    ? SkColorSetRGB(0x4A, 0x38, 0x51)
+-                                    : SkColorSetRGB(0x8A, 0x74, 0x8F);
+-  const SkColor active_tile = private_palette ? SkColorSetRGB(0xD2, 0xC4, 0xD4)
+-                                              : SkColorSetRGB(0xDC, 0xD6, 0xDD);
+-  const SkColor active_foreground = private_palette
+-                                        ? SkColorSetRGB(0x24, 0x1C, 0x27)
+-                                        : SkColorSetRGB(0x2D, 0x26, 0x30);
+-  const SkColor text = private_palette ? SkColorSetRGB(0xF5, 0xED, 0xF6)
+-                                       : SkColorSetRGB(0xF1, 0xEB, 0xF2);
+-  const SkColor muted = private_palette ? SkColorSetRGB(0xC6, 0xB7, 0xC9)
+-                                        : SkColorSetRGB(0xD0, 0xC4, 0xD2);
+-  const SkColor accent = private_palette ? SkColorSetRGB(0xD7, 0xAF, 0xC1)
+-                                         : SkColorSetRGB(0xE5, 0xC6, 0xD1);
+-  const SkColor paper = private_palette ? SkColorSetRGB(0x1B, 0x15, 0x1E)
+-                                        : SkColorSetRGB(0xF7, 0xF3, 0xF6);
+-  const SkColor paper_raised = private_palette
+-                                   ? SkColorSetRGB(0x26, 0x1D, 0x2A)
+-                                   : SkColorSetRGB(0xFF, 0xF9, 0xFD);
+-  const SkColor paper_text =
+-      private_palette ? SkColorSetRGB(0xF4, 0xED, 0xF4) : active_foreground;
+-  const SkColor paper_muted = private_palette ? SkColorSetRGB(0xC3, 0xB5, 0xC5)
+-                                              : SkColorSetRGB(0x76, 0x6C, 0x78);
+-  const SkColor paper_line = private_palette ? SkColorSetRGB(0x46, 0x38, 0x4A)
+-                                             : SkColorSetRGB(0xE5, 0xDD, 0xE4);
+-
+-  // Keep every group hue distinct while lowering saturation against the rail.
+-  const SkColor group_grey = private_palette ? SkColorSetRGB(0x55, 0x49, 0x59)
+-                                             : SkColorSetRGB(0x8E, 0x7F, 0x91);
+-  const SkColor group_blue = private_palette ? SkColorSetRGB(0x45, 0x50, 0x68)
+-                                             : SkColorSetRGB(0x7B, 0x87, 0xA6);
+-  const SkColor group_red = private_palette ? SkColorSetRGB(0x67, 0x43, 0x4B)
+-                                            : SkColorSetRGB(0xA7, 0x79, 0x82);
+-  const SkColor group_yellow = private_palette
+-                                   ? SkColorSetRGB(0x68, 0x5A, 0x3E)
+-                                   : SkColorSetRGB(0xA7, 0x95, 0x6D);
+-  const SkColor group_green = private_palette ? SkColorSetRGB(0x43, 0x5B, 0x48)
+-                                              : SkColorSetRGB(0x7E, 0x9A, 0x82);
+-  const SkColor group_pink = private_palette ? SkColorSetRGB(0x66, 0x45, 0x59)
+-                                             : SkColorSetRGB(0xA7, 0x7E, 0x99);
+-  const SkColor group_purple = private_palette
+-                                   ? SkColorSetRGB(0x59, 0x48, 0x68)
+-                                   : SkColorSetRGB(0x92, 0x7D, 0xA6);
+-  const SkColor group_cyan = private_palette ? SkColorSetRGB(0x3D, 0x5B, 0x5E)
+-                                             : SkColorSetRGB(0x72, 0x9A, 0x9D);
+-  const SkColor group_orange = private_palette
+-                                   ? SkColorSetRGB(0x66, 0x4E, 0x3F)
+-                                   : SkColorSetRGB(0xA7, 0x86, 0x70);
+-
++  // Preserve the raised-tile hierarchy of Kwiken's Zen rail, but source every
++  // actual color from Chromium's selected theme. The color provider is rebuilt
++  // when the user changes a color, variant, light/dark mode, or device theme.
+   ui::ColorMixer& mixer = provider->AddMixer();
+-  mixer[ui::kColorAccent] = {accent};
+-  mixer[ui::kColorFocusableBorderFocused] = {accent};
+-  mixer[ui::kColorFrameActive] = {sidebar};
+-  mixer[ui::kColorFrameInactive] = {sidebar_raised};
+-  mixer[ui::kColorSysHeader] = {sidebar};
+-  mixer[ui::kColorSysHeaderInactive] = {sidebar_raised};
+-  mixer[ui::kColorSysOnHeaderPrimary] = {text};
+-  mixer[ui::kColorSysOnHeaderPrimaryInactive] = {muted};
+-  mixer[ui::kColorSysOnHeaderDivider] = {
+-      SkColorSetARGB(0x20, 0xFF, 0xFF, 0xFF)};
+-  mixer[ui::kColorSysOnHeaderDividerInactive] = {
+-      SkColorSetARGB(0x18, 0xFF, 0xFF, 0xFF)};
+-  mixer[ui::kColorSysStateHeaderHover] = {sidebar_hover};
+-  mixer[ui::kColorSysStateHeaderHoverInactive] = {sidebar_hover};
+-
+-  mixer[kColorTabBackgroundActiveFrameActive] = {active_tile};
+-  mixer[kColorTabBackgroundActiveFrameInactive] = {active_tile};
+-  mixer[kColorTabBackgroundInactiveFrameActive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundInactiveFrameInactive] = {sidebar_raised};
+-  mixer[kColorTabBackgroundInactiveHoverFrameActive] = {sidebar_hover};
+-  mixer[kColorTabBackgroundInactiveHoverFrameInactive] = {sidebar_hover};
+-  mixer[kColorTabBackgroundSelectedFrameActive] = {sidebar_hover};
+-  mixer[kColorTabBackgroundSelectedFrameInactive] = {sidebar_hover};
+-  mixer[kColorTabBackgroundSelectedHoverFrameActive] = {sidebar_hover};
+-  mixer[kColorTabBackgroundSelectedHoverFrameInactive] = {sidebar_hover};
+-  mixer[kColorTabForegroundActiveFrameActive] = {active_foreground};
+-  mixer[kColorTabForegroundActiveFrameInactive] = {active_foreground};
+-  mixer[kColorTabForegroundInactiveFrameActive] = {text};
+-  mixer[kColorTabForegroundInactiveFrameInactive] = {text};
+-  mixer[kColorTabDividerFrameActive] = {SkColorSetARGB(0x20, 0xFF, 0xFF, 0xFF)};
+-  mixer[kColorTabDividerFrameInactive] = {
+-      SkColorSetARGB(0x18, 0xFF, 0xFF, 0xFF)};
+-  mixer[kColorVerticalTabPinnedOutline] = {accent};
+-
+-  mixer[kColorTabGroupTabStripFrameActiveGrey] = {group_grey};
+-  mixer[kColorTabGroupTabStripFrameInactiveGrey] = {group_grey};
+-  mixer[kColorTabGroupTabStripFrameActiveBlue] = {group_blue};
+-  mixer[kColorTabGroupTabStripFrameInactiveBlue] = {group_blue};
+-  mixer[kColorTabGroupTabStripFrameActiveRed] = {group_red};
+-  mixer[kColorTabGroupTabStripFrameInactiveRed] = {group_red};
+-  mixer[kColorTabGroupTabStripFrameActiveYellow] = {group_yellow};
+-  mixer[kColorTabGroupTabStripFrameInactiveYellow] = {group_yellow};
+-  mixer[kColorTabGroupTabStripFrameActiveGreen] = {group_green};
+-  mixer[kColorTabGroupTabStripFrameInactiveGreen] = {group_green};
+-  mixer[kColorTabGroupTabStripFrameActivePink] = {group_pink};
+-  mixer[kColorTabGroupTabStripFrameInactivePink] = {group_pink};
+-  mixer[kColorTabGroupTabStripFrameActivePurple] = {group_purple};
+-  mixer[kColorTabGroupTabStripFrameInactivePurple] = {group_purple};
+-  mixer[kColorTabGroupTabStripFrameActiveCyan] = {group_cyan};
+-  mixer[kColorTabGroupTabStripFrameInactiveCyan] = {group_cyan};
+-  mixer[kColorTabGroupTabStripFrameActiveOrange] = {group_orange};
+-  mixer[kColorTabGroupTabStripFrameInactiveOrange] = {group_orange};
+-
+-  mixer[kColorNewTabButtonForegroundFrameActive] = {text};
+-  mixer[kColorNewTabButtonForegroundFrameInactive] = {text};
+-  mixer[kColorNewTabButtonBackgroundFrameActive] = {sidebar_raised};
+-  mixer[kColorNewTabButtonBackgroundFrameInactive] = {sidebar_raised};
+-  mixer[kColorNewTabButtonCRForegroundFrameActive] = {text};
+-  mixer[kColorNewTabButtonCRForegroundFrameInactive] = {text};
+-  mixer[kColorNewTabButtonCRBackgroundFrameActive] = {sidebar_raised};
+-  mixer[kColorNewTabButtonCRBackgroundFrameInactive] = {sidebar_raised};
+-  mixer[kColorNewTabButtonFocusRing] = {accent};
+-
+-  mixer[kColorToolbar] = {paper};
+-  mixer[kColorToolbarBackgroundSubtleEmphasis] = {paper_raised};
+-  mixer[kColorToolbarBackgroundSubtleEmphasisHovered] = {paper_line};
+-  mixer[kColorToolbarButtonIcon] = {paper_muted};
+-  mixer[kColorToolbarButtonIconDefault] = {paper_muted};
+-  mixer[kColorToolbarButtonIconHovered] = {paper_text};
+-  mixer[kColorToolbarButtonIconPressed] = {paper_text};
+-  mixer[kColorToolbarButtonText] = {paper_text};
+-  mixer[kColorToolbarText] = {paper_text};
+-  mixer[kColorToolbarTextDefault] = {paper_text};
+-  mixer[kColorToolbarContentAreaSeparator] = {paper_line};
+-  mixer[kColorToolbarTopSeparatorFrameActive] = {paper_line};
+-  mixer[kColorToolbarTopSeparatorFrameInactive] = {paper_line};
+-  mixer[kColorCaptionForegroundActive] = {text};
+-  mixer[kColorCaptionForegroundInactive] = {muted};
+-  mixer[kColorCaptionButtonForegroundActive] = {text};
+-  mixer[kColorCaptionButtonForegroundInactive] = {muted};
+-
+-  mixer[kColorLocationBarBackground] = {paper_raised};
+-  mixer[kColorLocationBarBackgroundHovered] = {paper_raised};
+-  mixer[kColorLocationBarBorder] = {paper_line};
+-  mixer[kColorLocationBarBorderOpaque] = {paper_line};
+-  mixer[kColorOmniboxResultsBackground] = {paper_raised};
+-  mixer[kColorOmniboxResultsBackgroundHovered] = {paper};
+-  mixer[kColorOmniboxResultsBackgroundSelected] = {paper_line};
+-  mixer[kColorOmniboxText] = {paper_text};
+-  mixer[kColorOmniboxTextDimmed] = {paper_muted};
+-  mixer[kColorOmniboxResultsTextSelected] = {paper_text};
+-  mixer[kColorOmniboxResultsTextSecondary] = {paper_muted};
+-  mixer[kColorOmniboxResultsUrl] = {accent};
+-  mixer[kColorOmniboxResultsUrlSelected] = {accent};
+-  mixer[kColorOmniboxResultsFocusIndicator] = {accent};
+-
+-  mixer[kColorNewTabPageBackground] = {paper};
+-  mixer[kColorNewTabPageBackgroundOverride] = {paper};
+-  mixer[kColorNewTabPageText] = {paper_text};
+-  mixer[kColorNewTabPageTextUnthemed] = {paper_text};
+-  mixer[kColorNewTabPagePrimaryForeground] = {paper_text};
+-  mixer[kColorNewTabPageSecondaryForeground] = {paper_muted};
+-  mixer[kColorNewTabPageLink] = {accent};
+-  mixer[kColorNewTabPageLogo] = {accent};
+-  mixer[kColorNewTabPageSearchBoxBackground] = {paper_raised};
+-  mixer[kColorNewTabPageSearchBoxBackgroundHovered] = {paper_raised};
+-  mixer[kColorNewTabPageMostVisitedTileBackground] = {paper_raised};
+-  mixer[kColorNewTabPageFocusRing] = {accent};
++  mixer[kColorTabBackgroundInactiveFrameActive] = {
++      ui::kColorSysHeaderContainer};
++  mixer[kColorTabBackgroundInactiveFrameInactive] = {
++      ui::kColorSysHeaderContainerInactive};
++  mixer[kColorVerticalTabPinnedOutline] = {ui::kColorSysPrimary};
+ }
+ 
+ class ChromeColorProviderUtilsCallbacks
+diff --git a/chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc b/chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc
+index 78b3b3716ed1fd99926a09ec9293ff6330066af1..6e6a168153a33c8e4c463d6e83c33c828cf91826 100644
+--- a/chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc
++++ b/chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc
+@@ -7,6 +7,7 @@
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/color/chrome_color_mixers.h"
+ #include "testing/gtest/include/gtest/gtest.h"
++#include "third_party/skia/include/core/SkColor.h"
+ #include "ui/color/color_mixers.h"
+ #include "ui/color/color_provider.h"
+ #include "ui/color/color_provider_key.h"
+@@ -29,6 +30,35 @@ class MaterialNewTabPageColorMixerTest : public testing::Test {
+   ui::ColorProviderKey color_provider_key_;
+ };
+ 
++struct ZenRailColors {
++  SkColor rail;
++  SkColor tile;
++  SkColor inactive_tile;
++  SkColor outline;
++  SkColor header_container;
++  SkColor header_container_inactive;
++  SkColor primary;
++};
++
++ZenRailColors GetZenRailColors(SkColor user_color) {
++  ui::ColorProvider provider;
++  ui::ColorProviderKey key;
++  key.user_color_source = ui::ColorProviderKey::UserColorSource::kAccent;
++  key.user_color = user_color;
++  key.scheme_variant = ui::ColorProviderKey::SchemeVariant::kNeutral;
++  AddColorMixers(&provider, key);
++  AddChromeColorMixers(&provider, key);
++  return {
++      provider.GetColor(ui::kColorSysHeader),
++      provider.GetColor(kColorTabBackgroundInactiveFrameActive),
++      provider.GetColor(kColorTabBackgroundInactiveFrameInactive),
++      provider.GetColor(kColorVerticalTabPinnedOutline),
++      provider.GetColor(ui::kColorSysHeaderContainer),
++      provider.GetColor(ui::kColorSysHeaderContainerInactive),
++      provider.GetColor(ui::kColorSysPrimary),
++  };
++}
++
+ TEST_F(MaterialNewTabPageColorMixerTest, NtpModulesRedesignedEnabled) {
+   AddMaterialColorMixers();
+ 
+@@ -38,4 +68,17 @@ TEST_F(MaterialNewTabPageColorMixerTest, NtpModulesRedesignedEnabled) {
+             color_provider().GetColor(ui::kColorSysSurface));
+ }
+ 
++TEST(KwikenThemeColorMixerTest, ZenRailFollowsSelectedTheme) {
++  const ZenRailColors olive =
++      GetZenRailColors(SkColorSetRGB(0xB7, 0xD4, 0x55));
++  const ZenRailColors blue = GetZenRailColors(SK_ColorBLUE);
++
++  EXPECT_EQ(olive.tile, olive.header_container);
++  EXPECT_EQ(olive.inactive_tile, olive.header_container_inactive);
++  EXPECT_EQ(olive.outline, olive.primary);
++  EXPECT_NE(olive.rail, blue.rail);
++  EXPECT_NE(olive.tile, blue.tile);
++  EXPECT_NE(olive.outline, blue.outline);
++}
++
+ }  // namespace

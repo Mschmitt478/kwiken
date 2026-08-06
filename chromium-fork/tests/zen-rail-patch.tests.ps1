@@ -3,16 +3,23 @@ Set-StrictMode -Version Latest
 
 $forkRoot = Split-Path -Parent $PSScriptRoot
 $patchPath = Join-Path $forkRoot "patches\0006-kwiken-zen-rail.patch"
+$themePatchPath = Join-Path $forkRoot `
+  "patches\0007-kwiken-theme-aware-palette.patch"
 $brandPatchPath = Join-Path $forkRoot "patches\0001-kwiken-browser.patch"
 
-foreach ($requiredPath in @($patchPath, $brandPatchPath)) {
+foreach ($requiredPath in @($patchPath, $themePatchPath, $brandPatchPath)) {
   if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
     throw "Required patch is missing: $requiredPath"
   }
 }
 
 $patch = [IO.File]::ReadAllText($patchPath)
+$themePatch = [IO.File]::ReadAllText($themePatchPath)
 $brandPatch = [IO.File]::ReadAllText($brandPatchPath)
+$themeMixerPatch = [regex]::Match(
+  $themePatch,
+  '(?s)diff --git a/chrome/browser/ui/color/chrome_color_mixers\.cc .*?(?=\ndiff --git |\z)'
+).Value
 $failures = [Collections.Generic.List[string]]::new()
 
 function Assert-TextMatch {
@@ -51,6 +58,43 @@ function Assert-PatchDoesNotMatch {
 
   if ($patch -match $Pattern) {
     $script:failures.Add("$Name (forbidden pattern: $Pattern)")
+  }
+}
+
+function Assert-ThemePatchMatch {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Name,
+    [Parameter(Mandatory = $true)]
+    [string]$Pattern
+  )
+
+  Assert-TextMatch -Name $Name -Text $themePatch -Pattern $Pattern
+}
+
+function Assert-ThemePatchDoesNotMatch {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Name,
+    [Parameter(Mandatory = $true)]
+    [string]$Pattern
+  )
+
+  if ($themePatch -match $Pattern) {
+    $script:failures.Add("$Name (forbidden pattern: $Pattern)")
+  }
+}
+
+function Assert-ThemeMixerDoesNotMatch {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Name,
+    [Parameter(Mandatory = $true)]
+    [string]$Pattern
+  )
+
+  if ($themeMixerPatch -match $Pattern) {
+    $script:failures.Add("$Name (forbidden mixer pattern: $Pattern)")
   }
 }
 
@@ -108,12 +152,57 @@ foreach ($path in $expectedBaseBlobs.Keys) {
   }
 }
 
+$themePatchFiles = @(
+  [regex]::Matches($themePatch, '(?m)^diff --git a/(.+?) b/') |
+    ForEach-Object { $_.Groups[1].Value }
+)
+$expectedThemeBaseBlobs = [ordered]@{
+  "chrome/browser/ui/color/chrome_color_mixers.cc" =
+    "debc414c215aba21b8999a7d399595cdebe114e8"
+  "chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc" =
+    "78b3b3716ed1fd99926a09ec9293ff6330066af1"
+}
+$unexpectedThemeFiles = @(
+  $themePatchFiles |
+    Where-Object { -not $expectedThemeBaseBlobs.Contains($_) }
+)
+$missingThemeFiles = @(
+  $expectedThemeBaseBlobs.Keys |
+    Where-Object { $_ -notin $themePatchFiles }
+)
+if ($unexpectedThemeFiles.Count -gt 0) {
+  $failures.Add(
+    "Theme patch touches unexpected files: $($unexpectedThemeFiles -join ', ')")
+}
+if ($missingThemeFiles.Count -gt 0) {
+  $failures.Add(
+    "Theme patch omits expected files: $($missingThemeFiles -join ', ')")
+}
+foreach ($path in $expectedThemeBaseBlobs.Keys) {
+  $escapedPath = [regex]::Escape($path)
+  $match = [regex]::Match(
+    $themePatch,
+    "(?m)^diff --git a/$escapedPath b/$escapedPath\r?\nindex ([0-9a-f]{40})\.\.([0-9a-f]{40}) 100644$")
+  if (-not $match.Success) {
+    $failures.Add("$path theme patch does not carry full blob hashes")
+    continue
+  }
+  if ($match.Groups[1].Value -ne $expectedThemeBaseBlobs[$path]) {
+    $failures.Add(
+      "$path theme preimage mismatch: expected $($expectedThemeBaseBlobs[$path]), got $($match.Groups[1].Value)")
+  }
+}
+
 Assert-PatchDoesNotMatch "upstream files only" '(?m)^(---|\+\+\+) /dev/null$'
+Assert-ThemePatchDoesNotMatch "theme patch updates an upstream file" `
+  '(?m)^(---|\+\+\+) /dev/null$'
 Assert-PatchDoesNotMatch "no group-editor lifecycle overlap" `
   '(?m)^diff --git a/.+(tab_group_editor_bubble|saved_tab_group).+ b/'
 Assert-PatchDoesNotMatch "no machine-specific source path" `
   'C:\\src\\kwiken-chromium'
 Assert-PatchDoesNotMatch "no Git diagnostics" `
+  '(?m)^warning: in the working copy'
+Assert-ThemePatchDoesNotMatch "no theme-patch Git diagnostics" `
   '(?m)^warning: in the working copy'
 
 # Geometry contracts and their real Views coverage.
@@ -211,38 +300,26 @@ Assert-PatchMatch "split-pinned tile owns coherent outer outline" `
 Assert-PatchMatch "active-only stable-border C++ coverage" `
   'PinnedTabsUseStableActiveOnlyOutline[\s\S]+EXPECT_FALSE\(first->ShouldPaintActivePinnedOutline\(\)\)[\s\S]+EXPECT_TRUE\(second->ShouldPaintActivePinnedOutline\(\)\)[\s\S]+GetInsets'
 
-# Palette, bypass, toolbar readability, and user-selected group hue semantics.
-foreach ($colorContract in @(
-    @("rail", 'SkColorSetRGB\(0x7D, 0x68, 0x82\)'),
-    @("raised tile", 'SkColorSetRGB\(0x75, 0x61, 0x7A\)'),
-    @("hover", 'SkColorSetRGB\(0x8A, 0x74, 0x8F\)'),
-    @("active tile", 'SkColorSetRGB\(0xDC, 0xD6, 0xDD\)'),
-    @("active foreground", 'SkColorSetRGB\(0x2D, 0x26, 0x30\)'),
-    @("inactive foreground", 'SkColorSetRGB\(0xF1, 0xEB, 0xF2\)'),
-    @("muted", 'SkColorSetRGB\(0xD0, 0xC4, 0xD2\)'),
-    @("blush accent", 'SkColorSetRGB\(0xE5, 0xC6, 0xD1\)')
-  )) {
-  Assert-PatchMatch "$($colorContract[0]) palette" $colorContract[1]
-}
-Assert-PatchMatch "deeper purple private rail" `
-  'private_palette \? SkColorSetRGB\(0x2A, 0x20, 0x2F\)'
-Assert-PatchMatch "private content palette stays readable" `
-  'paper = private_palette \? SkColorSetRGB\(0x1B, 0x15, 0x1E\)[\s\S]+paper_text[\s\S]+kColorToolbar\] = \{paper\}'
-Assert-PatchMatch "active foreground is dark on the pale tile" `
-  'kColorTabForegroundActiveFrameActive\] = \{active_foreground\}'
-Assert-PatchMatch "inactive foreground remains light" `
-  'kColorTabForegroundInactiveFrameActive\] = \{text\}'
-Assert-PatchMatch "blush is the pinned outline" `
-  'kColorVerticalTabPinnedOutline\] = \{accent\}'
-
-foreach ($groupColor in @(
-    "Grey", "Blue", "Red", "Yellow", "Green", "Pink", "Purple", "Cyan", "Orange"
-  )) {
-  Assert-PatchMatch "calm $groupColor group semantics" `
-    "kColorTabGroupTabStripFrameActive$groupColor"
-  Assert-PatchMatch "inactive $groupColor group semantics" `
-    "kColorTabGroupTabStripFrameInactive$groupColor"
-}
+# Theme-selected colors own the palette; Kwiken preserves only Zen surface
+# relationships so pinned destinations remain visually distinct.
+Assert-ThemePatchMatch "active-frame pinned tile uses themed container" `
+  'kColorTabBackgroundInactiveFrameActive\] = \{[\s\S]{0,80}ui::kColorSysHeaderContainer\}'
+Assert-ThemePatchMatch "inactive-frame pinned tile uses themed container" `
+  'kColorTabBackgroundInactiveFrameInactive\] = \{[\s\S]{0,80}ui::kColorSysHeaderContainerInactive\}'
+Assert-ThemePatchMatch "pinned outline uses selected theme primary" `
+  'kColorVerticalTabPinnedOutline\] = \{ui::kColorSysPrimary\}'
+Assert-ThemePatchMatch "theme changes are delegated to Chromium" `
+  'source every[\s\S]{0,100}color from Chromium''s selected theme'
+Assert-ThemeMixerDoesNotMatch "no newly added literal palette" `
+  '(?m)^\+.*(?:SkColorSet(?:RGB|ARGB)|SK_Color(?:WHITE|BLACK))'
+Assert-ThemeMixerDoesNotMatch "no fixed frame or header override" `
+  '(?m)^\+\s*mixer\[ui::kColor(?:Frame|SysHeader)'
+Assert-ThemeMixerDoesNotMatch "toolbar and page colors remain theme-owned" `
+  '(?m)^\+\s*mixer\[(?:kColorToolbar|kColorLocationBar|kColorOmnibox|kColorNewTabPage)'
+Assert-ThemeMixerDoesNotMatch "group hues remain theme-owned" `
+  '(?m)^\+\s*mixer\[kColorTabGroupTabStrip'
+Assert-ThemePatchMatch "native theme-switch regression coverage" `
+  'ZenRailFollowsSelectedTheme[\s\S]+GetZenRailColors[\s\S]+EXPECT_NE\(olive\.rail, blue\.rail\)[\s\S]+EXPECT_NE\(olive\.tile, blue\.tile\)[\s\S]+EXPECT_NE\(olive\.outline, blue\.outline\)'
 
 Assert-TextMatch "high-contrast early bypass prerequisite" $brandPatch `
   'contrast_mode == ui::ColorProviderKey::ContrastMode::kHigh'

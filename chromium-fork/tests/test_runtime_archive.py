@@ -26,7 +26,7 @@ HASH_A = "a" * 64
 HASH_B = "b" * 64
 HASH_C = "c" * 64
 VERSION = "150.0.7871.186"
-RELEASE_VERSION = f"{VERSION}-r5"
+RELEASE_VERSION = f"{VERSION}-r6"
 ARCHIVE_ROOT = f"Kwiken-runtime-{RELEASE_VERSION}"
 CHROME_CONTENTS = b"fake kwiken executable\n"
 CHROME_SHA256 = hashlib.sha256(CHROME_CONTENTS).hexdigest()
@@ -101,7 +101,7 @@ def provenance(*, dirty: bool = False) -> dict:
         "nativeBuild": native_build,
         "product": {
             "name": "Kwiken",
-            "packageRevision": "5",
+            "packageRevision": "6",
             "releaseVersion": RELEASE_VERSION,
             "version": VERSION,
         },
@@ -384,7 +384,7 @@ class RuntimeArchiveTests(unittest.TestCase):
                     "--version",
                     VERSION,
                     "--package-revision",
-                    "5",
+                    "6",
                     "--release-version",
                     RELEASE_VERSION,
                     "--kwiken-revision",
@@ -459,7 +459,7 @@ class RuntimeArchiveTests(unittest.TestCase):
                     "--expect-version",
                     VERSION,
                     "--expect-package-revision",
-                    "5",
+                    "6",
                     "--expect-release-version",
                     RELEASE_VERSION,
                     "--expect-kwiken-revision",

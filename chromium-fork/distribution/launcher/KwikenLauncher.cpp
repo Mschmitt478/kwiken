@@ -402,6 +402,8 @@ void SeedProfile(const std::filesystem::path& user_data_directory) {
     return;
   }
 
+  // Chromium derives the complete first-profile palette from this
+  // logo-matching olive seed. Later theme choices remain entirely user-owned.
   constexpr char kInitialPreferences[] = R"json({
   "bookmark_bar": {
     "show_on_all_tabs": false
