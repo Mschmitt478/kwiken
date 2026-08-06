@@ -33,9 +33,17 @@ Apps, and keeps its profile in `%LOCALAPPDATA%\Kwiken\User Data`.
 - Session restoration and Do Not Track enabled by default
 - New profiles use aggressive Memory Saver with speculative preloading disabled
 - No idle spare renderer or background browser residency
-- Kwiken product branding, iconography, and lime/olive color system
+- Theme-aware Zen rail that defaults to Kwiken olive/lime and follows the
+  selected Chromium, device, grayscale, or extension theme
 - Windows registration for HTTP, HTTPS, HTML, and PDF defaults
 - Clean migration from the earlier Electron prototype
+
+## Themes
+
+New profiles start with Kwiken's logo-matching olive (`#B7D455`) in Chromium's
+Neutral color variant. Use **Customize Chrome** on the New Tab page—or install
+any normal Chromium theme—to change it. The vertical rail, pinned tiles, active
+outline, toolbar, groups, and page surfaces follow that selection automatically.
 
 ## Google Sign-In
 

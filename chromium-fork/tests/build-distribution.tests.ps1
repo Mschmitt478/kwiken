@@ -6,6 +6,8 @@ $scriptPath = Join-Path $forkRoot "scripts\build-distribution.ps1"
 $source = Get-Content -LiteralPath $scriptPath -Raw
 $installerPath = Join-Path $forkRoot "distribution\installer\Kwiken.nsi"
 $installerSource = Get-Content -LiteralPath $installerPath -Raw
+$launcherPath = Join-Path $forkRoot "distribution\launcher\KwikenLauncher.cpp"
+$launcherSource = Get-Content -LiteralPath $launcherPath -Raw
 $tokens = $null
 $parseErrors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile(
@@ -233,6 +235,26 @@ Assert-Contains -Needle 'KwikenLauncher.cpp' `
   -Message "The native launcher is no longer packaged."
 Assert-Contains -Needle 'Kwiken.nsi' `
   -Message "The NSIS installer is no longer packaged."
+$initialPreferencesMatch = [regex]::Match(
+  $launcherSource,
+  '(?s)constexpr char kInitialPreferences\[\] = R"json\((?<json>.*?)\)json";'
+)
+Assert-True -Condition $initialPreferencesMatch.Success `
+  -Message "The launcher default profile preferences are not inspectable."
+$initialPreferences = $initialPreferencesMatch.Groups['json'].Value |
+  ConvertFrom-Json
+Assert-True -Condition (
+    $initialPreferences.extensions.theme.id -eq 'user_color_theme_id'
+  ) -Message "New profiles must start with Chromium's user-color theme enabled."
+Assert-True -Condition (
+    $initialPreferences.browser.theme.user_color2 -eq -4729771
+  ) -Message "New profiles no longer default to Kwiken olive #B7D455."
+Assert-True -Condition (
+    $initialPreferences.browser.theme.color_variant2 -eq 2
+  ) -Message "Kwiken's default olive theme must use Chromium's Neutral variant."
+Assert-True -Condition (
+    $initialPreferences.browser.theme.color_scheme2 -eq 1
+  ) -Message "Kwiken's default olive theme must start in the light scheme."
 $chromeInstallFilesSid =
   'S-1-15-3-1024-3424233489-972189580-2057154623-747635277-1604371224-' +
   '316187997-3786583170-1043257646'
