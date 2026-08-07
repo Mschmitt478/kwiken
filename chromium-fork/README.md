@@ -83,6 +83,7 @@ The no-dependency script checks can be run in Windows PowerShell or PowerShell
 .\chromium-fork\tests\build-scripts.tests.ps1
 .\chromium-fork\tests\build-distribution.tests.ps1
 .\chromium-fork\tests\release-workflow.tests.ps1
+.\chromium-fork\tests\rounded-essentials-patch.tests.ps1
 ```
 
 First export a clean, fully validated native runtime. The export is published
@@ -174,9 +175,11 @@ copied into private staging and tree-hash verified before it runs the archive
 validator. The complete NSIS runtime is handled the same way before it creates
 the installer.
 
-The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186-r6.exe`.
-This local artifact is deliberately reported as unsigned; Authenticode signing
-and release attestation remain required before public distribution.
+The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186-r7.exe`.
+This artifact is deliberately reported as unsigned. Any public testing release
+must retain that warning and ship the generated verification manifest and
+SHA-256 checksums; trusted distribution still requires Authenticode signing and
+release attestation.
 
 ## Unsigned candidate workflow
 
@@ -238,6 +241,8 @@ Google website sign-in runs as a normal top-level Chromium navigation, so it doe
 - Native vertical tabs enabled at first launch
 - 260-pixel expanded tab rail
 - Theme-aware Zen rail with a Kwiken olive (`#B7D455`) Neutral default
+- Rounded persistent Essentials grid with Add/Remove and Load/Unload commands
+- Persistent folder groups with individual and group-wide lifecycle commands
 - DuckDuckGo default search
 - Restore the previous session
 - Do Not Track enabled

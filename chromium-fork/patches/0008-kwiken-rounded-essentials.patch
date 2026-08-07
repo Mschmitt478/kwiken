@@ -1,0 +1,300 @@
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 960819159d07c65bab2845b130a6bbcb8baebd86..f9404ffa32ad3c5161c734d5ef42342a0f28f65a 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -11946,6 +11946,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+         <message name="IDS_TAB_CXMENU_UNPIN_TAB" desc="The label of the tab context menu item for unpinning one or more tabs.">
+           Unpin
+         </message>
++        <message name="IDS_TAB_CXMENU_ADD_TO_ESSENTIALS" desc="The label of the Kwiken tab context menu item that adds one or more tabs to the persistent Essentials grid.">
++          Add to Essentials
++        </message>
++        <message name="IDS_TAB_CXMENU_REMOVE_FROM_ESSENTIALS" desc="The label of the Kwiken tab context menu item that removes one or more tabs from the persistent Essentials grid.">
++          Remove from Essentials
++        </message>
+         <message name="IDS_TAB_CXMENU_SOUND_MUTE_SITE" desc="The label of the tab context menu item for muting one or more sites. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
+           {NUM_TABS, plural, =1 {Mute site} other {Mute sites}}
+         </message>
+@@ -12068,6 +12074,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+         <message name="IDS_TAB_CXMENU_UNPIN_TAB" desc="In Title Case: The label of the tab context menu item for unpinning one or more tabs.">
+           Unpin
+         </message>
++        <message name="IDS_TAB_CXMENU_ADD_TO_ESSENTIALS" desc="In Title Case: The label of the Kwiken tab context menu item that adds one or more tabs to the persistent Essentials grid.">
++          Add to Essentials
++        </message>
++        <message name="IDS_TAB_CXMENU_REMOVE_FROM_ESSENTIALS" desc="In Title Case: The label of the Kwiken tab context menu item that removes one or more tabs from the persistent Essentials grid.">
++          Remove from Essentials
++        </message>
+         <message name="IDS_TAB_CXMENU_SOUND_MUTE_SITE" desc="In Title Case: The label of the tab context menu item for muting one or more sites. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
+           {NUM_TABS, plural, =1 {Mute Site} other {Mute Sites}}
+         </message>
+diff --git a/chrome/browser/ui/tabs/tab_menu_model.cc b/chrome/browser/ui/tabs/tab_menu_model.cc
+index aac534e5d86f2d81b9e5252d6dd9afa039110f5a..7ebc91389073f64f2eebc8ee62a2060184a0d1af 100644
+--- a/chrome/browser/ui/tabs/tab_menu_model.cc
++++ b/chrome/browser/ui/tabs/tab_menu_model.cc
+@@ -33,6 +33,7 @@
+ #include "chrome/browser/ui/tabs/existing_window_sub_menu_model.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/glic_tab_sub_menu_model.h"
++#include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
+ #include "chrome/browser/ui/tabs/split_tab_menu_model.h"
+ #include "chrome/browser/ui/tabs/split_tab_swap_menu_model.h"
+ #include "chrome/browser/ui/tabs/split_view_layout_menu_model.h"
+@@ -462,10 +463,19 @@ void TabMenuModel::Build(int index) {
+                       IDS_TAB_CXMENU_DUPLICATE);
+   SetElementIdentifierAt(GetItemCount() - 1, kDuplicateMenuItem);
+ 
+-  bool will_pin = tab_strip_->WillContextMenuPin(index);
+-  AddItemWithStringId(
+-      TabStripModel::CommandTogglePinned,
+-      will_pin ? IDS_TAB_CXMENU_PIN_TAB : IDS_TAB_CXMENU_UNPIN_TAB);
++  const bool will_pin = tab_strip_->WillContextMenuPin(index);
++  // Kwiken's durable pinned grid is its Essentials tier. Keep Chromium's
++  // terminology in windows and profiles that the persistence service does not
++  // own so the menu never promises durability that is unavailable there.
++  const bool uses_essentials =
++      tab_strip_->delegate()->IsNormalWindow() &&
++      PinnedTabServiceFactory::GetForProfile(tab_strip_->profile()) != nullptr;
++  const int toggle_pinned_label =
++      uses_essentials
++          ? (will_pin ? IDS_TAB_CXMENU_ADD_TO_ESSENTIALS
++                      : IDS_TAB_CXMENU_REMOVE_FROM_ESSENTIALS)
++          : (will_pin ? IDS_TAB_CXMENU_PIN_TAB : IDS_TAB_CXMENU_UNPIN_TAB);
++  AddItemWithStringId(TabStripModel::CommandTogglePinned, toggle_pinned_label);
+ 
+   if (features::IsMenuSimplificationEnabled()) {
+     SetIconForCommandId(
+diff --git a/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc b/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
+index d8d38a39b2b59ad6a61aed33b770fe281ef13184..cf0c1a737f166b9bde39060b04d9d8bf5b72e16e 100644
+--- a/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
++++ b/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/tabs/tab_menu_model.h"
+ 
++#include <optional>
++
+ #include "base/callback_list.h"
+ #include "base/feature_list.h"
+ #include "base/test/scoped_feature_list.h"
+@@ -16,6 +18,7 @@
+ #include "chrome/browser/glic/test_support/glic_test_environment.h"
+ #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
+ #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
++#include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_commands.h"
+@@ -24,6 +27,7 @@
+ #include "chrome/browser/ui/tab_ui_helper.h"
+ #include "chrome/browser/ui/tabs/existing_base_sub_menu_model.h"
+ #include "chrome/browser/ui/tabs/features.h"
++#include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+ #include "chrome/browser/ui/tabs/split_tab_swap_menu_model.h"
+@@ -32,6 +36,7 @@
+ #include "chrome/browser/ui/tabs/test_tab_strip_model_delegate.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/common/chrome_features.h"
++#include "chrome/grit/generated_resources.h"
+ #include "chrome/test/base/in_process_browser_test.h"
+ #include "chrome/test/base/menu_model_test.h"
+ #include "chrome/test/base/ui_test_utils.h"
+@@ -51,6 +56,7 @@
+ #include "content/public/test/browser_test_utils.h"
+ #include "content/public/test/test_navigation_observer.h"
+ #include "testing/gtest/include/gtest/gtest.h"
++#include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/models/list_selection_model.h"
+ #include "ui/base/models/menu_model.h"
+ #include "ui/base/mojom/window_show_state.mojom.h"
+@@ -98,6 +104,104 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, Basics) {
+   EXPECT_EQ(item_count, delegate_.enable_count_);
+ }
+ 
++IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
++                       RegularProfileUsesEssentialsForPersistentPins) {
++  ASSERT_TRUE(profile()->IsRegularProfile());
++  TabStripModel* const tab_strip_model = browser()->tab_strip_model();
++  tabs::TabInterface* const essential = tab_strip_model->GetActiveTab();
++  ASSERT_TRUE(essential);
++
++  TabMenuModel add_menu(&delegate_,
++                        browser()->GetFeatures().tab_menu_model_delegate(),
++                        tab_strip_model, tab_strip_model->active_index());
++  const std::optional<size_t> add_index =
++      add_menu.GetIndexOfCommandId(TabStripModel::CommandTogglePinned);
++  ASSERT_TRUE(add_index.has_value());
++  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_TAB_CXMENU_ADD_TO_ESSENTIALS),
++            add_menu.GetLabelAt(add_index.value()));
++
++  tab_strip_model->ExecuteContextMenuCommand(
++      tab_strip_model->active_index(), TabStripModel::CommandTogglePinned);
++  ASSERT_TRUE(essential->IsPinned());
++
++  chrome::AddTabAt(browser(), GURL("about:blank"), tab_strip_model->count(),
++                   /*foreground=*/true);
++  const int essential_index = tab_strip_model->GetIndexOfTab(essential);
++  ASSERT_NE(TabStripModel::kNoTab, essential_index);
++
++  TabMenuModel remove_menu(&delegate_,
++                           browser()->GetFeatures().tab_menu_model_delegate(),
++                           tab_strip_model, essential_index);
++  const std::optional<size_t> remove_index =
++      remove_menu.GetIndexOfCommandId(TabStripModel::CommandTogglePinned);
++  ASSERT_TRUE(remove_index.has_value());
++  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_TAB_CXMENU_REMOVE_FROM_ESSENTIALS),
++            remove_menu.GetLabelAt(remove_index.value()));
++  EXPECT_TRUE(remove_menu.GetIndexOfCommandId(TabStripModel::CommandUnloadTab)
++                  .has_value());
++  EXPECT_TRUE(tab_strip_model->IsContextMenuCommandEnabled(
++      essential_index, TabStripModel::CommandUnloadTab));
++}
++
++IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
++                       RegularProfilePopupRetainsPinTerminology) {
++  Browser* const popup = Browser::Create(
++      Browser::CreateParams(Browser::TYPE_POPUP, profile(), true));
++  ASSERT_TRUE(popup);
++  ASSERT_TRUE(popup->is_type_popup());
++  chrome::AddTabAt(popup, GURL("about:blank"), /*index=*/-1,
++                   /*foreground=*/true);
++
++  TabStripModel* const tab_strip_model = popup->tab_strip_model();
++  ASSERT_EQ(1, tab_strip_model->count());
++  {
++    TabMenuModel menu(&delegate_,
++                      popup->GetFeatures().tab_menu_model_delegate(),
++                      tab_strip_model, tab_strip_model->active_index());
++    const std::optional<size_t> pin_index =
++        menu.GetIndexOfCommandId(TabStripModel::CommandTogglePinned);
++    ASSERT_TRUE(pin_index.has_value());
++    EXPECT_EQ(l10n_util::GetStringUTF16(IDS_TAB_CXMENU_PIN_TAB),
++              menu.GetLabelAt(pin_index.value()));
++  }
++
++  tab_strip_model->CloseAllTabs();
++}
++
++IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
++                       OffTheRecordNormalWindowRetainsPinTerminology) {
++  Browser* const otr_browser = CreateIncognitoBrowser(profile());
++  ASSERT_TRUE(otr_browser);
++  ASSERT_TRUE(otr_browser->is_type_normal());
++  EXPECT_FALSE(PinnedTabServiceFactory::GetForProfile(otr_browser->profile()));
++
++  TabStripModel* const tab_strip_model = otr_browser->tab_strip_model();
++  tabs::TabInterface* const tab = tab_strip_model->GetActiveTab();
++  ASSERT_TRUE(tab);
++  {
++    TabMenuModel pin_menu(&delegate_,
++                          otr_browser->GetFeatures().tab_menu_model_delegate(),
++                          tab_strip_model, tab_strip_model->active_index());
++    const std::optional<size_t> pin_index =
++        pin_menu.GetIndexOfCommandId(TabStripModel::CommandTogglePinned);
++    ASSERT_TRUE(pin_index.has_value());
++    EXPECT_EQ(l10n_util::GetStringUTF16(IDS_TAB_CXMENU_PIN_TAB),
++              pin_menu.GetLabelAt(pin_index.value()));
++  }
++
++  tab_strip_model->ExecuteContextMenuCommand(
++      tab_strip_model->active_index(), TabStripModel::CommandTogglePinned);
++  ASSERT_TRUE(tab->IsPinned());
++  TabMenuModel unpin_menu(&delegate_,
++                          otr_browser->GetFeatures().tab_menu_model_delegate(),
++                          tab_strip_model, tab_strip_model->active_index());
++  const std::optional<size_t> unpin_index =
++      unpin_menu.GetIndexOfCommandId(TabStripModel::CommandTogglePinned);
++  ASSERT_TRUE(unpin_index.has_value());
++  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_TAB_CXMENU_UNPIN_TAB),
++            unpin_menu.GetLabelAt(unpin_index.value()));
++}
++
+ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
+                        LifecycleCommandsAreHiddenForOrdinaryTab) {
+   TabStripModel* const tab_strip_model = browser()->tab_strip_model();
+diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+index 670ca28e949e9c77596dd5212503a1cf65465901..1d16c4acb6dd8230377040b716e791c4582ed872 100644
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -133,8 +133,10 @@ source_set("browser_tests") {
+     "//chrome/test:test_support",
+     "//chrome/test:test_support_ui",
+     "//content/test:test_support",
++    "//skia",
+     "//testing/gmock",
+     "//ui/events:test_support",
++    "//ui/views:test_support",
+   ]
+ 
+   if (use_ozone) {
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc
+index 432164fcad0acd75b598c00eecb99b28815c577e..cc6325f21a0323232f4a0cfdc4c4ed503f9eeac8 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc
+@@ -586,6 +586,10 @@ void VerticalTabView::PaintTabBackgroundFill(
+     TabStyle::TabSelectionState selection_state,
+     bool hovered,
+     std::optional<int> fill_id) {
++  const SkScalar corner_radius = GetCornerRadius() - GetInsets().top() / 2.0f;
++  const SkPath fill_path = SkPath::RRect(SkRRect::MakeRectXY(
++      gfx::RectToSkRect(GetContentsBounds()), corner_radius, corner_radius));
++
+   if (ShouldPaintTabBackgroundColor(selection_state, fill_id.has_value(),
+                                     hovered)) {
+     cc::PaintFlags flags;
+@@ -593,10 +597,12 @@ void VerticalTabView::PaintTabBackgroundFill(
+     flags.setColor(tab_style_->GetCurrentTabBackgroundColor(
+         GetSelectionState(), IsHoverAnimationActive(), GetHoverAnimationValue(),
+         IsFrameActive(), GetColorProvider()));
+-    canvas->DrawRect(GetContentsBounds(), flags);
++    canvas->DrawPath(fill_path, flags);
+   }
+ 
+   if (fill_id.has_value()) {
++    gfx::ScopedCanvas scoped_canvas(canvas);
++    canvas->ClipPath(fill_path, /*do_anti_alias=*/true);
+     gfx::ImageSkia* image =
+         GetThemeProvider()->GetImageSkiaNamed(fill_id.value());
+     canvas->TileImageInt(*image, 0, 0, 0, 0, width(), height());
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc
+index 12f991733acba7daa8716fec2812d86f548ab8e2..a5fb468934346543574864e56b2e3dbdd2dc4d77 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc
+@@ -45,11 +45,13 @@
+ #include "content/public/test/browser_test_utils.h"
+ #include "media/base/media_switches.h"
+ #include "net/test/embedded_test_server/embedded_test_server.h"
++#include "third_party/skia/include/core/SkBitmap.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/events/base_event_utils.h"
+ #include "ui/events/test/event_generator.h"
+ #include "ui/views/controls/button/button_controller.h"
+ #include "ui/views/controls/label.h"
++#include "ui/views/test/views_drawing_test_utils.h"
+ #include "ui/views/widget/widget_utils.h"
+ 
+ class TestWebContentsObserver : public content::WebContentsObserver {
+@@ -621,6 +623,21 @@ IN_PROC_BROWSER_TEST_F(VerticalTabViewTest,
+   EXPECT_TRUE(first->GetBackgroundColor().has_value());
+   EXPECT_TRUE(second->GetBackgroundColor().has_value());
+ 
++  // The inactive Essential tile must round the surface itself. Previously the
++  // inactive tile's empty border exposed a square fill while the active tile's
++  // visible rounded outline merely hid the same paint bug.
++  WaitForLayout(first);
++  const gfx::Rect contents = first->GetContentsBounds();
++  ASSERT_FALSE(contents.IsEmpty());
++  const SkBitmap inactive_bitmap = views::test::PaintViewToBitmap(first);
++  const SkColor untouched_color = inactive_bitmap.getColor(0, 0);
++  EXPECT_EQ(untouched_color,
++            inactive_bitmap.getColor(contents.x(), contents.y()));
++  const gfx::Point center = contents.CenterPoint();
++  const gfx::Point fill_sample(contents.x() + 2, center.y());
++  EXPECT_NE(untouched_color,
++            inactive_bitmap.getColor(fill_sample.x(), fill_sample.y()));
++
+   tab_strip_model()->ActivateTabAt(0);
+   ASSERT_TRUE(base::test::RunUntil([&]() {
+     return first->ShouldPaintActivePinnedOutline() &&

@@ -13,15 +13,15 @@
 
 ## Install status
 
-The native source and packaging path are under active validation. The current
-GitHub workflow creates an explicitly unsigned candidate for controlled testing
-only; it does not create or update a GitHub release. A public installer remains
-blocked on an environment-approved Authenticode signing, signature
-verification, attestation, and immutable publication gate.
+The [latest GitHub release](https://github.com/Mschmitt478/kwiken/releases/latest)
+provides a public Windows installer, SHA-256 checksums, and verification
+metadata. The installer is explicitly unsigned, so Windows reports an unknown
+publisher until an environment-approved Authenticode signing and attestation
+path is configured.
 
-Once signed release publication is configured, Kwiken installs per-user,
-creates Start menu and desktop shortcuts, registers itself with Windows Default
-Apps, and keeps its profile in `%LOCALAPPDATA%\Kwiken\User Data`.
+Kwiken installs per-user, creates Start menu and desktop shortcuts, registers
+itself with Windows Default Apps, and keeps its profile in
+`%LOCALAPPDATA%\Kwiken\User Data`.
 
 ## Browser Features
 
@@ -35,6 +35,8 @@ Apps, and keeps its profile in `%LOCALAPPDATA%\Kwiken\User Data`.
 - No idle spare renderer or background browser residency
 - Theme-aware Zen rail that defaults to Kwiken olive/lime and follows the
   selected Chromium, device, grayscale, or extension theme
+- Rounded, profile-persistent Essentials grid with explicit load/unload actions
+- Persistent folder groups with per-tab and group-wide load/unload actions
 - Windows registration for HTTP, HTTPS, HTML, and PDF defaults
 - Clean migration from the earlier Electron prototype
 
@@ -42,8 +44,24 @@ Apps, and keeps its profile in `%LOCALAPPDATA%\Kwiken\User Data`.
 
 New profiles start with Kwiken's logo-matching olive (`#B7D455`) in Chromium's
 Neutral color variant. Use **Customize Chrome** on the New Tab page—or install
-any normal Chromium theme—to change it. The vertical rail, pinned tiles, active
-outline, toolbar, groups, and page surfaces follow that selection automatically.
+any normal Chromium theme—to change it. The vertical rail, Essential tiles,
+active outline, toolbar, groups, and page surfaces follow that selection
+automatically.
+
+## Essentials and folders
+
+On a regular profile, right-click any tab and choose **Add to Essentials** to
+place it in the rounded favicon grid at the top of the rail. Essentials keep
+their identity and order across browser restarts. Right-click an Essential and
+choose **Remove from Essentials** to return it to the normal tab list.
+
+Right-click a background Essential or a tab inside a folder to choose **Unload
+tab**. Its tile, URL, title, favicon, Essential/folder identity, and position
+remain in place without keeping the page loaded. Choose **Load tab** to restore
+it. Right-click a folder header for **Load all tabs** and **Unload all tabs**.
+The active tab and tabs using audio, capture, unsaved form state, DevTools, or
+other protected browser state intentionally stay loaded; switch to another tab
+before unloading the active one.
 
 ## Google Sign-In
 
