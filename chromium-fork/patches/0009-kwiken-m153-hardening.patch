@@ -124,6 +124,20 @@ index 68ad6c4a009bdde1bfc907adedcfb2fdb7f7beb4..d7a8511a7bbb639a0955fc22e7129248
      return _ExtractImportantEnvironment(variables)
  
  
+diff --git a/chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc b/chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc
+index 12b42f22bf6e3b8b91b2370c3510bd04aac88cce..0aeea0ffb33896d4a21111231944131cb4e5c458 100644
+--- a/chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc
++++ b/chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc
+@@ -67,6 +67,9 @@ class MockTabGroupSyncService : public TabGroupSyncService {
+   MOCK_METHOD(void,
+               ReorderGroupAfter,
+               (const base::Uuid& sync_id, const base::Uuid& prev_sync_id));
++  MOCK_METHOD(void,
++              ReorderGroupsInCurrentSlots,
++              (const std::vector<base::Uuid>& ordered_group_ids));
+   MOCK_METHOD(void,
+               UpdateBookmarkNodeId,
+               (const base::Uuid&, std::optional<base::Uuid>));
 diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc b/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
 index 19158556db57a2e7fd962a38d1377ee39421d19a..99b3aa5a380c87e93f6819c639e7432f3e34935b 100644
 --- a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
@@ -274,6 +288,18 @@ index 99dd32541ab26f549537b73366cce33f62679748..455d0edd7c27c0dccd7e4cddee6359de
  #include "chrome/browser/ui/startup/obsolete_system_infobar_delegate.h"
  #include "chrome/browser/ui/startup/oscryptasync_availability_infobar_delegate.h"
  #include "chrome/browser/ui/startup/startup_browser_creator.h"
+diff --git a/chrome/browser/ui/tabs/BUILD.gn b/chrome/browser/ui/tabs/BUILD.gn
+index 2e07ee15fe90a3c679d23664ebd02ba22c314f6a..19a91a75ef3acfe50823c6d14916c1673d44a31f 100644
+--- a/chrome/browser/ui/tabs/BUILD.gn
++++ b/chrome/browser/ui/tabs/BUILD.gn
+@@ -735,6 +735,7 @@ if (!is_android) {
+       "//components/commerce/core:feature_list",
+       "//components/commerce/core:shopping_service",
+       "//components/commerce/core:shopping_service_test_support",
++      "//components/javascript_dialogs",
+       "//components/policy:generated",
+       "//components/policy:policy_code_generate",
+       "//components/policy/core/browser",
 diff --git a/chrome/browser/ui/tabs/pinned_tab_service.cc b/chrome/browser/ui/tabs/pinned_tab_service.cc
 index b0f3b3b720e1aaeb228950d7fefa4cd8467a3cea..07ea87b8f0d8fc8fee5f6422a954b3808460077e 100644
 --- a/chrome/browser/ui/tabs/pinned_tab_service.cc
@@ -475,18 +501,28 @@ index ffb0742c8749c4d5344bda521747df8c808df265..de818e70844c29493cf5a14d87943527
    bool closing_all_browsers_ = false;
    bool internal_change_ = false;
 diff --git a/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc b/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
-index 69ad85d5699bcc5745fb33e6a7619639f4f9d30d..d5d56846bd638c1a4a466cc89f8546bbad6b4c20 100644
+index 69ad85d5699bcc5745fb33e6a7619639f4f9d30d..4f91881c14ae775a4972382136853abfec4c49d8 100644
 --- a/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
 +++ b/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
-@@ -27,6 +27,7 @@
+@@ -19,6 +19,7 @@
+ #include "chrome/browser/ui/browser_window.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
++#include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+ #include "chrome/browser/ui/tabs/pinned_tab_codec.h"
+ #include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
+@@ -27,7 +28,9 @@
  #include "chrome/browser/ui/unload_controller.h"
  #include "chrome/test/base/in_process_browser_test.h"
  #include "chrome/test/base/ui_test_utils.h"
 +#include "components/javascript_dialogs/app_modal_dialog_controller.h"
  #include "content/public/test/browser_test.h"
++#include "content/public/test/browser_test_utils.h"
  #include "content/public/test/test_utils.h"
  
-@@ -101,6 +102,52 @@ IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest, CloseWindow) {
+ using PinnedTabServiceBrowserTest = InProcessBrowserTest;
+@@ -101,6 +104,52 @@ IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest, CloseWindow) {
    EXPECT_EQ("https://www.google.com/:pinned", result);
  }
  

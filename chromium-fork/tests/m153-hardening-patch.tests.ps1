@@ -114,12 +114,16 @@ function Assert-AddedDoesNotMatch {
 $expectedBaseBlobs = [ordered]@{
   "build/toolchain/win/setup_toolchain.py" =
     "68ad6c4a009bdde1bfc907adedcfb2fdb7f7beb4"
+  "chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc" =
+    "12b42f22bf6e3b8b91b2370c3510bd04aac88cce"
   "chrome/browser/resource_coordinator/tab_lifecycle_unit.cc" =
     "19158556db57a2e7fd962a38d1377ee39421d19a"
   "chrome/browser/resource_coordinator/tab_lifecycle_unit_unittest.cc" =
     "b41d0d9a9084ca4a9e6483ec68072c200eb5b3e8"
   "chrome/browser/ui/startup/infobar_utils.cc" =
     "99dd32541ab26f549537b73366cce33f62679748"
+  "chrome/browser/ui/tabs/BUILD.gn" =
+    "2e07ee15fe90a3c679d23664ebd02ba22c314f6a"
   "chrome/browser/ui/tabs/pinned_tab_service.cc" =
     "b0f3b3b720e1aaeb228950d7fefa4cd8467a3cea"
   "chrome/browser/ui/tabs/pinned_tab_service.h" =
@@ -279,6 +283,7 @@ Assert-AddedDoesNotMatch $infobar "obsolete conflict include is not re-added" `
 $pinService = "chrome/browser/ui/tabs/pinned_tab_service.cc"
 $pinHeader = "chrome/browser/ui/tabs/pinned_tab_service.h"
 $pinTest = "chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc"
+$pinBuild = "chrome/browser/ui/tabs/BUILD.gn"
 Assert-AddedMatch $pinHeader "close-cancellation callback contract" `
   'OnBrowserCloseCancelled[\s\S]+ClosingStatus'
 Assert-AddedMatch $pinHeader "close-cancellation subscription ownership" `
@@ -313,6 +318,10 @@ if ($subscriptionErases -lt 2) {
 }
 Assert-AddedMatch $pinTest "deferred-close regression coverage" `
   'DeferredCloseDoesNotRematerializePinUntilCancelled[\s\S]+onbeforeunload[\s\S]+GetWindow\(\)->Close\(\)[\s\S]+IsAttemptingToCloseBrowser[\s\S]+CloseAllTabs\(\)[\s\S]+WaitForAppModalDialog[\s\S]+ASSERT_EQ\(1, model->count\(\)\)[\s\S]+OnCancel[\s\S]+ASSERT_EQ\(2, model->count\(\)\)[\s\S]+IsTabPinned\(0\)'
+Assert-AddedMatch $pinTest "deferred-close test owns complete API headers" `
+  'desktop_browser_window_capabilities\.h[\s\S]+browser_test_utils\.h'
+Assert-AddedMatch $pinBuild "deferred-close test owns dialog dependency" `
+  '//components/javascript_dialogs'
 
 $tabData = "chrome/browser/ui/tabs/tab_data.cc"
 $tabDataTest = "chrome/browser/ui/tabs/tab_data_browsertest.cc"
@@ -374,6 +383,11 @@ foreach ($path in $atomicApiFiles) {
   Assert-AddedMatch $path "atomic reorder API is wired through $path" `
     'ReorderGroupsInCurrentSlots'
 }
+
+$newTabPageMock =
+  "chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc"
+Assert-AddedMatch $newTabPageMock "NTP tab-group mock tracks atomic reorder API" `
+  'MOCK_METHOD\(void,[\s\S]+ReorderGroupsInCurrentSlots[\s\S]+ordered_group_ids'
 
 $model = "components/saved_tab_groups/internal/saved_tab_group_model.cc"
 $modelTest =
