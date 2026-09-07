@@ -13,11 +13,12 @@
 
 ## Install status
 
-The [latest GitHub release](https://github.com/Mschmitt478/kwiken/releases/latest)
-provides a public Windows installer, SHA-256 checksums, and verification
-metadata. The installer is explicitly unsigned, so Windows reports an unknown
-publisher until an environment-approved Authenticode signing and attestation
-path is configured.
+The [GitHub releases page](https://github.com/Mschmitt478/kwiken/releases)
+provides public Windows installers, SHA-256 checksums, and verification
+metadata, including unsigned testing releases that GitHub does not expose via
+its `/releases/latest` shortcut. Unsigned installers cause Windows to report an
+unknown publisher until an environment-approved Authenticode signing and
+attestation path is configured.
 
 Kwiken installs per-user, creates Start menu and desktop shortcuts, registers
 itself with Windows Default Apps, and keeps its profile in
