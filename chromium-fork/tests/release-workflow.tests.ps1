@@ -169,6 +169,7 @@ foreach ($variable in @(
     "KWIKEN_CHROMIUM_ROOT",
     "KWIKEN_DEPOT_TOOLS_ROOT",
     "KWIKEN_VISUAL_STUDIO_ROOT",
+    "KWIKEN_WINDOWS_SDK_ROOT",
     "KWIKEN_WEB_STORE_ARCHIVE",
     "KWIKEN_NSIS_RUNTIME_ROOT",
     "KWIKEN_NSIS_EXE_SHA256",
@@ -178,6 +179,8 @@ foreach ($variable in @(
   Assert-Contains -Needle $variableBinding `
     -Message "Controlled-runner variable is not explicit: $variable"
 }
+Assert-Contains -Needle 'KWIKEN_WINDOWS_SDK_ROOT is not provisioned on this runner.' `
+  -Message "The controlled runner does not verify its extracted Windows SDK root."
 Assert-Contains `
   -Needle "KWIKEN_WEB_STORE_SHA256: 627cb80dd67d16e4d2a9f105c1a1c5adf61dca63202bd577a4e4af84bd07868c" `
   -Message "Web Store source archive is not pinned."

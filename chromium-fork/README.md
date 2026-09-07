@@ -4,9 +4,9 @@ Kwiken is a standalone Chromium browser, not an Electron shell. It keeps Chromiu
 
 ## Pinned upstream
 
-- Chromium `150.0.7871.186`
-- Revision `0fcdce5f4fdec8d442d7df760cb541f1ca6e446d`
-- depot_tools revision `5b785272f9c776789167b4a8e32eab34352e6f20`
+- Chromium `153.0.8010.28`
+- Revision `0d2c13517efd9ba53ef5e94431fef13556fcbe0a`
+- depot_tools revision `81577f19a8497ba7e41afac322e8f03553a863ec`
 - Source checkout: `C:\src\kwiken-chromium\src`
 
 The large Chromium checkout stays outside this repository. This directory contains only the reproducible patch set, build configuration, and packaging scripts.
@@ -26,9 +26,11 @@ permissions to perform those installs and can be disabled with
 
 ## Build
 
-Chromium 150 requires Visual Studio 2026 with Desktop development with C++,
-ATL/MFC, Windows 11 SDK 10.0.26100.7705 or newer, and Windows SDK Debugging
-Tools 10.0.26100.3323 or newer. Check the host before downloading Chromium:
+Chromium 153 requires Visual Studio 2026 with Desktop development with C++,
+ATL/MFC, Windows 11 SDK 10.0.28000.0 or newer, and Windows SDK Debugging
+Tools 10.0.26100.3323 or newer. Set `KWIKEN_WINDOWS_SDK_ROOT` when using an
+administratively extracted SDK instead of the system-wide Windows Kits path.
+Check the host before downloading Chromium:
 
 ```powershell
 .\chromium-fork\scripts\preflight.ps1
@@ -84,6 +86,7 @@ The no-dependency script checks can be run in Windows PowerShell or PowerShell
 .\chromium-fork\tests\build-distribution.tests.ps1
 .\chromium-fork\tests\release-workflow.tests.ps1
 .\chromium-fork\tests\rounded-essentials-patch.tests.ps1
+.\chromium-fork\tests\m153-hardening-patch.tests.ps1
 ```
 
 First export a clean, fully validated native runtime. The export is published
@@ -175,7 +178,7 @@ copied into private staging and tree-hash verified before it runs the archive
 validator. The complete NSIS runtime is handled the same way before it creates
 the installer.
 
-The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186-r7.exe`.
+The installer is written to `chromium-fork\release\Kwiken-Setup-153.0.8010.28-r1.exe`.
 This artifact is deliberately reported as unsigned. Any public testing release
 must retain that warning and ship the generated verification manifest and
 SHA-256 checksums; trusted distribution still requires Authenticode signing and
@@ -198,6 +201,8 @@ repository variables:
 - `KWIKEN_CHROMIUM_ROOT`: persistent dedicated Chromium checkout root.
 - `KWIKEN_DEPOT_TOOLS_ROOT`: persistent pinned depot_tools root.
 - `KWIKEN_VISUAL_STUDIO_ROOT`: approved Visual Studio 18 installation.
+- `KWIKEN_WINDOWS_SDK_ROOT`: approved Windows 11 SDK 10.0.28000.0 root;
+  required when the SDK is administratively extracted rather than installed.
 - `KWIKEN_WEB_STORE_ARCHIVE`: pre-provisioned `v1.5.5.3` source ZIP; its
   fixed SHA-256 is verified by both the workflow and distribution bridge.
 - `KWIKEN_NSIS_RUNTIME_ROOT`: pre-provisioned approved NSIS directory.

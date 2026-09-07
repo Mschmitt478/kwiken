@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/browser_live_tab_context.cc b/chrome/browser/ui/browser_live_tab_context.cc
-index d6f1a55fd6b8e3d51e380ede860182071243cb76..7ec0ab62e66e699c10ca7973421a33dd2be28333 100644
+index d80d6550e73ccd088505e8dd00350cf5002caea9..a13b8a45399f985728a6301ba6957586d44ddec9 100644
 --- a/chrome/browser/ui/browser_live_tab_context.cc
 +++ b/chrome/browser/ui/browser_live_tab_context.cc
-@@ -32,6 +32,8 @@
+@@ -34,6 +34,8 @@
  #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
  #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
  #include "chrome/browser/ui/tabs/features.h"
@@ -11,7 +11,7 @@ index d6f1a55fd6b8e3d51e380ede860182071243cb76..7ec0ab62e66e699c10ca7973421a33dd
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
  #include "chrome/browser/ui/tabs/tab_group_model.h"
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
-@@ -160,6 +162,12 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
+@@ -165,6 +167,12 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
    glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
                                &extra_data);
  
@@ -25,27 +25,27 @@ index d6f1a55fd6b8e3d51e380ede860182071243cb76..7ec0ab62e66e699c10ca7973421a33dd
  }
  
 diff --git a/chrome/browser/ui/browser_tabrestore.cc b/chrome/browser/ui/browser_tabrestore.cc
-index 9291009f10ea351d0a693a1c2c985470e4383ead..7c8895959b91685a8c34fea9bcd1dd96a5f8c8f0 100644
+index c8e946c19e0bfdc5d932532a7413ce5ce861283b..50b1df6175177bc966324ebbf998464da3385a8e 100644
 --- a/chrome/browser/ui/browser_tabrestore.cc
 +++ b/chrome/browser/ui/browser_tabrestore.cc
-@@ -20,6 +20,7 @@
- #include "chrome/browser/ui/browser.h"
- #include "chrome/browser/ui/browser_window.h"
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_activation_tracker.h"
  #include "chrome/browser/ui/tab_ui_helper.h"
 +#include "chrome/browser/ui/tabs/pinned_tab_service.h"
  #include "chrome/browser/ui/tabs/public/tab_features.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
  #include "chrome/browser/ui/tabs/tab_group_model.h"
-@@ -85,6 +86,7 @@ std::unique_ptr<WebContents> CreateRestoredTab(
-                                extension_app_id);
- 
+@@ -89,6 +90,7 @@ std::unique_ptr<WebContents> CreateRestoredTab(
    glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
+   send_tab_to_self::SendTabToSelfActivationTracker::RestoreFromExtraData(
+       web_contents.get(), extra_data);
 +  PinnedTabService::StageRestoredPinId(web_contents.get(), extra_data);
  
    std::vector<std::unique_ptr<NavigationEntry>> entries =
        ContentSerializedNavigationBuilder::ToNavigationEntries(
 diff --git a/chrome/browser/ui/browser_tabrestore_browsertest.cc b/chrome/browser/ui/browser_tabrestore_browsertest.cc
-index e6bb13a7d452e148ea6d3b1c198aab2b983c7fb9..3119f89f60ffd734f6e34c4e5efcfd0732f6a628 100644
+index 0d7c739f4c12248bbb01e110b2555b6c265b92fa..72f020db8f35c1c799a3a1276e86f01984f5bbf9 100644
 --- a/chrome/browser/ui/browser_tabrestore_browsertest.cc
 +++ b/chrome/browser/ui/browser_tabrestore_browsertest.cc
 @@ -7,6 +7,8 @@
@@ -115,7 +115,7 @@ index e6bb13a7d452e148ea6d3b1c198aab2b983c7fb9..3119f89f60ffd734f6e34c4e5efcfd07
    // Create tabs.
    CreateTestTabs(browser());
 diff --git a/chrome/browser/ui/tabs/pinned_tab_codec.cc b/chrome/browser/ui/tabs/pinned_tab_codec.cc
-index fcee60557595f8001594c05a107b7b59745f13b8..3990c7ad924fad7e91b0e5287a4a00cda1cb4b12 100644
+index 0e89f68fc9f81df1266e1c9d2d2aa1c3120c4a77..3990c7ad924fad7e91b0e5287a4a00cda1cb4b12 100644
 --- a/chrome/browser/ui/tabs/pinned_tab_codec.cc
 +++ b/chrome/browser/ui/tabs/pinned_tab_codec.cc
 @@ -6,59 +6,170 @@
@@ -192,7 +192,7 @@ index fcee60557595f8001594c05a107b7b59745f13b8..3990c7ad924fad7e91b0e5287a4a00cd
    return dict;
  }
  
--// Encodes all the pinned tabs from |browser| into |serialized_tabs|.
+-// Encodes all the pinned tabs from `browser` into `serialized_tabs`.
 -void EncodePinnedTabs(BrowserWindowInterface* browser,
 -                      base::ListValue& serialized_tabs) {
 -  const TabStripModel* const tab_model = browser->GetTabStripModel();
@@ -276,7 +276,7 @@ index fcee60557595f8001594c05a107b7b59745f13b8..3990c7ad924fad7e91b0e5287a4a00cd
 +  return id;
  }
  
--// Decodes the previously written values in |value| to |tab|, returning true
+-// Decodes the previously written values in `value` to `tab`, returning true
 -// on success.
 -std::optional<StartupTab> DecodeTab(const base::DictValue& value) {
 -  const std::string* const url_string = value.FindString(kURL);
@@ -530,7 +530,7 @@ index 4197f779212fa51bf4842b77b847d069b176814f..e20757ad10db56ac91d195e92754f826
    PinnedTabCodec();
    ~PinnedTabCodec();
 diff --git a/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc b/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc
-index 51c57a2c19fe91342311004840cf603909cb2898..504f38ee8dddfb19c99c32bb35bfb0d69bf00c58 100644
+index d5d0b779c58bbb880a5788304b2853c8eefef8e1..1346552e3c6395f606ad1eaeb07fb1363db1b0b8 100644
 --- a/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc
 +++ b/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc
 @@ -7,14 +7,18 @@
@@ -553,7 +553,7 @@ index 51c57a2c19fe91342311004840cf603909cb2898..504f38ee8dddfb19c99c32bb35bfb0d6
  #include "testing/gtest/include/gtest/gtest.h"
  #include "ui/base/page_transition_types.h"
 @@ -75,3 +79,96 @@ IN_PROC_BROWSER_TEST_F(PinnedTabCodecBrowserTest, PinnedAndNonPinned) {
-       PinnedTabCodec::ReadPinnedTabs(browser()->profile()));
+       PinnedTabCodec::ReadPinnedTabs(browser()->GetProfile()));
    EXPECT_EQ("https://www.google.com/:pinned", result);
  }
 +
@@ -650,10 +650,10 @@ index 51c57a2c19fe91342311004840cf603909cb2898..504f38ee8dddfb19c99c32bb35bfb0d6
 +  EXPECT_EQ(future, after[1].GetDict());
 +}
 diff --git a/chrome/browser/ui/tabs/pinned_tab_service.cc b/chrome/browser/ui/tabs/pinned_tab_service.cc
-index 61f36bddf006077936e36eea122654ea473397f7..b05b85955fd35faa8899a4b781fc73d9e46a4c55 100644
+index 982bc8b2a9e4d687a097c0c99f6b5b909094c006..b0f3b3b720e1aaeb228950d7fefa4cd8467a3cea 100644
 --- a/chrome/browser/ui/tabs/pinned_tab_service.cc
 +++ b/chrome/browser/ui/tabs/pinned_tab_service.cc
-@@ -4,83 +4,619 @@
+@@ -4,83 +4,618 @@
  
  #include "chrome/browser/ui/tabs/pinned_tab_service.h"
  
@@ -809,7 +809,7 @@ index 61f36bddf006077936e36eea122654ea473397f7..b05b85955fd35faa8899a4b781fc73d9
 +
  void PinnedTabService::OnClosingAllBrowsersChanged(bool closing) {
 -  // Saving of tabs happens when the user exits the application or closes the
--  // last browser window. After saving, |need_to_write_pinned_tabs_| is set to
+-  // last browser window. After saving, `need_to_write_pinned_tabs_` is set to
 -  // false to make sure subsequent window closures don't overwrite the pinned
 -  // tab state. Saving is re-enabled when a browser window or tab is opened
 -  // again. Note, cancelling a shutdown (via onbeforeunload) will not re-enable
@@ -930,7 +930,6 @@ index 61f36bddf006077936e36eea122654ea473397f7..b05b85955fd35faa8899a4b781fc73d9
  }
  
 +void PinnedTabService::OnTabChangedAt(tabs::TabInterface* tab,
-+                                      int /*index*/,
 +                                      TabChangeType /*change_type*/) {
 +  if (!internal_change_ && UpdateRecordFromTab(tab)) {
 +    WriteRecords();
@@ -1306,10 +1305,10 @@ index 61f36bddf006077936e36eea122654ea473397f7..b05b85955fd35faa8899a4b781fc73d9
 +  WriteRecords();
  }
 diff --git a/chrome/browser/ui/tabs/pinned_tab_service.h b/chrome/browser/ui/tabs/pinned_tab_service.h
-index a3cb859d1e1ccfbcc72546e801cfadbf61cdd9ee..643308ff89c0184104bb3bc262f14f37d8bfbbbc 100644
+index d6563d1d8c3062e5c9dd37cb3fa59fbe02e75f78..ffb0742c8749c4d5344bda521747df8c808df265 100644
 --- a/chrome/browser/ui/tabs/pinned_tab_service.h
 +++ b/chrome/browser/ui/tabs/pinned_tab_service.h
-@@ -5,58 +5,120 @@
+@@ -5,58 +5,119 @@
  #ifndef CHROME_BROWSER_UI_TABS_PINNED_TAB_SERVICE_H_
  #define CHROME_BROWSER_UI_TABS_PINNED_TAB_SERVICE_H_
  
@@ -1390,7 +1389,6 @@ index a3cb859d1e1ccfbcc72546e801cfadbf61cdd9ee..643308ff89c0184104bb3bc262f14f37
        const TabStripModelChange& change,
        const TabStripSelectionChange& selection) override;
 +  void OnTabChangedAt(tabs::TabInterface* tab,
-+                      int index,
 +                      TabChangeType change_type) override;
 +  void OnTabPinnedStateChanged(tabs::TabInterface* tab, int index) override;
    void WillCloseAllTabs(TabStripModel* tab_strip_model) override;
@@ -1398,7 +1396,7 @@ index a3cb859d1e1ccfbcc72546e801cfadbf61cdd9ee..643308ff89c0184104bb3bc262f14f37
 +                           CloseAllStoppedReason reason) override;
 +  void OnTabStripModelDestroyed(TabStripModel* tab_strip_model) override;
  
--  // Writes the pinned tabs for |profile_|, but only if a new tab or browser
+-  // Writes the pinned tabs for `profile_`, but only if a new tab or browser
 -  // window has been added since the last time the method was called.
 -  void WritePinnedTabsIfNecessary();
 +  bool ShouldObserve(BrowserWindowInterface* browser) const;
@@ -1444,7 +1442,7 @@ index a3cb859d1e1ccfbcc72546e801cfadbf61cdd9ee..643308ff89c0184104bb3bc262f14f37
  
  #endif  // CHROME_BROWSER_UI_TABS_PINNED_TAB_SERVICE_H_
 diff --git a/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc b/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
-index 7b2bcbcb1a4ac2580b8510fc7ca09644447a1859..6894dd9336ab85c7f7a9aadb0223bc4fb8c1ca73 100644
+index 9b9bc03b5aa453e7625928b0c8385c5f5c341aea..69ad85d5699bcc5745fb33e6a7619639f4f9d30d 100644
 --- a/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
 +++ b/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
 @@ -4,12 +4,20 @@
@@ -1465,16 +1463,16 @@ index 7b2bcbcb1a4ac2580b8510fc7ca09644447a1859..6894dd9336ab85c7f7a9aadb0223bc4f
 +#include "chrome/browser/ui/browser_tabstrip.h"
  #include "chrome/browser/ui/browser_window.h"
 +#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
  #include "chrome/browser/ui/navigator/browser_navigator_params.h"
  #include "chrome/browser/ui/tabs/pinned_tab_codec.h"
- #include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
-@@ -22,6 +30,19 @@
+@@ -24,6 +32,19 @@
  
  using PinnedTabServiceBrowserTest = InProcessBrowserTest;
  
 +IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest,
 +                       IncognitoHasNoPersistentPinServiceOrCodecState) {
-+  Profile* otr = browser()->profile()->GetPrimaryOTRProfile(
++  Profile* otr = browser()->GetProfile()->GetPrimaryOTRProfile(
 +      /*create_if_needed=*/true);
 +  ASSERT_TRUE(otr->IsOffTheRecord());
 +  EXPECT_FALSE(PinnedTabServiceFactory::GetForProfile(otr));
@@ -1488,7 +1486,7 @@ index 7b2bcbcb1a4ac2580b8510fc7ca09644447a1859..6894dd9336ab85c7f7a9aadb0223bc4f
  // Makes sure pinned tabs are updated when tabstrip is empty.
  // http://crbug.com/40519327
  IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest, TabStripEmpty) {
-@@ -112,3 +133,91 @@ IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest, Popup) {
+@@ -118,3 +139,91 @@ IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest, Popup) {
        PinnedTabTestUtils::TabsToString(PinnedTabCodec::ReadPinnedTabs(profile));
    EXPECT_EQ("https://www.google.com/:pinned", result);
  }
@@ -1497,7 +1495,7 @@ index 7b2bcbcb1a4ac2580b8510fc7ca09644447a1859..6894dd9336ab85c7f7a9aadb0223bc4f
 +                       CloseRematerializesButExplicitUnpinRemoves) {
 +  ASSERT_TRUE(embedded_test_server()->Start());
 +  const GURL persistent_url = embedded_test_server()->GetURL("/title1.html");
-+  Profile* profile = browser()->profile();
++  Profile* profile = browser()->GetProfile();
 +  PinnedTabService* service = PinnedTabServiceFactory::GetForProfile(profile);
 +  ASSERT_TRUE(service);
 +
@@ -1535,7 +1533,7 @@ index 7b2bcbcb1a4ac2580b8510fc7ca09644447a1859..6894dd9336ab85c7f7a9aadb0223bc4f
 +                       DiscardPreservesIdentityAndSessionExtraData) {
 +  ASSERT_TRUE(embedded_test_server()->Start());
 +  const GURL discardable_url = embedded_test_server()->GetURL("/title2.html");
-+  Profile* profile = browser()->profile();
++  Profile* profile = browser()->GetProfile();
 +  PinnedTabService* service = PinnedTabServiceFactory::GetForProfile(profile);
 +  ASSERT_TRUE(service);
 +

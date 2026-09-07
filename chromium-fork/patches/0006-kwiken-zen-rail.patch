@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index e33f8a4753b05ac5baa268970d454291497213f0..debc414c215aba21b8999a7d399595cdebe114e8 100644
+index 8131056e212956decf4831730d1ab513a6c6afa4..912072c8e1434a010c4dd9f3caebc0e3866197ae 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
-@@ -45,27 +45,63 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+@@ -44,27 +44,63 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
        key.color_mode == ui::ColorProviderKey::ColorMode::kDark &&
        key.user_color_source ==
            ui::ColorProviderKey::UserColorSource::kGrayscale;
@@ -84,7 +84,7 @@ index e33f8a4753b05ac5baa268970d454291497213f0..debc414c215aba21b8999a7d399595cd
    mixer[ui::kColorFrameActive] = {sidebar};
    mixer[ui::kColorFrameInactive] = {sidebar_raised};
    mixer[ui::kColorSysHeader] = {sidebar};
-@@ -76,38 +112,56 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+@@ -75,38 +111,56 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
        SkColorSetARGB(0x20, 0xFF, 0xFF, 0xFF)};
    mixer[ui::kColorSysOnHeaderDividerInactive] = {
        SkColorSetARGB(0x18, 0xFF, 0xFF, 0xFF)};
@@ -165,7 +165,7 @@ index e33f8a4753b05ac5baa268970d454291497213f0..debc414c215aba21b8999a7d399595cd
  
    mixer[kColorToolbar] = {paper};
    mixer[kColorToolbarBackgroundSubtleEmphasis] = {paper_raised};
-@@ -138,9 +192,9 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+@@ -137,9 +191,9 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
    mixer[kColorOmniboxTextDimmed] = {paper_muted};
    mixer[kColorOmniboxResultsTextSelected] = {paper_text};
    mixer[kColorOmniboxResultsTextSecondary] = {paper_muted};
@@ -178,7 +178,7 @@ index e33f8a4753b05ac5baa268970d454291497213f0..debc414c215aba21b8999a7d399595cd
  
    mixer[kColorNewTabPageBackground] = {paper};
    mixer[kColorNewTabPageBackgroundOverride] = {paper};
-@@ -148,12 +202,12 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+@@ -147,12 +201,12 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
    mixer[kColorNewTabPageTextUnthemed] = {paper_text};
    mixer[kColorNewTabPagePrimaryForeground] = {paper_text};
    mixer[kColorNewTabPageSecondaryForeground] = {paper_muted};
@@ -195,10 +195,10 @@ index e33f8a4753b05ac5baa268970d454291497213f0..debc414c215aba21b8999a7d399595cd
  
  class ChromeColorProviderUtilsCallbacks
 diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
-index b2c1709b4c2ac60dfc9b436ab9c75e4212e92dc2..db14f227df1f72eeff06a339f0ea3751bcb3c88e 100644
+index a8b7ef68008b132ec786b91ddcb232c16a0c5750..fc7036ebc0b4bf782b7d9106d4cd781f7ab182a5 100644
 --- a/chrome/browser/ui/layout_constants.cc
 +++ b/chrome/browser/ui/layout_constants.cc
-@@ -134,15 +134,17 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -145,15 +145,17 @@ int GetLayoutConstant(LayoutConstant constant) {
        return 20;
      case LayoutConstant::kMainBackgroundRegionCornerRadius:
      case LayoutConstant::kToolbarCornerRadius:
@@ -217,7 +217,7 @@ index b2c1709b4c2ac60dfc9b436ab9c75e4212e92dc2..db14f227df1f72eeff06a339f0ea3751
        return 12;
      case LayoutConstant::kVerticalTabStripUncollapsedVerticalPadding:
        return 12;
-@@ -165,7 +167,7 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -176,7 +178,7 @@ int GetLayoutConstant(LayoutConstant constant) {
      case LayoutConstant::kVerticalTabStripTopContainerButtonSize:
        return 28;
      case LayoutConstant::kVerticalTabPinnedBorderThickness:
@@ -227,10 +227,10 @@ index b2c1709b4c2ac60dfc9b436ab9c75e4212e92dc2..db14f227df1f72eeff06a339f0ea3751
        break;
    }
 diff --git a/chrome/browser/ui/tab_ui_helper.cc b/chrome/browser/ui/tab_ui_helper.cc
-index ef6e48fcb4d483798bfcc2723b483fea14ead78a..407310e6acce6e39e137231ad456a9bab226fc2d 100644
+index 17dc6e180456b614c57cd034c34391efbba537d4..7148c619d018c2f710b0bc67f5a2ca0df6dba3a3 100644
 --- a/chrome/browser/ui/tab_ui_helper.cc
 +++ b/chrome/browser/ui/tab_ui_helper.cc
-@@ -292,10 +292,12 @@ void TabUIHelper::OnVisibilityChanged(content::Visibility visiblity) {
+@@ -283,10 +283,12 @@ void TabUIHelper::OnVisibilityChanged(content::Visibility visiblity) {
  }
  
  void TabUIHelper::WasDiscarded() {
@@ -248,7 +248,7 @@ index ef6e48fcb4d483798bfcc2723b483fea14ead78a..407310e6acce6e39e137231ad456a9ba
  
  void TabUIHelper::DidFinishNavigation(
 diff --git a/chrome/browser/ui/tabs/tab_data.cc b/chrome/browser/ui/tabs/tab_data.cc
-index 84682b0f8437b952f7ed8607ab31a2f7f958938c..1ca448df22641712dcf13f3a120072dcb4a626fb 100644
+index 5056be27f3b1fec30597ecbf8eb51fdbc5765dba..1f01557a58f63c1f7aefbba2fd5176935b98ef41 100644
 --- a/chrome/browser/ui/tabs/tab_data.cc
 +++ b/chrome/browser/ui/tabs/tab_data.cc
 @@ -46,12 +46,12 @@ TabData TabData::FromTabInterface(tabs::TabInterface* tab_interface) {
@@ -267,7 +267,7 @@ index 84682b0f8437b952f7ed8607ab31a2f7f958938c..1ca448df22641712dcf13f3a120072dc
    tab_data.alert_state = tab_alert_controller->GetAlertToShow();
    tab_data.pinned = tab_interface->IsPinned();
 diff --git a/chrome/browser/ui/tabs/tab_data_browsertest.cc b/chrome/browser/ui/tabs/tab_data_browsertest.cc
-index f05ddcb8be2db09098ad01904d3443f68ae83d09..82d3495e49c8440e982acf13e885936831958b08 100644
+index bba72e28b519dadad4ad6bbef215f4bea9cfe3be..c4c3b61ffc24f4b8c4577435c07ac9c97aacf5f2 100644
 --- a/chrome/browser/ui/tabs/tab_data_browsertest.cc
 +++ b/chrome/browser/ui/tabs/tab_data_browsertest.cc
 @@ -400,6 +400,20 @@ IN_PROC_BROWSER_TEST_F(TabDataObserverBrowserTest, TabLifecycleManagement) {
@@ -291,10 +291,28 @@ index f05ddcb8be2db09098ad01904d3443f68ae83d09..82d3495e49c8440e982acf13e8859368
  }
  
  IN_PROC_BROWSER_TEST_F(TabDataObserverBrowserTest,
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.cc
-index 58c8ef10b31d8b8e1baae2bb2f1f72cc6a9ffc32..20d660ad90447e6a0e32d6e2d8875c4896161f03 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.cc
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.cc
+diff --git a/chrome/browser/ui/views/tabs/common/BUILD.gn b/chrome/browser/ui/views/tabs/common/BUILD.gn
+index 9354e0d5497b85db204ebae5d6adcd41973ea01a..205cea6fe98595b7975bdcb82df33d4f4f6feb6c 100644
+--- a/chrome/browser/ui/views/tabs/common/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/common/BUILD.gn
+@@ -171,11 +171,13 @@ source_set("browser_tests") {
+     "//chrome/browser/ui:ui_features",
+     "//chrome/browser/ui/animation",
+     "//chrome/browser/ui/browser_window",
++    "//chrome/browser/ui/color:color_headers",
+     "//chrome/browser/ui/tabs/tab_strip_api",
+     "//chrome/browser/ui/views/animations",
+     "//chrome/browser/ui/views/tabs/hovercard:hovercard_helpers",
+     "//chrome/browser/ui/views/tabs/shared",
+     "//chrome/browser/ui/views/tabs/tab",
++    "//chrome/browser/ui/window_metadata",
+     "//chrome/test:test_support",
+     "//chrome/test:test_support_ui",
+     "//content/test:test_support",
+diff --git a/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc b/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
+index af4cd825d4c10c6b0802cf4134a902dd7346e9b8..f4c05e0d7d3ff8958abb07a016d35fd2a56fb1a5 100644
+--- a/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
++++ b/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
 @@ -26,7 +26,8 @@
  #include "ui/views/view_utils.h"
  
@@ -304,8 +322,38 @@ index 58c8ef10b31d8b8e1baae2bb2f1f72cc6a9ffc32..20d660ad90447e6a0e32d6e2d8875c48
 +constexpr int kPinnedTabGridGap = 8;
  }  // namespace
  
- VerticalPinnedTabContainerView::VerticalPinnedTabContainerView(
-@@ -74,45 +75,46 @@ views::ProposedLayout VerticalPinnedTabContainerView::CalculateProposedLayout(
+ PinnedTabContainerView::PinnedTabContainerView(
+@@ -121,11 +122,15 @@ gfx::Size PinnedTabContainerView::GetMinimumSize() const {
+                                                                         : 1.0f),
+       static_cast<float>(num_children));
+   const int min_height =
+-      base::ClampCeil(GetLayoutConstant(LayoutConstant::kVerticalTabHeight) *
+-                      min_rows) +
+-      (num_children > 1 ? kTabPadding : 0);
+-  return gfx::Size(GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth),
+-                   min_height);
++      base::ClampCeil(
++          GetLayoutConstant(LayoutConstant::kVerticalTabPinnedHeight) *
++          min_rows) +
++      (num_children > 1 ? kPinnedTabGridGap : 0);
++  const int min_width =
++      collapse_state == tabs::VerticalTabStripCollapseState::kExpanded
++          ? kExpandedPinnedTabMinWidth
++          : GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth);
++  return gfx::Size(min_width, min_height);
+ }
+ 
+ bool PinnedTabContainerView::IsDragging() const {
+@@ -185,7 +190,7 @@ PinnedTabContainerView::GetLinkDropIndexForHorizontal(
+     const gfx::Point& loc_in_container) {
+   const bool is_vertical =
+       collection_node_->orientation() == TabStripOrientation::kVertical;
+-  const int padding = is_vertical ? kTabPadding : 0;
++  const int padding = is_vertical ? kPinnedTabGridGap : 0;
+   const int logical_x = GetMirroredXInView(loc_in_container.x());
+ 
+   for (auto& child_node : collection_node_->children()) {
+@@ -386,45 +391,46 @@ views::ProposedLayout PinnedTabContainerView::CalculateVerticalLayout(
      return layouts;
    }
  
@@ -377,7 +425,7 @@ index 58c8ef10b31d8b8e1baae2bb2f1f72cc6a9ffc32..20d660ad90447e6a0e32d6e2d8875c48
    }
  
    int row_index = 0;
-@@ -136,12 +138,12 @@ views::ProposedLayout VerticalPinnedTabContainerView::CalculateProposedLayout(
+@@ -448,12 +454,12 @@ views::ProposedLayout PinnedTabContainerView::CalculateVerticalLayout(
      bounds.set_x(child_x);
  
      if (row_index != 0) {
@@ -392,7 +440,7 @@ index 58c8ef10b31d8b8e1baae2bb2f1f72cc6a9ffc32..20d660ad90447e6a0e32d6e2d8875c48
        }
        x += bounds.width();
        total_width = std::max(total_width, x);
-@@ -149,7 +151,7 @@ views::ProposedLayout VerticalPinnedTabContainerView::CalculateProposedLayout(
+@@ -461,7 +467,7 @@ views::ProposedLayout PinnedTabContainerView::CalculateVerticalLayout(
  
        row_index++;
        if (row_index >= children_on_row) {
@@ -401,57 +449,17 @@ index 58c8ef10b31d8b8e1baae2bb2f1f72cc6a9ffc32..20d660ad90447e6a0e32d6e2d8875c48
          row_index = 0;
          x = 0;
        }
-@@ -181,11 +183,15 @@ gfx::Size VerticalPinnedTabContainerView::GetMinimumSize() const {
-                                                                         : 1.0f),
-       static_cast<float>(num_children));
-   const int min_height =
--      base::ClampCeil(GetLayoutConstant(LayoutConstant::kVerticalTabHeight) *
--                      min_rows) +
--      (num_children > 1 ? kTabPadding : 0);
--  return gfx::Size(GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth),
--                   min_height);
-+      base::ClampCeil(
-+          GetLayoutConstant(LayoutConstant::kVerticalTabPinnedHeight) *
-+          min_rows) +
-+      (num_children > 1 ? kPinnedTabGridGap : 0);
-+  const int min_width =
-+      collapse_state == tabs::VerticalTabStripCollapseState::kExpanded
-+          ? kExpandedPinnedTabMinWidth
-+          : GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth);
-+  return gfx::Size(min_width, min_height);
- }
- 
- bool VerticalPinnedTabContainerView::IsDragging() const {
-@@ -282,7 +288,8 @@ VerticalPinnedTabContainerView::GetLinkDropIndexForExpanded(
-     CHECK(view);
-     // Check if the current point is within the vertical bounds of the row
-     // this child belongs to, including half the padding between rows.
--    if (loc_in_container.y() >= view->bounds().bottom() + kTabPadding / 2) {
-+    if (loc_in_container.y() >=
-+        view->bounds().bottom() + kPinnedTabGridGap / 2) {
-       continue;
-     }
- 
-@@ -293,7 +300,7 @@ VerticalPinnedTabContainerView::GetLinkDropIndexForExpanded(
-     // The x-based calculation uses a margin to determine if the link should
-     // be inserted before/after, so the cutoff point between tabs in a row
-     // doesn't have to be exact.
--    if (logical_x >= view->bounds().right() + kTabPadding) {
-+    if (logical_x >= view->bounds().right() + kPinnedTabGridGap) {
-       continue;
-     }
- 
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc
-index 1970367feaccf631955d558a8ecc1acda4724ff1..8c013c86e0cd3e3142dfe4ca915fbfcb98d9c27b 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc
-@@ -100,10 +100,18 @@ void VerticalSplitTabView::OnPaint(gfx::Canvas* canvas) {
+diff --git a/chrome/browser/ui/views/tabs/common/split_tab_view.cc b/chrome/browser/ui/views/tabs/common/split_tab_view.cc
+index 440a3076e5f80c6b393dba0b311ba15ea808681e..c65ab3ed4cb7265a93fecc90f6d78e97d0be56ba 100644
+--- a/chrome/browser/ui/views/tabs/common/split_tab_view.cc
++++ b/chrome/browser/ui/views/tabs/common/split_tab_view.cc
+@@ -97,10 +97,18 @@ void SplitTabView::OnPaint(gfx::Canvas* canvas) {
      const std::vector<views::View*> children =
          collection_node_ ? collection_node_->GetDirectChildren()
                           : std::vector<views::View*>();
-+    VerticalTabView* background_tab = nullptr;
++    TabView* background_tab = nullptr;
 +    for (views::View* child : children) {
-+      auto* tab = views::AsViewClass<VerticalTabView>(child);
++      auto* tab = views::AsViewClass<TabView>(child);
 +      if (!background_tab || tab->ShouldPaintActivePinnedOutline()) {
 +        background_tab = tab;
 +      }
@@ -460,34 +468,30 @@ index 1970367feaccf631955d558a8ecc1acda4724ff1..8c013c86e0cd3e3142dfe4ca915fbfcb
 +      }
 +    }
      std::optional<SkColor> background_color =
--        !children.empty() ? views::AsViewClass<VerticalTabView>(children[0])
--                                ->GetBackgroundColor()
--                          : std::nullopt;
+-        !children.empty()
+-            ? views::AsViewClass<TabView>(children[0])->GetBackgroundColor()
+-            : std::nullopt;
 +        background_tab ? background_tab->GetBackgroundColor() : std::nullopt;
      if (background_color.has_value()) {
        cc::PaintFlags flags;
        flags.setAntiAlias(true);
-@@ -243,13 +251,28 @@ void VerticalSplitTabView::OnDataChanged() {
+@@ -200,7 +208,31 @@ void SplitTabView::OnDataChanged() {
+ }
  
- void VerticalSplitTabView::UpdateBorder() {
-   if (pinned_) {
--    const bool is_frame_active =
--        GetWidget() ? GetWidget()->ShouldPaintAsActive() : true;
--    SetBorder(views::CreateRoundedRectBorder(
--        GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness),
--        GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius),
--        is_frame_active ? kColorTabDividerFrameActive
--                        : kColorTabDividerFrameInactive));
+ void SplitTabView::UpdateBorder() {
+-  if (pinned_) {
++  const bool is_vertical =
++      collection_node_ &&
++      collection_node_->orientation() == TabStripOrientation::kVertical;
++  if (pinned_ && is_vertical) {
 +    const int border_thickness =
 +        GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness);
 +    bool has_active_tab = false;
-+    if (collection_node_) {
-+      for (views::View* child : collection_node_->GetDirectChildren()) {
-+        if (views::AsViewClass<VerticalTabView>(child)
-+                ->ShouldPaintActivePinnedOutline()) {
-+          has_active_tab = true;
-+          break;
-+        }
++    for (views::View* child : collection_node_->GetDirectChildren()) {
++      if (views::AsViewClass<TabView>(child)
++              ->ShouldPaintActivePinnedOutline()) {
++        has_active_tab = true;
++        break;
 +      }
 +    }
 +
@@ -500,14 +504,15 @@ index 1970367feaccf631955d558a8ecc1acda4724ff1..8c013c86e0cd3e3142dfe4ca915fbfcb
 +      SetBorder(views::CreateEmptyBorder(gfx::Insets(border_thickness)));
 +    }
 +    SchedulePaint();
-   } else if (GetBorder()) {
-     SetBorder(nullptr);
-   }
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h
-index 50f7bbb8e79df391e060e8006459bd82327b9947..94c474433bd1f2d5092916d4763155bc7e3695dc 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h
-@@ -59,10 +59,13 @@ class VerticalSplitTabView : public views::View, public views::LayoutDelegate {
++  } else if (pinned_) {
+     const bool is_frame_active =
+         GetWidget() ? GetWidget()->ShouldPaintAsActive() : true;
+     SetBorder(views::CreateRoundedRectBorder(
+diff --git a/chrome/browser/ui/views/tabs/common/split_tab_view.h b/chrome/browser/ui/views/tabs/common/split_tab_view.h
+index f380ec9050e75093b4380547314103f545fc6a4b..e42bf1dd54638a9fb89cff32d614e22bbf2db95e 100644
+--- a/chrome/browser/ui/views/tabs/common/split_tab_view.h
++++ b/chrome/browser/ui/views/tabs/common/split_tab_view.h
+@@ -60,10 +60,13 @@ class SplitTabView : public views::View, public views::LayoutDelegate {
  
    const TabCollectionNode* collection_node() const { return collection_node_; }
  
@@ -521,31 +526,153 @@ index 50f7bbb8e79df391e060e8006459bd82327b9947..94c474433bd1f2d5092916d4763155bc
 -  void UpdateBorder();
    void UpdateHovered(bool hovered);
  
-   void OnCollapseStateChanged(tabs::VerticalTabStripCollapseState state);
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc
-index 63a17434753087cc0f0f31ecf3b17fb0264a9b04..0357d75a3dbf194e4c34bdb6d1ee3cfcdf2ddbe7 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc
-@@ -6,14 +6,17 @@
- #include <vector>
- 
- #include "base/test/run_until.h"
+   views::ProposedLayout CalculateHorizontalLayout(
+diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
+index cfaf18f54f721f3f4bf0eb438454e3e41f963728..5b6539136663dd9b638e3bcaa201f55d15b4fd12 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
+@@ -9,6 +9,7 @@
+ #include "build/buildflag.h"
+ #include "chrome/app/vector_icons/vector_icons.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
 +#include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/tabs/tab_group_data.h"
+ #include "chrome/browser/ui/tabs/tab_group_theme.h"
+ #include "chrome/browser/ui/tabs/tab_style.h"
+@@ -52,6 +53,7 @@ constexpr int kGroupHeaderHorizontalInset = 8;
+ constexpr int kIconSize = 16;
+ constexpr int kFocusRingInset = 2;
+ constexpr int kAttentionIndicatorWidth = 8;
++constexpr int kFolderIconLabelPadding = 8;
+ // The amount of padding between the label and any sync icon.
+ constexpr int kSyncIconLabelPadding = 2;
+ 
+@@ -137,6 +139,9 @@ TabGroupHeaderView::TabGroupHeaderView(
+     const tab_groups::TabGroupVisualData* tab_group_visual_data)
+     : HoverCardAnchorTarget(this),
+       tab_group_visual_data_(*tab_group_visual_data),
++      folder_icon_(orientation == TabStripOrientation::kVertical
++                       ? AddChildView(std::make_unique<views::ImageView>())
++                       : nullptr),
+       sync_icon_(AddChildView(std::make_unique<views::ImageView>())),
+       group_header_label_(
+           AddChildView(std::make_unique<TabGroupHeaderLabel>())),
+@@ -204,6 +209,11 @@ TabGroupHeaderView::TabGroupHeaderView(
+ 
+   sync_icon_->SetProperty(views::kMarginsKey,
+                           gfx::Insets::TLBR(0, 0, 0, kSyncIconLabelPadding));
++  if (folder_icon_) {
++    folder_icon_->SetProperty(
++        views::kMarginsKey,
++        gfx::Insets::TLBR(0, 0, 0, kFolderIconLabelPadding));
++  }
+   attention_indicator_->SetProperty(
+       views::kMarginsKey, gfx::Insets::TLBR(0, kSyncIconLabelPadding, 0, 0));
+ 
+@@ -523,10 +533,27 @@ void TabGroupHeaderView::OnDataChanged(
+ 
+   group_header_label_->SetText(tab_group_visual_data_.title());
+   if (GetColorProvider()) {
+-    SkColor background_color = GetColorProvider()->GetColor(
+-        GetTabGroupTabStripColorId(tab_group_visual_data_.color(),
+-                                   GetWidget()->ShouldPaintAsActive()));
+-    SkColor foreground_color = GetForegroundColor();
++    const bool is_frame_active = GetWidget()->ShouldPaintAsActive();
++    const SkColor group_color =
++        GetColorProvider()->GetColor(GetTabGroupTabStripColorId(
++            tab_group_visual_data_.color(), is_frame_active));
++    const ui::ColorId background_color =
++        orientation_ == TabStripOrientation::kVertical
++            ? (is_frame_active ? kColorTabBackgroundInactiveFrameActive
++                               : kColorTabBackgroundInactiveFrameInactive)
++            : GetTabGroupTabStripColorId(tab_group_visual_data_.color(),
++                                         is_frame_active);
++    const SkColor foreground_color = GetForegroundColor();
++
++    // Treat a vertical group as a calm folder row. The selected hue remains
++    // visible in the folder glyph without filling the entire header.
++    if (folder_icon_) {
++      folder_icon_->SetImage(ui::ImageModel::FromVectorIcon(
++          features::IsRoundedIconsEnabled()
++              ? vector_icons::kFolderFlippableIcon
++              : vector_icons::kFolderChromeRefreshOldIcon,
++          group_color, kIconSize));
++    }
+ 
+     // Update label.
+     group_header_label_->SetEnabledColor(foreground_color);
+@@ -673,6 +700,12 @@ void TabGroupHeaderView::UpdateAccessibleName() {
+ 
+ SkColor TabGroupHeaderView::GetForegroundColor() const {
+   if (GetColorProvider()) {
++    if (orientation_ == TabStripOrientation::kVertical) {
++      return GetColorProvider()->GetColor(
++          GetWidget()->ShouldPaintAsActive()
++              ? kColorTabForegroundInactiveFrameActive
++              : kColorTabForegroundInactiveFrameInactive);
++    }
+     SkColor background_color = GetColorProvider()->GetColor(
+         GetTabGroupTabStripColorId(tab_group_visual_data_.color(),
+                                    GetWidget()->ShouldPaintAsActive()));
+diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.h b/chrome/browser/ui/views/tabs/common/tab_group_header_view.h
+index 982370f7cdb149a28adf1d5daaf2489741fb2618..d1ec10e79957a133adb8ee6181d685d1bed90027 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_group_header_view.h
++++ b/chrome/browser/ui/views/tabs/common/tab_group_header_view.h
+@@ -33,7 +33,8 @@ class ImageView;
+ class Label;
+ }  // namespace views
+ 
+-// The view for the tab group header. It displays the tab group
++// The view for the tab group header. In vertical mode it displays a folder
++// glyph in addition to the tab group
+ // title, editor icon and the collapsed/expand icon.
+ class TabGroupHeaderView : public views::FlexLayoutView,
+                            public views::ContextMenuController,
+@@ -116,6 +117,7 @@ class TabGroupHeaderView : public views::FlexLayoutView,
+   tab_groups::TabGroupId group() const;
+ 
+   views::LabelButton* editor_bubble_button() { return editor_bubble_button_; }
++  views::ImageView* folder_icon_for_testing() { return folder_icon_; }
+   views::ImageView* collapse_icon_for_testing() { return collapse_icon_; }
+   views::ImageView* attention_indicator_for_testing() {
+     return attention_indicator_;
+@@ -141,6 +143,10 @@ class TabGroupHeaderView : public views::FlexLayoutView,
+   bool needs_attention_ = false;
+   bool is_shared_ = false;
+ 
++  // In vertical mode, a folder glyph carries the user-selected group hue while
++  // the header itself stays on a neutral rail surface.
++  const raw_ptr<views::ImageView> folder_icon_ = nullptr;
++
+   // The sync icon that is displayed in the tab group header of saved groups in
+   // the tabstrip.
+   const raw_ptr<views::ImageView> sync_icon_ = nullptr;
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_link_drag_browsertest.cc b/chrome/browser/ui/views/tabs/common/tab_strip_link_drag_browsertest.cc
+index 7355525fbfb97dc729232ea8518b2e67eb5e9456..885cbf743c7d4b407061019b04755b8462885500 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_link_drag_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_link_drag_browsertest.cc
+@@ -8,6 +8,7 @@
+ #include "base/test/run_until.h"
+ #include "base/test/scoped_feature_list.h"
+ #include "chrome/browser/ui/browser_tabstrip.h"
++#include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/tabs/features.h"
  #include "chrome/browser/ui/tabs/tab_group_model.h"
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
- #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
- #include "chrome/browser/ui/views/frame/browser_root_view.h"
- #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -18,9 +19,11 @@
  #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/tabs/common/pinned_tab_container_view.h"
+ #include "chrome/browser/ui/views/tabs/common/split_tab_view.h"
++#include "chrome/browser/ui/views/tabs/common/tab_group_header_view.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_group_view.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_view.h"
+ #include "chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h"
 +#include "chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h"
- #include "chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.h"
- #include "chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h"
-+#include "chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h"
- #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_group_view.h"
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h"
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h"
-@@ -30,6 +33,10 @@
- #include "ui/base/dragdrop/os_exchange_data.h"
+ #include "chrome/browser/ui/views/test/vertical_tabs_browser_test_mixin.h"
+@@ -34,6 +37,10 @@
+ #include "ui/display/screen.h"
  #include "ui/gfx/animation/animation_test_api.h"
  #include "ui/gfx/geometry/point_f.h"
 +#include "ui/views/background.h"
@@ -554,55 +681,71 @@ index 63a17434753087cc0f0f31ecf3b17fb0264a9b04..0357d75a3dbf194e4c34bdb6d1ee3cfc
 +#include "ui/views/layout/proposed_layout.h"
  #include "ui/views/view_utils.h"
  
- class VerticalTabStripLinkDragTest
-@@ -303,6 +310,42 @@ IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest, DropInGroups) {
+ class TabStripLinkDragTest
+@@ -362,6 +369,54 @@ IN_PROC_BROWSER_TEST_P(TabStripLinkDragTest, DropInCollapsedGroups) {
    }
  }
  
-+IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest,
++IN_PROC_BROWSER_TEST_P(TabStripLinkDragTest,
 +                       ExpandedRailKeepsZenNavigationCues) {
++  if (GetParam() != TabStripOrientation::kVertical) {
++    GTEST_SKIP();
++  }
++
 +  EnsureTabCount(2);
 +  tab_strip_model()->SetTabPinned(0, true);
-+  region_view()->OnResize(1000, true);
++  auto* const vertical_region =
++      views::AsViewClass<VerticalTabStripRegionView>(region_view());
++  ASSERT_TRUE(vertical_region);
++  vertical_region->OnResize(1000, true);
 +  RunScheduledLayouts();
 +
 +  ASSERT_EQ(1u, WaitForPinnedTabs(1).size());
 +  ASSERT_EQ(1u, WaitForTabs(1).size());
-+  EXPECT_TRUE(region_view()->tabs_separator_for_testing()->GetVisible());
-+  EXPECT_GT(region_view()->tabs_separator_for_testing()->width(), 0);
++  EXPECT_TRUE(vertical_region->tabs_separator_for_testing()->GetVisible());
++  EXPECT_GT(vertical_region->tabs_separator_for_testing()->width(), 0);
 +
-+  ASSERT_FALSE(region_view()->GetBottomContainer()->children().empty());
++  ASSERT_FALSE(vertical_region->GetBottomContainer()->children().empty());
 +  auto* const new_tab_button = views::AsViewClass<TabStripFlatEdgeButton>(
-+      region_view()->GetBottomContainer()->children().front());
++      vertical_region->GetBottomContainer()->children().front());
 +  ASSERT_TRUE(new_tab_button);
 +  // TabStripFlatEdgeButton clears its public text when the label is hidden.
 +  EXPECT_FALSE(new_tab_button->GetText().empty());
 +}
 +
-+IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest,
++IN_PROC_BROWSER_TEST_P(TabStripLinkDragTest,
 +                       GroupHeaderUsesNeutralFolderTreatment) {
++  if (GetParam() != TabStripOrientation::kVertical) {
++    GTEST_SKIP();
++  }
++
 +  EnsureTabCount(2);
 +  tab_strip_model()->AddToNewGroup({0, 1});
 +  RunScheduledLayouts();
 +
-+  VerticalTabGroupHeaderView* const header = WaitForGroupView()->group_header();
++  TabGroupHeaderView* const header = WaitForGroupView()->group_header();
 +  ASSERT_TRUE(header->GetBackground());
 +  EXPECT_EQ(header->GetBackground()->color(),
 +            header->GetWidget()->ShouldPaintAsActive()
 +                ? kColorTabBackgroundInactiveFrameActive
 +                : kColorTabBackgroundInactiveFrameInactive);
++  ASSERT_TRUE(header->folder_icon_for_testing());
 +  EXPECT_TRUE(
 +      header->folder_icon_for_testing()->GetImageModel().IsVectorIcon());
 +}
 +
- IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest, DropInCollapsedGroups) {
-   EnsureTabCount(3);
-   tab_strip_model()->ActivateTabAt(
-@@ -384,6 +427,50 @@ IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest, DropInPinnedTabs) {
+ IN_PROC_BROWSER_TEST_P(TabStripLinkDragTest, DropInPinnedTabs) {
+   tab_strip_model()->AppendWebContents(
+       content::WebContents::Create(
+@@ -401,6 +456,57 @@ IN_PROC_BROWSER_TEST_P(TabStripLinkDragTest, DropInPinnedTabs) {
    }
  }
  
-+IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest, PinnedTileGridGeometry) {
++IN_PROC_BROWSER_TEST_P(TabStripLinkDragTest, PinnedTileGridGeometry) {
++  if (GetParam() != TabStripOrientation::kVertical) {
++    GTEST_SKIP();
++  }
++
 +  EnsureTabCount(5);
 +  for (int index = 0; index < tab_strip_model()->count(); ++index) {
 +    tab_strip_model()->SetTabPinned(index, true);
@@ -632,7 +775,10 @@ index 63a17434753087cc0f0f31ecf3b17fb0264a9b04..0357d75a3dbf194e4c34bdb6d1ee3cfc
 +  EXPECT_EQ(8, three_column_layout.child_layouts[2].bounds.x() -
 +                   three_column_layout.child_layouts[1].bounds.right());
 +
-+  region_view()->OnResize(-1000, true);
++  auto* const vertical_region =
++      views::AsViewClass<VerticalTabStripRegionView>(region_view());
++  ASSERT_TRUE(vertical_region);
++  vertical_region->OnResize(-1000, true);
 +  RunScheduledLayouts();
 +  const views::ProposedLayout collapsed_layout =
 +      pinned_container()->CalculateProposedLayout(views::SizeBounds(44, {}));
@@ -646,152 +792,29 @@ index 63a17434753087cc0f0f31ecf3b17fb0264a9b04..0357d75a3dbf194e4c34bdb6d1ee3cfc
 +                   collapsed_layout.child_layouts[0].bounds.bottom());
 +}
 +
- IN_PROC_BROWSER_TEST_F(VerticalTabStripLinkDragTest,
-                        DropInRegionViewOutsideTabStrip) {
-   EnsureTabCount(3);
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.cc
-index afcfdc886261e044f0d0033086d1e2c87c47685d..1078e4957ccdd541cdebf9d067ae3a237e7da17e 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.cc
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.cc
-@@ -11,6 +11,7 @@
- #include "build/buildflag.h"
- #include "chrome/app/vector_icons/vector_icons.h"
- #include "chrome/browser/ui/browser_element_identifiers.h"
-+#include "chrome/browser/ui/color/chrome_color_id.h"
- #include "chrome/browser/ui/tabs/tab_group_data.h"
- #include "chrome/browser/ui/tabs/tab_group_theme.h"
- #include "chrome/browser/ui/ui_features.h"
-@@ -22,6 +23,7 @@
- #include "components/data_sharing/public/features.h"
- #include "components/strings/grit/components_strings.h"
- #include "components/tab_groups/tab_group_visual_data.h"
-+#include "components/vector_icons/vector_icons.h"
- #include "ui/base/l10n/l10n_util.h"
- #include "ui/base/metadata/metadata_impl_macros.h"
- #include "ui/base/models/image_model.h"
-@@ -52,6 +54,7 @@ constexpr int kGroupHeaderHorizontalInset = 8;
- constexpr int kIconSize = 16;
- constexpr int kFocusRingInset = 2;
- constexpr int kAttentionIndicatorWidth = 8;
-+constexpr int kFolderIconLabelPadding = 8;
- // The amount of padding between the label and any sync icon.
- constexpr int kSyncIconLabelPadding = 2;
- 
-@@ -137,6 +140,7 @@ VerticalTabGroupHeaderView::VerticalTabGroupHeaderView(
-     const tab_groups::TabGroupVisualData* tab_group_visual_data)
-     : HoverCardAnchorTarget(this),
-       tab_group_visual_data_(*tab_group_visual_data),
-+      folder_icon_(AddChildView(std::make_unique<views::ImageView>())),
-       sync_icon_(AddChildView(std::make_unique<views::ImageView>())),
-       group_header_label_(
-           AddChildView(std::make_unique<VerticalTabGroupHeaderLabel>())),
-@@ -187,6 +191,8 @@ VerticalTabGroupHeaderView::VerticalTabGroupHeaderView(
- 
-   sync_icon_->SetProperty(views::kMarginsKey,
-                           gfx::Insets::TLBR(0, 0, 0, kSyncIconLabelPadding));
-+  folder_icon_->SetProperty(
-+      views::kMarginsKey, gfx::Insets::TLBR(0, 0, 0, kFolderIconLabelPadding));
-   attention_indicator_->SetProperty(
-       views::kMarginsKey, gfx::Insets::TLBR(0, kSyncIconLabelPadding, 0, 0));
- 
-@@ -458,10 +464,22 @@ void VerticalTabGroupHeaderView::OnDataChanged(
- 
-   group_header_label_->SetText(tab_group_visual_data_.title());
-   if (GetColorProvider()) {
--    SkColor background_color = GetColorProvider()->GetColor(
--        GetTabGroupTabStripColorId(tab_group_visual_data_.color(),
--                                   GetWidget()->ShouldPaintAsActive()));
--    SkColor foreground_color = GetForegroundColor();
-+    const bool is_frame_active = GetWidget()->ShouldPaintAsActive();
-+    const SkColor group_color =
-+        GetColorProvider()->GetColor(GetTabGroupTabStripColorId(
-+            tab_group_visual_data_.color(), is_frame_active));
-+    const ui::ColorId background_color =
-+        is_frame_active ? kColorTabBackgroundInactiveFrameActive
-+                        : kColorTabBackgroundInactiveFrameInactive;
-+    const SkColor foreground_color = GetForegroundColor();
-+
-+    // Treat a group as a calm folder row. The selected hue remains visible in
-+    // the folder glyph and group line without filling the entire header.
-+    folder_icon_->SetImage(ui::ImageModel::FromVectorIcon(
-+        features::IsRoundedIconsEnabled()
-+            ? vector_icons::kFolderFlippableIcon
-+            : vector_icons::kFolderChromeRefreshOldIcon,
-+        group_color, kIconSize));
- 
-     // Update label.
-     group_header_label_->SetEnabledColor(foreground_color);
-@@ -596,10 +614,10 @@ void VerticalTabGroupHeaderView::UpdateAccessibleName() {
- 
- SkColor VerticalTabGroupHeaderView::GetForegroundColor() const {
-   if (GetColorProvider()) {
--    SkColor background_color = GetColorProvider()->GetColor(
--        GetTabGroupTabStripColorId(tab_group_visual_data_.color(),
--                                   GetWidget()->ShouldPaintAsActive()));
--    return color_utils::GetColorWithMaxContrast(background_color);
-+    return GetColorProvider()->GetColor(
-+        GetWidget()->ShouldPaintAsActive()
-+            ? kColorTabForegroundInactiveFrameActive
-+            : kColorTabForegroundInactiveFrameInactive);
+ IN_PROC_BROWSER_TEST_P(TabStripLinkDragTest, GetLinkDropBoundsNoShift) {
+   AppendTab();
+   AppendTab();
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
+index db53e40e591295311569835fae59eb340ad776a4..02efe7ce34edca5c8900702c281f5c6e29d9f066 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
+@@ -158,8 +158,6 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
+   views::ScrollView* unpinned_tabs_scroll_view =
+       tab_strip_view->unpinned_tabs_scroll_view();
+   views::Separator* tabs_separator = tab_strip_view->GetTabsSeparator();
+-  const bool is_collapsed = tab_strip_view->is_collapsed_;
+-
+   if (!size_bounds.width().is_bounded()) {
+     return layouts;
    }
-   return SK_ColorBLACK;
- }
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h
-index 060713491fad09c839d6500545af22bac3ec192e..c43532b657d0eaf26038927e93eb2f341e71cc83 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h
-@@ -32,7 +32,7 @@ class ImageView;
- class Label;
- }  // namespace views
- 
--// The view for the tab group header. It displays the tab group
-+// The view for the tab group header. It displays the folder glyph, tab group
- // title, editor icon and the collapsed/expand icon.
- class VerticalTabGroupHeaderView : public views::FlexLayoutView,
-                                    public views::ContextMenuController,
-@@ -108,6 +108,7 @@ class VerticalTabGroupHeaderView : public views::FlexLayoutView,
-   void OnDataChanged(const tabs::TabGroupData& tab_group_data);
- 
-   views::LabelButton* editor_bubble_button() { return editor_bubble_button_; }
-+  views::ImageView* folder_icon_for_testing() { return folder_icon_; }
-   views::ImageView* collapse_icon_for_testing() { return collapse_icon_; }
-   views::ImageView* attention_indicator_for_testing() {
-     return attention_indicator_;
-@@ -132,6 +133,10 @@ class VerticalTabGroupHeaderView : public views::FlexLayoutView,
-   bool needs_attention_ = false;
-   bool is_shared_ = false;
- 
-+  // A folder glyph that carries the user-selected group hue while the header
-+  // itself stays on a neutral rail surface.
-+  const raw_ptr<views::ImageView> folder_icon_ = nullptr;
-+
-   // The sync icon that is displayed in the tab group header of saved groups in
-   // the tabstrip.
-   const raw_ptr<views::ImageView> sync_icon_ = nullptr;
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
-index 32c64e73c5e2ef5ca5561c349381d35754b72d87..1594c8989d6f394317fa7c1060b9d3156ef0655a 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
-@@ -42,6 +42,8 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
-           record_new_tab_button_pressed);
- 
-   new_tab_button_ = AddChildView(std::move(new_tab_button));
-+  // Keep the primary action legible whenever the rail has room for its label.
-+  new_tab_button_->SetShouldShowLabel(true);
- 
-   OnCollapseStateChanged(state_controller->GetCollapseState());
-   collapsed_state_change_subscription_ =
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc
-index d09396a6077ef46c9f334721af66111800b445c4..15767e91120e12347028196a9b2be5333216a9a2 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc
-@@ -154,9 +154,10 @@ views::ProposedLayout VerticalTabStripView::CalculateProposedLayout(
+@@ -182,9 +180,10 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
    const int unpinned_preferred_height =
-       unpinned_tabs_scroll_view_->GetPreferredSize(size_bounds).height();
+       unpinned_tabs_scroll_view->GetPreferredSize(size_bounds).height();
  
 -  const bool should_show_separator = pinned_preferred_height != 0 &&
 -                                     unpinned_preferred_height != 0 &&
--                                     is_collapsed_;
+-                                     is_collapsed;
 +  // Keep persistent destinations visually distinct from ordinary tabs in both
 +  // expanded and collapsed layouts.
 +  const bool should_show_separator =
@@ -799,48 +822,29 @@ index d09396a6077ef46c9f334721af66111800b445c4..15767e91120e12347028196a9b2be533
  
    // If the height is bounded, calculate the available space for laying out the
    // pinned and unpinned containers.
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc
-index eb9e13ce3d2dca019b4a9758bcd7ef4dc7846dc8..432164fcad0acd75b598c00eecb99b28815c577e 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc
-@@ -88,6 +88,7 @@
- 
- namespace {
- constexpr int kIconDesignWidth = 16;
-+static_assert(kIconDesignWidth == gfx::kFaviconSize);
- constexpr int kTitleMinWidth = 10;
- constexpr int kHorizontalInset = 8;
- constexpr int kDefaultPadding = 4;
-@@ -285,7 +286,7 @@ bool VerticalTabView::IsHoverAnimationActive() const {
+diff --git a/chrome/browser/ui/views/tabs/common/tab_view.cc b/chrome/browser/ui/views/tabs/common/tab_view.cc
+index e8d8cb4facb9428bab15389a8fb137ada0982a21..1d439b37f141df0c851b89a553c149108367362e 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view.cc
+@@ -497,8 +497,8 @@ bool TabView::IsHoverAnimationActive() const {
  }
  
- std::optional<SkColor> VerticalTabView::GetBackgroundColor() {
+ std::optional<SkColor> TabView::GetBackgroundColor() {
 -  if (active_ || IsHoverAnimationActive() ||
-+  if (pinned_ || active_ || IsHoverAnimationActive() ||
-       should_fill_background_tab_color_) {
-     return tab_style_->GetCurrentTabBackgroundColor(
-         GetSelectionState(), IsHoverAnimationActive(), GetHoverAnimationValue(),
-@@ -606,6 +607,12 @@ bool VerticalTabView::ShouldPaintTabBackgroundColor(
-     TabStyle::TabSelectionState selection_state,
-     bool has_custom_background,
-     bool hovered) const {
-+  // Pinned tabs are persistent destinations, so keep a calm tile surface even
-+  // while they are inactive. Custom themes still supply the actual colors.
-+  if (pinned_) {
-+    return true;
-+  }
-+
-   if (selection_state == TabStyle::TabSelectionState::kActive) {
-     return true;
+-      should_fill_background_tab_color_) {
++  if ((orientation_ == TabStripOrientation::kVertical && pinned_) || active_ ||
++      IsHoverAnimationActive() || should_fill_background_tab_color_) {
+     return tab_styling()->CalculateTargetColors().background_color;
    }
-@@ -1043,16 +1050,19 @@ void VerticalTabView::UpdateTitle(std::u16string title,
+   return std::nullopt;
+@@ -1105,16 +1105,19 @@ void TabView::UpdateBorder() {
+   }
  
- void VerticalTabView::UpdateBorder() {
    if (pinned_) {
 +    const int border_thickness =
 +        GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness);
      if (split_) {
-       // Insets for border handled by the `VerticalSplitTabView`.
+       // Insets for border handled by the `SplitTabView`.
 -      SetBorder(views::CreateEmptyBorder(gfx::Insets(GetLayoutConstant(
 -          LayoutConstant::kVerticalTabPinnedBorderThickness))));
 -    } else {
@@ -859,63 +863,68 @@ index eb9e13ce3d2dca019b4a9758bcd7ef4dc7846dc8..432164fcad0acd75b598c00eecb99b28
      }
    } else if (GetBorder()) {
      SetBorder(nullptr);
-@@ -1103,6 +1113,11 @@ void VerticalTabView::UpdateColors() {
+@@ -1133,6 +1136,11 @@ void TabView::UpdateColors() {
    alert_indicator_->OnParentTabButtonColorChanged();
  
    UpdateBorder();
-+  if (split_) {
-+    if (auto* split_view = views::AsViewClass<VerticalSplitTabView>(parent())) {
++  if (orientation_ == TabStripOrientation::kVertical && split_) {
++    if (auto* split_view = views::AsViewClass<SplitTabView>(parent())) {
 +      split_view->UpdateBorder();
 +    }
 +  }
  
    // TODO(crbug.com/465159185): Update focus ring colors.
    SchedulePaint();
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.h
-index 30bddac23a66df179d081a021600b76d82d378a1..7cde502ff505da921cbd5f340a6acc417aefdf30 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.h
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view.h
-@@ -84,6 +84,7 @@ class VerticalTabView : public views::View,
+diff --git a/chrome/browser/ui/views/tabs/common/tab_view.h b/chrome/browser/ui/views/tabs/common/tab_view.h
+index 04458f07af7f0aba0cd5446383df7074065330f2..ea53db9c68ca0c0de06e02145804daccb8ca9525 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_view.h
++++ b/chrome/browser/ui/views/tabs/common/tab_view.h
+@@ -99,6 +99,9 @@ class TabView : public views::View,
    float radial_highlight_opacity() { return radial_highlight_opacity_; }
    const tabs::TabData& data() const { return tab_data_; }
    bool IsActive() const { return active_; }
-+  bool ShouldPaintActivePinnedOutline() const { return pinned_ && active_; }
- 
-   TabCloseButton* close_button_for_testing() { return close_button_; }
- 
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc
-index b007fd08048281088fa7a2af0ae4da4021e1ea51..12f991733acba7daa8716fec2812d86f548ab8e2 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc
-@@ -11,6 +11,7 @@
- #include "base/test/run_until.h"
++  bool ShouldPaintActivePinnedOutline() const {
++    return orientation_ == TabStripOrientation::kVertical && pinned_ && active_;
++  }
+   bool IsClosing() const { return !collection_node_; }
+   bool split() const { return split_; }
+   const tabs::TabInterface* GetTabInterface() const;
+diff --git a/chrome/browser/ui/views/tabs/common/tab_view_browsertest.cc b/chrome/browser/ui/views/tabs/common/tab_view_browsertest.cc
+index 0d800d7afb253c4a0f1dec5e07d33959d7882ced..ac9e68133224396d7a7440d49e30255ac529b723 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_view_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view_browsertest.cc
+@@ -12,6 +12,7 @@
+ #include "build/build_config.h"
  #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
  #include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
 +#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
  #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
  #include "chrome/browser/ui/animation/browser_animation_controller.h"
- #include "chrome/browser/ui/browser.h"
-@@ -25,6 +26,7 @@
- #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
- #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+@@ -27,9 +28,11 @@
+ #include "chrome/browser/ui/views/tabs/common/split_tab_view.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_collection_node.h"
  #include "chrome/browser/ui/views/tabs/hovercard/tab_hover_card_bubble_view.h"
 +#include "chrome/browser/ui/views/tabs/tab/tab_accessibility.h"
  #include "chrome/browser/ui/views/tabs/tab/tab_close_button.h"
  #include "chrome/browser/ui/views/tabs/tab/tab_icon.h"
- #include "chrome/browser/ui/views/tabs/vertical/root_tab_collection_node.h"
-@@ -599,6 +601,82 @@ IN_PROC_BROWSER_TEST_F(VerticalTabViewTest, PinnedTabsRenderBorder) {
+ #include "chrome/browser/ui/views/test/vertical_tabs_browser_test_mixin.h"
++#include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "chrome/test/base/in_process_browser_test.h"
+ #include "chrome/test/base/ui_test_utils.h"
+@@ -577,6 +580,82 @@ IN_PROC_BROWSER_TEST_F(TabViewTest, PinnedTabsRenderBorder) {
    EXPECT_FALSE(unpinned_tab->GetBorder());
  }
  
-+IN_PROC_BROWSER_TEST_F(VerticalTabViewTest,
-+                       PinnedTabsUseStableActiveOnlyOutline) {
++IN_PROC_BROWSER_TEST_F(TabViewTest, PinnedTabsUseStableActiveOnlyOutline) {
 +  AppendPinnedTab();
 +  AppendPinnedTab();
 +  ASSERT_EQ(2u, pinned_collection_node()->children().size());
 +
-+  VerticalTabView* first = views::AsViewClass<VerticalTabView>(
++  TabView* first = views::AsViewClass<TabView>(
 +      pinned_collection_node()->children()[0]->view());
-+  VerticalTabView* second = views::AsViewClass<VerticalTabView>(
++  TabView* second = views::AsViewClass<TabView>(
 +      pinned_collection_node()->children()[1]->view());
 +  ASSERT_TRUE(first->GetBorder());
 +  ASSERT_TRUE(second->GetBorder());
@@ -936,7 +945,7 @@ index b007fd08048281088fa7a2af0ae4da4021e1ea51..12f991733acba7daa8716fec2812d86f
 +  EXPECT_EQ(first->GetInsets(), second->GetInsets());
 +}
 +
-+IN_PROC_BROWSER_TEST_F(VerticalTabViewTest,
++IN_PROC_BROWSER_TEST_F(TabViewTest,
 +                       ExplicitUserUnloadShowsPersistentTabStatus) {
 +  ASSERT_TRUE(embedded_test_server()->Start());
 +  const GURL original_url =
@@ -945,7 +954,7 @@ index b007fd08048281088fa7a2af0ae4da4021e1ea51..12f991733acba7daa8716fec2812d86f
 +  tab_strip_model()->SetTabPinned(0, true);
 +
 +  tabs::TabInterface* const unloaded_tab = tab_strip_model()->GetTabAtIndex(0);
-+  VerticalTabView* const unloaded_view = views::AsViewClass<VerticalTabView>(
++  TabView* const unloaded_view = views::AsViewClass<TabView>(
 +      pinned_collection_node()->children()[0]->view());
 +  TabIcon* const unloaded_icon = views::AsViewClass<TabIcon>(
 +      unloaded_view->GetViewByElementId(kTabIconElementId));
@@ -968,7 +977,8 @@ index b007fd08048281088fa7a2af0ae4da4021e1ea51..12f991733acba7daa8716fec2812d86f
 +
 +  const std::u16string pinned_name = l10n_util::GetStringFUTF16(
 +      IDS_TAB_AX_LABEL_PINNED_FORMAT,
-+      browser()->GetTitleForTab(unloaded_tab->GetHandle()));
++      WindowMetadataController::From(browser())->GetTitleForTab(
++          unloaded_tab->GetHandle()));
 +  const std::u16string expected_accessible_name =
 +      l10n_util::GetStringFUTF16(IDS_TAB_AX_INACTIVE_TAB, pinned_name);
 +  EXPECT_EQ(expected_accessible_name,
@@ -983,6 +993,60 @@ index b007fd08048281088fa7a2af0ae4da4021e1ea51..12f991733acba7daa8716fec2812d86f
 +  EXPECT_EQ(original_favicon, unloaded_view->data().favicon);
 +}
 +
- IN_PROC_BROWSER_TEST_F(VerticalTabViewTest, LogsTabCloseMetrics) {
+ IN_PROC_BROWSER_TEST_F(TabViewTest, LogsTabCloseMetrics) {
    base::UserActionTester user_action_tester;
  
+diff --git a/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc b/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
+index 6641560e2f254670b98975cfd02c81c3ed5ceea7..d6c41665f0bfe4863475e581ef269268d28ce94d 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
+@@ -14,9 +14,11 @@
+ #include "chrome/browser/ui/views/tabs/tab/tab_icon.h"
+ #include "chrome/browser/ui/views/tabs/tab/tab_title.h"
+ #include "chrome/browser/ui/views/tabs/tab_style_views.h"
++#include "ui/gfx/favicon_size.h"
+ 
+ namespace {
+ constexpr int kIconDesignWidth = 16;
++static_assert(kIconDesignWidth == gfx::kFaviconSize);
+ constexpr int kTitleMinWidth = 10;
+ constexpr int kHorizontalInset = 8;
+ constexpr int kDefaultPadding = 4;
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+index 08d127e8a47a42a0d2d13f9a9e7cb21769e08d79..7e4a88a454940b1f68b6f43a8520ec841f5d1daf 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+@@ -41,6 +41,8 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
+           record_new_tab_button_pressed);
+ 
+   new_tab_button_ = AddChildView(std::move(new_tab_button));
++  // Keep the primary action legible whenever the rail has room for its label.
++  new_tab_button_->SetShouldShowLabel(true);
+ 
+   OnCollapseStateChanged(state_controller->GetCollapseState());
+   collapsed_state_change_subscription_ =
+@@ -51,7 +53,6 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
+ 
+ VerticalTabStripBottomContainer::~VerticalTabStripBottomContainer() = default;
+ 
+-
+ bool VerticalTabStripBottomContainer::IsPositionInWindowCaption(
+     const gfx::Point& point) {
+   for (views::View* child : children()) {
+diff --git a/chrome/browser/ui/views/tabs/vertical_tab_style_views.cc b/chrome/browser/ui/views/tabs/vertical_tab_style_views.cc
+index cbec9de4fa9c629e50e8c13330f50ad2cca235e4..9c19954f20cc1985bd0f1e9f473cfc5b22c61e08 100644
+--- a/chrome/browser/ui/views/tabs/vertical_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/vertical_tab_style_views.cc
+@@ -166,6 +166,12 @@ bool VerticalTabStyleViews::ShouldPaintTabBackgroundColor(
+     TabStyle::TabSelectionState selection_state,
+     bool has_custom_background,
+     bool hovered) const {
++  // Pinned tabs are persistent destinations, so keep a calm tile surface even
++  // while they are inactive. Custom themes still supply the actual colors.
++  if (delegate_->IsPinned()) {
++    return true;
++  }
++
+   if (selection_state == TabStyle::TabSelectionState::kActive) {
+     return true;
+   }

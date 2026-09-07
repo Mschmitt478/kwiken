@@ -85,7 +85,7 @@ function New-TestArchiveEntry {
 }
 
 function New-ValidArchiveEntries {
-  $version = "150.0.7871.186"
+  $version = "153.0.8010.28"
   return @(
     (New-TestArchiveEntry -Path "Chrome-bin" -Size 0 -IsFolder $true),
     (New-TestArchiveEntry -Path "Chrome-bin\chrome.exe"),
@@ -110,7 +110,7 @@ Size = 10
 Attributes = A
 Encrypted = -
 
-Path = Chrome-bin\150.0.7871.186\chrome.dll
+Path = Chrome-bin\153.0.8010.28\chrome.dll
 Size = 20
 Folder = -
 Encrypted = -
@@ -160,7 +160,7 @@ Reparse Point = junction-data
 }
 
 Invoke-Test "Chrome-bin layout accepts the pinned version" {
-  $layout = Assert-KwikenChromeArchiveLayout -ExpectedVersion "150.0.7871.186" `
+  $layout = Assert-KwikenChromeArchiveLayout -ExpectedVersion "153.0.8010.28" `
     -Entries (New-ValidArchiveEntries)
   Assert-True -Condition ($layout.EntryCount -eq 6) `
     -Message "The valid archive layout returned the wrong entry count."
@@ -185,7 +185,7 @@ Invoke-Test "Chrome-bin layout requires chrome_proxy and critical file metadata"
     $_.Path -ne "Chrome-bin\chrome_proxy.exe"
   })
   Assert-Throws -Pattern "chrome_proxy.exe" -Body {
-    Assert-KwikenChromeArchiveLayout -ExpectedVersion "150.0.7871.186" `
+    Assert-KwikenChromeArchiveLayout -ExpectedVersion "153.0.8010.28" `
       -Entries $withoutProxy
   }
 
@@ -197,7 +197,7 @@ Invoke-Test "Chrome-bin layout requires chrome_proxy and critical file metadata"
     }
   })
   Assert-Throws -Pattern "empty or has no valid size" -Body {
-    Assert-KwikenChromeArchiveLayout -ExpectedVersion "150.0.7871.186" `
+    Assert-KwikenChromeArchiveLayout -ExpectedVersion "153.0.8010.28" `
       -Entries $emptyChrome
   }
 
@@ -209,7 +209,7 @@ Invoke-Test "Chrome-bin layout requires chrome_proxy and critical file metadata"
     }
   })
   Assert-Throws -Pattern "directory, not a regular file" -Body {
-    Assert-KwikenChromeArchiveLayout -ExpectedVersion "150.0.7871.186" `
+    Assert-KwikenChromeArchiveLayout -ExpectedVersion "153.0.8010.28" `
       -Entries $directoryChrome
   }
 
@@ -221,7 +221,7 @@ Invoke-Test "Chrome-bin layout requires chrome_proxy and critical file metadata"
     }
   })
   Assert-Throws -Pattern "encrypted" -Body {
-    Assert-KwikenChromeArchiveLayout -ExpectedVersion "150.0.7871.186" `
+    Assert-KwikenChromeArchiveLayout -ExpectedVersion "153.0.8010.28" `
       -Entries $encryptedChrome
   }
 }
@@ -231,12 +231,12 @@ Invoke-Test "critical extraction rejects substituted sizes before launching 7za"
     Expand-KwikenValidatedCriticalArchiveFiles `
       -SevenZipPath "unused-7za.exe" -ArchivePath "unused-chrome.7z" `
       -Entries (New-ValidArchiveEntries) `
-      -ExpectedVersion "150.0.7871.186" `
+      -ExpectedVersion "153.0.8010.28" `
       -Destination (Join-Path ([IO.Path]::GetTempPath()) "unused-extraction") `
       -ExpectedSizes @{
         "Chrome-bin\chrome.exe" = 11
         "Chrome-bin\chrome_proxy.exe" = 10
-        "Chrome-bin\150.0.7871.186\chrome.dll" = 10
+        "Chrome-bin\153.0.8010.28\chrome.dll" = 10
       } -TimeoutSeconds 1
   }
 }
@@ -360,7 +360,7 @@ Invoke-Test "Chrome-bin layout rejects foreign entries" {
   $withForeignEntry = @(New-ValidArchiveEntries)
   $withForeignEntry += New-TestArchiveEntry -Path "Other-root\payload.dll"
   Assert-Throws -Pattern "outside Chrome-bin" -Body {
-    Assert-KwikenChromeArchiveLayout -ExpectedVersion "150.0.7871.186" `
+    Assert-KwikenChromeArchiveLayout -ExpectedVersion "153.0.8010.28" `
       -Entries $withForeignEntry
   }
 }

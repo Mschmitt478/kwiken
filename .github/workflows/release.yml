@@ -28,6 +28,7 @@ env:
   KWIKEN_CHROMIUM_ROOT: ${{ vars.KWIKEN_CHROMIUM_ROOT }}
   KWIKEN_DEPOT_TOOLS_ROOT: ${{ vars.KWIKEN_DEPOT_TOOLS_ROOT }}
   KWIKEN_VISUAL_STUDIO_ROOT: ${{ vars.KWIKEN_VISUAL_STUDIO_ROOT }}
+  KWIKEN_WINDOWS_SDK_ROOT: ${{ vars.KWIKEN_WINDOWS_SDK_ROOT }}
   KWIKEN_WEB_STORE_ARCHIVE: ${{ vars.KWIKEN_WEB_STORE_ARCHIVE }}
   KWIKEN_NSIS_RUNTIME_ROOT: ${{ vars.KWIKEN_NSIS_RUNTIME_ROOT }}
   KWIKEN_NSIS_EXE_SHA256: ${{ vars.KWIKEN_NSIS_EXE_SHA256 }}
@@ -72,7 +73,8 @@ jobs:
           foreach ($name in @(
               "KWIKEN_CHROMIUM_ROOT",
               "KWIKEN_DEPOT_TOOLS_ROOT",
-              "KWIKEN_VISUAL_STUDIO_ROOT"
+              "KWIKEN_VISUAL_STUDIO_ROOT",
+              "KWIKEN_WINDOWS_SDK_ROOT"
             )) {
             $value = [Environment]::GetEnvironmentVariable($name)
             if ([string]::IsNullOrWhiteSpace($value) -or
@@ -83,6 +85,9 @@ jobs:
           }
           if (-not (Test-Path -LiteralPath $env:KWIKEN_VISUAL_STUDIO_ROOT -PathType Container)) {
             throw "KWIKEN_VISUAL_STUDIO_ROOT is not provisioned on this runner."
+          }
+          if (-not (Test-Path -LiteralPath $env:KWIKEN_WINDOWS_SDK_ROOT -PathType Container)) {
+            throw "KWIKEN_WINDOWS_SDK_ROOT is not provisioned on this runner."
           }
           foreach ($name in @(
               "KWIKEN_WEB_STORE_ARCHIVE",

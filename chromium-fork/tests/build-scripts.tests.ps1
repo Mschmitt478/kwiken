@@ -70,16 +70,26 @@ function Assert-Throws {
 Invoke-Test "environment-backed build roots" {
   $previousChromiumRoot = [Environment]::GetEnvironmentVariable("KWIKEN_CHROMIUM_ROOT")
   $previousDepotToolsRoot = [Environment]::GetEnvironmentVariable("KWIKEN_DEPOT_TOOLS_ROOT")
+  $previousWindowsSdkRoot = [Environment]::GetEnvironmentVariable(
+    "KWIKEN_WINDOWS_SDK_ROOT"
+  )
   try {
     $env:KWIKEN_CHROMIUM_ROOT = "C:\src\test-chromium"
     $env:KWIKEN_DEPOT_TOOLS_ROOT = "C:\src\test-depot-tools"
+    $env:KWIKEN_WINDOWS_SDK_ROOT = "C:\src\test-windows-sdk"
     Assert-True -Condition ((Get-DefaultChromiumRoot) -eq $env:KWIKEN_CHROMIUM_ROOT) `
       -Message "Chromium environment override was ignored."
     Assert-True -Condition ((Get-DefaultDepotToolsRoot) -eq $env:KWIKEN_DEPOT_TOOLS_ROOT) `
       -Message "depot_tools environment override was ignored."
+    Assert-True -Condition ((Get-WindowsSdkRoot) -eq $env:KWIKEN_WINDOWS_SDK_ROOT) `
+      -Message "Windows SDK environment override was ignored."
   } finally {
     [Environment]::SetEnvironmentVariable("KWIKEN_CHROMIUM_ROOT", $previousChromiumRoot)
     [Environment]::SetEnvironmentVariable("KWIKEN_DEPOT_TOOLS_ROOT", $previousDepotToolsRoot)
+    [Environment]::SetEnvironmentVariable(
+      "KWIKEN_WINDOWS_SDK_ROOT",
+      $previousWindowsSdkRoot
+    )
   }
 }
 
@@ -118,6 +128,10 @@ Invoke-Test "pinned tool revisions are valid" {
     -Message "depot_tools revision is not a 40-character hash."
   Assert-True -Condition ($script:ExpectedSourceDeltaSha256 -match '^[0-9a-f]{64}$') `
     -Message "Expected source-delta fingerprint is not a SHA-256 hash."
+  Assert-True -Condition ($script:RequiredWindowsSdkVersion -eq [Version]"10.0.28000.0") `
+    -Message "The Windows SDK requirement does not match Chromium 153."
+  Assert-True -Condition ($script:RequiredWindowsDebuggerVersion -eq [Version]"10.0.26100.3323") `
+    -Message "The debugger requirement does not match Chromium 153."
 }
 
 Invoke-Test "build environment is restorable" {
@@ -164,10 +178,35 @@ Invoke-Test "depot_tools is first on PATH" {
 }
 
 Invoke-Test "SDK version detection" {
-  $rcPath = Get-WindowsSdkRcPath
-  $version = Get-ProductVersion -Path $rcPath
-  Assert-True -Condition ($version -ge $script:RequiredWindowsSdkVersion) `
-    -Message "The installed SDK is older than the pinned Chromium requirement."
+  $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+  $sdkTestRoot = [IO.Path]::GetFullPath((Join-Path $tempBase (
+        "kwiken-sdk-contract-" + [Guid]::NewGuid().ToString("N")
+      )))
+  if (-not $sdkTestRoot.StartsWith(
+      $tempBase,
+      [StringComparison]::OrdinalIgnoreCase
+    )) {
+    throw "The SDK contract fixture escaped the temporary directory."
+  }
+  $expectedRcPath = Join-Path $sdkTestRoot "bin\10.0.28000.0\x64\rc.exe"
+  $previousWindowsSdkRoot = [Environment]::GetEnvironmentVariable(
+    "KWIKEN_WINDOWS_SDK_ROOT"
+  )
+  try {
+    $null = New-Item -ItemType Directory -Path (Split-Path -Parent $expectedRcPath)
+    $null = New-Item -ItemType File -Path $expectedRcPath
+    $env:KWIKEN_WINDOWS_SDK_ROOT = $sdkTestRoot
+    Assert-Equal -Actual (Get-WindowsSdkRcPath) -Expected $expectedRcPath `
+      -Message "The exact Chromium 153 SDK rc.exe was not selected."
+  } finally {
+    [Environment]::SetEnvironmentVariable(
+      "KWIKEN_WINDOWS_SDK_ROOT",
+      $previousWindowsSdkRoot
+    )
+    if (Test-Path -LiteralPath $sdkTestRoot) {
+      Remove-Item -LiteralPath $sdkTestRoot -Recurse -Force
+    }
+  }
 }
 
 Invoke-Test "batch runner propagates exit codes" {

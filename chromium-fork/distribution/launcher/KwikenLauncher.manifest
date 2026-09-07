@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity name="Kwiken.Browser" processorArchitecture="amd64" type="win32" version="150.0.7871.186"/>
+  <assemblyIdentity name="Kwiken.Browser" processorArchitecture="amd64" type="win32" version="153.0.8010.28"/>
   <description>Kwiken Browser</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>

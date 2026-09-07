@@ -73,13 +73,11 @@ credentials for independent Chromium distributions.
 
 ## Extensions
 
-Ungoogled Chromium intentionally cannot install directly from the Chrome Web
-Store interface. Kwiken bundles the open-source Chromium Web Store compatibility
-extension recommended by the ungoogled-chromium project and enables its CRX
-installation mode. It works with the Chrome Web Store, Microsoft Edge Add-ons,
-and Opera Add-ons. The bridge uses extension-management and download permissions
-to install and update other extensions; its source is available at
-[`NeverDecaf/chromium-web-store`](https://github.com/NeverDecaf/chromium-web-store).
+Kwiken bundles the open-source Chromium Web Store compatibility extension and
+enables its CRX installation mode. It works with the Chrome Web Store, Microsoft
+Edge Add-ons, and Opera Add-ons. The bridge uses extension-management and
+download permissions to install and update other extensions; its source is
+available at [`NeverDecaf/chromium-web-store`](https://github.com/NeverDecaf/chromium-web-store).
 Launch with `--disable-kwiken-web-store` to opt out.
 
 ## Lightweight Defaults

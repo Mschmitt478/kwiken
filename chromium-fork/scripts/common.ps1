@@ -12,7 +12,7 @@ $script:ExpectedSourceDeltaSha256 = (
   Get-Content (Join-Path $script:ForkRoot "SOURCE_DELTA_SHA256") -Raw
 ).Trim().ToLowerInvariant()
 $script:RequiredVisualStudioMajorVersion = 18
-$script:RequiredWindowsSdkVersion = [Version]"10.0.26100.7705"
+$script:RequiredWindowsSdkVersion = [Version]"10.0.28000.0"
 $script:RequiredWindowsDebuggerVersion = [Version]"10.0.26100.3323"
 
 function Get-DefaultChromiumRoot {
@@ -183,27 +183,31 @@ function Get-ProductVersion {
   return [Version]$match.Value
 }
 
-function Get-WindowsSdkRcPath {
-  $sdkRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
-  if (-not (Test-Path -LiteralPath $sdkRoot)) {
-    return $null
+function Get-WindowsSdkRoot {
+  $configuredRoot = [Environment]::GetEnvironmentVariable(
+    "KWIKEN_WINDOWS_SDK_ROOT"
+  )
+  if ([string]::IsNullOrWhiteSpace($configuredRoot)) {
+    $configuredRoot = [Environment]::GetEnvironmentVariable("WINDOWSSDKDIR")
   }
-  return Get-ChildItem -LiteralPath $sdkRoot -Directory |
-    Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
-    Sort-Object { [Version]$_.Name } -Descending |
-    ForEach-Object { Join-Path $_.FullName "x64\rc.exe" } |
-    Where-Object { Test-Path -LiteralPath $_ } |
-    Select-Object -First 1
+  if ([string]::IsNullOrWhiteSpace($configuredRoot)) {
+    $configuredRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10"
+  }
+  return ([IO.Path]::GetFullPath(
+      [Environment]::ExpandEnvironmentVariables($configuredRoot)
+    )).TrimEnd('\')
+}
+
+function Get-WindowsSdkRcPath {
+  $candidate = Join-Path (Get-WindowsSdkRoot) (
+    "bin\$script:RequiredWindowsSdkVersion\x64\rc.exe"
+  )
+  return $candidate | Where-Object { Test-Path -LiteralPath $_ }
 }
 
 function Get-WindowsDebuggerPath {
-  $candidates = @(
-    (Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Debuggers\x64\cdb.exe"),
-    (Join-Path $env:ProgramFiles "Windows Kits\10\Debuggers\x64\cdb.exe")
-  )
-  return $candidates |
-    Where-Object { Test-Path -LiteralPath $_ } |
-    Select-Object -First 1
+  $candidate = Join-Path (Get-WindowsSdkRoot) "Debuggers\x64\cdb.exe"
+  return $candidate | Where-Object { Test-Path -LiteralPath $_ }
 }
 
 function New-PrerequisiteResult {
@@ -416,6 +420,7 @@ function New-ChromiumBuildEnvironmentSnapshot {
       "DEPOT_TOOLS_UPDATE",
       "DEPOT_TOOLS_WIN_TOOLCHAIN",
       "vs2026_install",
+      "WINDOWSSDKDIR",
       "GIT_CONFIG_COUNT"
     )) {
     $names.Add($name)
@@ -498,6 +503,7 @@ function Set-ChromiumBuildEnvironment {
   $env:DEPOT_TOOLS_UPDATE = "0"
   $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
   $env:vs2026_install = $resolvedVisualStudioRoot
+  $env:WINDOWSSDKDIR = Get-WindowsSdkRoot
   Set-ChromiumGitEnvironment
   Set-DepotToolsPath -DepotToolsRoot $DepotToolsRoot
 }
