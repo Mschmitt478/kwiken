@@ -48,7 +48,7 @@ index d7c80fc5965a14a814fd3d0d80584382287598d0..8e771c64683fc0cfd0861f603efca138
            Ungroup
          </message>
 diff --git a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
-index a6c53969ea00adc6c6ca3b6c1f3611003b626650..5484db1181822d62f7855eaf60a9bad573c27d26 100644
+index a6c53969ea00adc6c6ca3b6c1f3611003b626650..74610a2d5110b9fc55990090df7d6791a16d86a8 100644
 --- a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
 +++ b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
 @@ -15,6 +15,7 @@
@@ -201,7 +201,8 @@ index a6c53969ea00adc6c6ca3b6c1f3611003b626650..5484db1181822d62f7855eaf60a9bad5
 +      l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS),
 +      base::BindRepeating(&TabGroupEditorBubbleView::LoadAllTabsPressed,
 +                          base::Unretained(this)),
-+      ui::ImageModel::FromVectorIcon(kRefreshIcon, ui::kColorMenuIcon,
++      ui::ImageModel::FromVectorIcon(vector_icons::kRefreshIcon,
++                                     ui::kColorMenuIcon,
 +                                     kDefaultIconSize));
 +  menu_item->GetViewAccessibility().SetDescription(l10n_util::GetStringUTF16(
 +      IDS_TAB_GROUP_HEADER_CXMENU_LOAD_ALL_TABS_DESCRIPTION));

@@ -74,6 +74,8 @@ Assert-PatchMatch "result is announced to accessibility APIs" `
   'SetDescription\(result\)[\s\S]+AnnounceText\(result\)'
 Assert-PatchMatch "shared group editor exposes both commands" `
   'BuildLoadAllTabsButton\(\)[\s\S]+BuildUnloadAllTabsButton\(\)'
+Assert-PatchMatch "load command qualifies the shared refresh icon" `
+  'FromVectorIcon\(vector_icons::kRefreshIcon'
 Assert-PatchMatch "stable group identity resolves current membership" `
   'GetCurrentGroupTabs\(\)[\s\S]{0,40}const[\s\S]+ContainsTabGroup\(group_\)[\s\S]+ListTabs\(\)'
 Assert-PatchMatch "actions snapshot TabInterface members" `
@@ -125,6 +127,8 @@ Assert-PatchDoesNotMatch "must not synthesize WebContents" `
   '(WebContents::Create|make_unique<content::WebContents>)'
 Assert-PatchDoesNotMatch "must not bypass lifecycle unload APIs" `
   '(DiscardWebContentsAt|DiscardTab\(|LifecycleUnitDiscardReason::EXTERNAL)'
+Assert-PatchDoesNotMatch "must not reference an unqualified refresh icon" `
+  'FromVectorIcon\(kRefreshIcon'
 Assert-PatchDoesNotMatch "must not mutate saved-group persistence" `
   '(SavedTabGroupModel|TabGroupSyncServiceImpl|SavedTabGroupTab)'
 Assert-PatchDoesNotMatch "must not contain machine-specific source paths" `
