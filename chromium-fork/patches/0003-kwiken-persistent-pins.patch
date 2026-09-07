@@ -45,7 +45,7 @@ index c8e946c19e0bfdc5d932532a7413ce5ce861283b..50b1df6175177bc966324ebbf998464d
    std::vector<std::unique_ptr<NavigationEntry>> entries =
        ContentSerializedNavigationBuilder::ToNavigationEntries(
 diff --git a/chrome/browser/ui/browser_tabrestore_browsertest.cc b/chrome/browser/ui/browser_tabrestore_browsertest.cc
-index 0d7c739f4c12248bbb01e110b2555b6c265b92fa..72f020db8f35c1c799a3a1276e86f01984f5bbf9 100644
+index 0d7c739f4c12248bbb01e110b2555b6c265b92fa..7f8c067af6f2d8d798d7f5b199b6a1ddb4bd303a 100644
 --- a/chrome/browser/ui/browser_tabrestore_browsertest.cc
 +++ b/chrome/browser/ui/browser_tabrestore_browsertest.cc
 @@ -7,6 +7,8 @@
@@ -74,7 +74,7 @@ index 0d7c739f4c12248bbb01e110b2555b6c265b92fa..72f020db8f35c1c799a3a1276e86f019
 +IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest,
 +                       PersistentPinIdentityRestoresBeforeTabInsertion) {
 +  constexpr char kRestoredId[] = "33333333-3333-4333-8333-333333333333";
-+  ASSERT_TRUE(PinnedTabServiceFactory::GetForProfile(browser()->profile()));
++  ASSERT_TRUE(PinnedTabServiceFactory::GetForProfile(browser()->GetProfile()));
 +
 +  sessions::SerializedNavigationEntry navigation_entry;
 +  navigation_entry.set_index(0);
@@ -102,7 +102,7 @@ index 0d7c739f4c12248bbb01e110b2555b6c265b92fa..72f020db8f35c1c799a3a1276e86f019
 +  // session data: the second intentional duplicate-URL pin is retained but
 +  // repaired to a fresh identity rather than being deduplicated by URL.
 +  PersistentPinnedTabs records =
-+      PinnedTabCodec::ReadPersistentPinnedTabs(browser()->profile());
++      PinnedTabCodec::ReadPersistentPinnedTabs(browser()->GetProfile());
 +  ASSERT_EQ(2u, records.size());
 +  EXPECT_EQ(kRestoredId, records[0].id);
 +  EXPECT_EQ(GURL(url::kAboutBlankURL), records[0].url);
@@ -530,7 +530,7 @@ index 4197f779212fa51bf4842b77b847d069b176814f..e20757ad10db56ac91d195e92754f826
    PinnedTabCodec();
    ~PinnedTabCodec();
 diff --git a/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc b/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc
-index d5d0b779c58bbb880a5788304b2853c8eefef8e1..1346552e3c6395f606ad1eaeb07fb1363db1b0b8 100644
+index d5d0b779c58bbb880a5788304b2853c8eefef8e1..931754d8b00bafb134f68ddf0985e71e285cab88 100644
 --- a/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc
 +++ b/chrome/browser/ui/tabs/pinned_tab_codec_browsertest.cc
 @@ -7,14 +7,18 @@
@@ -567,9 +567,9 @@ index d5d0b779c58bbb880a5788304b2853c8eefef8e1..1346552e3c6395f606ad1eaeb07fb136
 +      {kSecondId, duplicate_url, u"Second duplicate"},
 +  };
 +
-+  PinnedTabCodec::WritePersistentPinnedTabs(browser()->profile(), records);
++  PinnedTabCodec::WritePersistentPinnedTabs(browser()->GetProfile(), records);
 +  PersistentPinnedTabs decoded =
-+      PinnedTabCodec::ReadPersistentPinnedTabs(browser()->profile());
++      PinnedTabCodec::ReadPersistentPinnedTabs(browser()->GetProfile());
 +
 +  ASSERT_EQ(2u, decoded.size());
 +  EXPECT_EQ(kFirstId, decoded[0].id);
@@ -580,7 +580,7 @@ index d5d0b779c58bbb880a5788304b2853c8eefef8e1..1346552e3c6395f606ad1eaeb07fb136
 +  EXPECT_EQ(u"Second duplicate", decoded[1].title);
 +
 +  const base::ListValue& pref =
-+      browser()->profile()->GetPrefs()->GetList(prefs::kPinnedTabs);
++      browser()->GetProfile()->GetPrefs()->GetList(prefs::kPinnedTabs);
 +  ASSERT_EQ(2u, pref.size());
 +  EXPECT_EQ(1, pref[0].GetDict().FindInt("record_version"));
 +  EXPECT_EQ(kFirstId, *pref[0].GetDict().FindString("id"));
@@ -607,12 +607,12 @@ index d5d0b779c58bbb880a5788304b2853c8eefef8e1..1346552e3c6395f606ad1eaeb07fb136
 +    record.Set("title", "duplicate id");
 +    pref.Append(std::move(record));
 +  }
-+  browser()->profile()->GetPrefs()->SetList(prefs::kPinnedTabs,
-+                                            std::move(pref));
++  browser()->GetProfile()->GetPrefs()->SetList(prefs::kPinnedTabs,
++                                               std::move(pref));
 +
 +  bool needs_migration = false;
 +  PersistentPinnedTabs decoded = PinnedTabCodec::ReadPersistentPinnedTabs(
-+      browser()->profile(), &needs_migration);
++      browser()->GetProfile(), &needs_migration);
 +
 +  ASSERT_TRUE(needs_migration);
 +  ASSERT_EQ(3u, decoded.size());
@@ -632,20 +632,20 @@ index d5d0b779c58bbb880a5788304b2853c8eefef8e1..1346552e3c6395f606ad1eaeb07fb136
 +  future.Set("future_field", "opaque");
 +  base::ListValue pref;
 +  pref.Append(future.Clone());
-+  browser()->profile()->GetPrefs()->SetList(prefs::kPinnedTabs,
-+                                            std::move(pref));
++  browser()->GetProfile()->GetPrefs()->SetList(prefs::kPinnedTabs,
++                                               std::move(pref));
 +
 +  bool needs_migration = true;
-+  EXPECT_TRUE(PinnedTabCodec::ReadPersistentPinnedTabs(browser()->profile(),
++  EXPECT_TRUE(PinnedTabCodec::ReadPersistentPinnedTabs(browser()->GetProfile(),
 +                                                       &needs_migration)
 +                  .empty());
 +  EXPECT_FALSE(needs_migration);
 +
 +  PinnedTabCodec::WritePersistentPinnedTabs(
-+      browser()->profile(), {{"55555555-5555-4555-8555-555555555555",
++      browser()->GetProfile(), {{"55555555-5555-4555-8555-555555555555",
 +                              GURL("https://known.example.test/"), u"Known"}});
 +  const base::ListValue& after =
-+      browser()->profile()->GetPrefs()->GetList(prefs::kPinnedTabs);
++      browser()->GetProfile()->GetPrefs()->GetList(prefs::kPinnedTabs);
 +  ASSERT_EQ(2u, after.size());
 +  EXPECT_EQ(future, after[1].GetDict());
 +}
