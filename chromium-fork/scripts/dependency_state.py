@@ -284,7 +284,7 @@ def _decode_cipd_probe_revision(revision: Any, path: str) -> str:
 def _pinned_vpython_command(
     depot_tools_root: Path, script: Path, arguments: Sequence[str]
 ) -> list[str]:
-    specification = depot_tools_root / ".vpython3"
+    specification = depot_tools_root / "vpython.toml"
     _assert_plain_path(specification, directory=False)
     if os.name == "nt":
         executable = depot_tools_root / ".cipd_bin" / "vpython3.exe"
