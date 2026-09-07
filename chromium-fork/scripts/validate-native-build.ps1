@@ -1040,8 +1040,8 @@ function Expand-KwikenValidatedCriticalArchiveFiles {
     )) {
     $arguments.Add($argument)
   }
-  foreach ($archivePath in $archivePaths) {
-    $arguments.Add($archivePath)
+  foreach ($entryPath in $archivePaths) {
+    $arguments.Add($entryPath)
   }
   $result = Invoke-KwikenBoundedProcess -FilePath $SevenZipPath `
     -Arguments (Join-KwikenWindowsCommandLineArguments -Arguments $arguments.ToArray()) `
