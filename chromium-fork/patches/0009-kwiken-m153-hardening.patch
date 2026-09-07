@@ -737,7 +737,7 @@ index 1f01557a58f63c1f7aefbba2fd5176935b98ef41..66da6c7eb7028031d0b69b520314d77c
        tab_ui_helper->GetDiscardedMemorySavings();
    tab_data.network_state = tab_ui_helper->GetTabNetworkState();
 diff --git a/chrome/browser/ui/tabs/tab_data_browsertest.cc b/chrome/browser/ui/tabs/tab_data_browsertest.cc
-index c4c3b61ffc24f4b8c4577435c07ac9c97aacf5f2..d3a30b6cdc259e5dcaec065c5c78a862c13e010b 100644
+index c4c3b61ffc24f4b8c4577435c07ac9c97aacf5f2..23ed72e7817b6cc2f76e2fd14e0b29ed2e5edddb 100644
 --- a/chrome/browser/ui/tabs/tab_data_browsertest.cc
 +++ b/chrome/browser/ui/tabs/tab_data_browsertest.cc
 @@ -411,9 +411,14 @@ IN_PROC_BROWSER_TEST_F(TabDataObserverBrowserTest, TabLifecycleManagement) {
@@ -749,7 +749,7 @@ index c4c3b61ffc24f4b8c4577435c07ac9c97aacf5f2..d3a30b6cdc259e5dcaec065c5c78a862
    EXPECT_EQ(original_title, data_restored_unloaded.title);
    EXPECT_EQ(original_url, data_restored_unloaded.last_committed_url);
 +
-+  tab_strip_model->SetTabPinned(0, true);
++  browser()->GetTabStripModel()->SetTabPinned(0, true);
 +  tabs::TabData data_pinned_unloaded =
 +      tabs::TabData::FromTabInterface(tab_interface);
 +  EXPECT_TRUE(data_pinned_unloaded.should_show_discard_status);
