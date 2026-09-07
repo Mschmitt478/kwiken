@@ -29,6 +29,12 @@ param(
   [string]$ExpectedPythonRuntimeTreeSha256,
   [Parameter(Mandatory = $true)]
   [ValidateNotNullOrEmpty()]
+  [string]$VisualStudioRoot,
+  [Parameter(Mandatory = $true)]
+  [ValidateNotNullOrEmpty()]
+  [string]$WindowsSdkRoot,
+  [Parameter(Mandatory = $true)]
+  [ValidateNotNullOrEmpty()]
   [string]$MakeNsisPath,
   [Parameter(Mandatory = $true)]
   [ValidateNotNullOrEmpty()]
@@ -728,39 +734,84 @@ try {
   }
 }
 
+function Get-ApprovedVisualStudioDirectories {
+  param(
+    [Parameter(Mandatory = $true)]
+    [hashtable]$Environment,
+    [Parameter(Mandatory = $true)]
+    [string]$Name,
+    [Parameter(Mandatory = $true)]
+    [string]$VisualStudioRoot,
+    [switch]$DiscardOutsideRoot
+  )
+
+  $rootPath = [IO.Path]::GetFullPath($VisualStudioRoot).TrimEnd('\')
+  $directories = [Collections.Generic.List[string]]::new()
+  foreach ($entry in ([string]$Environment[$Name] -split ';')) {
+    $candidate = $entry.Trim().Trim('"')
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    if (-not [IO.Path]::IsPathRooted($candidate)) {
+      throw "Visual Studio returned a non-rooted $Name directory."
+    }
+    $candidatePath = [IO.Path]::GetFullPath($candidate).TrimEnd('\')
+    if (-not $candidatePath.StartsWith(
+        $rootPath + '\',
+        [StringComparison]::OrdinalIgnoreCase
+      )) {
+      if ($DiscardOutsideRoot) { continue }
+      throw "Visual Studio returned a $Name directory outside the approved root."
+    }
+    $directory = Get-RegularDirectory -Path $candidatePath `
+      -Description "Approved Visual Studio $Name directory"
+    $directories.Add($directory.FullName)
+  }
+  if ($directories.Count -lt 1) {
+    throw "Visual Studio did not return an approved $Name directory."
+  }
+  return $directories.ToArray()
+}
+
 function Import-VisualStudioEnvironment {
   param(
     [Parameter(Mandatory = $true)]
-    [string]$WorkDirectory
+    [string]$WorkDirectory,
+    [Parameter(Mandatory = $true)]
+    [string]$VisualStudioRoot,
+    [Parameter(Mandatory = $true)]
+    [string]$WindowsSdkRoot
   )
 
-  $vsWhere = Get-VsWherePath
-  if (-not $vsWhere) {
-    throw "Visual Studio Installer's vswhere.exe was not found."
-  }
-  $vsWhere = (Get-RegularFile -Path $vsWhere -Description "vswhere.exe").FullName
-  $query = Invoke-BoundedProcess -FilePath $vsWhere -Arguments @(
-    "-latest", "-products", "*",
-    "-version", "[$script:RequiredVisualStudioMajorVersion.0,$($script:RequiredVisualStudioMajorVersion + 1).0)",
-    "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-    "-property", "installationPath"
-  ) -WorkingDirectory $WorkDirectory -Description "vswhere.exe"
-  $installationPath = @($query.StandardOutput -split "`r?`n" |
-    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) | Select-Object -First 1
-  if (-not $installationPath) {
-    throw "A Visual Studio installation with C++ build tools was not found."
-  }
-  $vsDevCmd = Join-Path $installationPath.Trim() "Common7\Tools\VsDevCmd.bat"
+  $visualStudio = Get-RegularDirectory -Path $VisualStudioRoot `
+    -Description "Approved Visual Studio root"
+  $windowsSdk = Get-RegularDirectory -Path $WindowsSdkRoot `
+    -Description "Approved Windows SDK root"
+  $vsDevCmd = Join-Path $visualStudio.FullName "Common7\Tools\VsDevCmd.bat"
   [void](Get-RegularFile -Path $vsDevCmd -Description "VsDevCmd.bat")
-  if ($vsDevCmd -match '[\r\n"%!&|<>\^]') {
-    throw "Visual Studio's developer-command path contains unsafe cmd.exe characters."
+  foreach ($approvedPath in @(
+      $visualStudio.FullName,
+      $windowsSdk.FullName,
+      $vsDevCmd
+    )) {
+    if ($approvedPath -match '[\r\n"%!&|<>\^]') {
+      throw "An approved launcher-toolchain path contains unsafe cmd.exe characters."
+    }
   }
   $environmentScript = Join-Path $WorkDirectory "load-vs-environment.cmd"
   [IO.File]::WriteAllLines(
     $environmentScript,
     @(
       "@echo off",
-      "call `"$vsDevCmd`" -no_logo -arch=x64 -host_arch=x64 >nul",
+      "set CL=",
+      "set _CL_=",
+      "set LINK=",
+      "set _LINK_=",
+      "set RC=",
+      "set _RC_=",
+      "set INCLUDE=",
+      "set EXTERNAL_INCLUDE=",
+      "set LIB=",
+      "set LIBPATH=",
+      "call `"$vsDevCmd`" -no_logo -arch=x64 -host_arch=x64 -winsdk=none >nul",
       "if errorlevel 1 exit /b %errorlevel%",
       "set"
     ),
@@ -780,6 +831,56 @@ function Import-VisualStudioEnvironment {
   if (-not $environment.ContainsKey("PATH")) {
     throw "Visual Studio did not return a PATH environment."
   }
+
+  $vsInclude = @(Get-ApprovedVisualStudioDirectories -Environment $environment `
+      -Name "INCLUDE" -VisualStudioRoot $visualStudio.FullName)
+  $vsExternalInclude = @(Get-ApprovedVisualStudioDirectories `
+      -Environment $environment -Name "EXTERNAL_INCLUDE" `
+      -VisualStudioRoot $visualStudio.FullName)
+  $vsLib = @(Get-ApprovedVisualStudioDirectories -Environment $environment `
+      -Name "LIB" -VisualStudioRoot $visualStudio.FullName)
+  # VsDevCmd also adds the system .NET Framework to LIBPATH. The launcher is
+  # native-only, so retain only explicitly approved Visual Studio directories.
+  $vsLibPath = @(Get-ApprovedVisualStudioDirectories -Environment $environment `
+      -Name "LIBPATH" -VisualStudioRoot $visualStudio.FullName `
+      -DiscardOutsideRoot)
+
+  $sdkVersion = $script:RequiredWindowsSdkVersion.ToString()
+  $sdkBin = Join-Path $windowsSdk.FullName "bin\$sdkVersion\x64"
+  $sdkInclude = @(
+    (Join-Path $windowsSdk.FullName "Include\$sdkVersion\ucrt"),
+    (Join-Path $windowsSdk.FullName "Include\$sdkVersion\shared"),
+    (Join-Path $windowsSdk.FullName "Include\$sdkVersion\um"),
+    (Join-Path $windowsSdk.FullName "Include\$sdkVersion\winrt"),
+    (Join-Path $windowsSdk.FullName "Include\$sdkVersion\cppwinrt")
+  )
+  $sdkLib = @(
+    (Join-Path $windowsSdk.FullName "Lib\$sdkVersion\ucrt\x64"),
+    (Join-Path $windowsSdk.FullName "Lib\$sdkVersion\um\x64")
+  )
+  foreach ($directory in @($sdkBin) + $sdkInclude + $sdkLib) {
+    [void](Get-RegularDirectory -Path $directory `
+        -Description "Approved Windows SDK component")
+  }
+  $environment["WINDOWSSDKDIR"] = $windowsSdk.FullName.TrimEnd('\') + '\'
+  $environment["WindowsSdkDir"] = $environment["WINDOWSSDKDIR"]
+  $environment["WindowsSDKVersion"] = $sdkVersion + '\'
+  $environment["WindowsSdkLibVersion"] = $sdkVersion
+  $environment["WindowsSdkBinPath"] = Join-Path $windowsSdk.FullName "bin"
+  $environment["WindowsSdkVerBinPath"] = Join-Path $windowsSdk.FullName `
+    "bin\$sdkVersion"
+  $environment["UniversalCRTSdkDir"] = $environment["WINDOWSSDKDIR"]
+  $environment["UCRTVersion"] = $sdkVersion
+  $environment["INCLUDE"] = ($vsInclude + @($sdkInclude)) -join ';'
+  $environment["EXTERNAL_INCLUDE"] = $vsExternalInclude -join ';'
+  $environment["LIB"] = ($vsLib + @($sdkLib)) -join ';'
+  $environment["LIBPATH"] = $vsLibPath -join ';'
+  foreach ($optionName in @("CL", "_CL_", "LINK", "_LINK_", "RC", "_RC_")) {
+    # Empty values override rather than merely omit inherited runner options in
+    # ProcessStartInfo.EnvironmentVariables.
+    $environment[$optionName] = ""
+  }
+  $environment["PATH"] = "$sdkBin;$($environment['PATH'])"
   return $environment
 }
 
@@ -802,6 +903,51 @@ function Find-ExecutableInPath {
     }
   }
   throw "$Name was not present in Visual Studio's PATH."
+}
+
+function Assert-FileWithinRoot {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path,
+    [Parameter(Mandatory = $true)]
+    [string]$Root,
+    [Parameter(Mandatory = $true)]
+    [string]$Description
+  )
+
+  $fullPath = [IO.Path]::GetFullPath($Path)
+  $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+  if (-not $fullPath.StartsWith(
+      $fullRoot + '\',
+      [StringComparison]::OrdinalIgnoreCase
+    )) {
+    throw "$Description resolved outside its explicitly approved root: $fullPath"
+  }
+}
+
+function Get-PackagingToolIdentity {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path,
+    [Parameter(Mandatory = $true)]
+    [string]$Root,
+    [Parameter(Mandatory = $true)]
+    [string]$Description
+  )
+
+  $file = Get-RegularFile -Path $Path -Description $Description
+  Assert-FileWithinRoot -Path $file.FullName -Root $Root `
+    -Description $Description
+  $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+  $version = Get-ProductVersion -Path $file.FullName
+  if ($null -eq $version) {
+    throw "$Description does not expose a four-part product version."
+  }
+  return [pscustomobject]@{
+    relativePath = $file.FullName.Substring($rootPath.Length + 1).Replace('\', '/')
+    sha256 = Get-LowerSha256 -Path $file.FullName
+    version = $version.ToString()
+  }
 }
 
 function Expand-PinnedWebStoreArchive {
@@ -917,6 +1063,32 @@ $expectedMakeNsis = Assert-Sha256 -Value $ExpectedMakeNsisSha256 `
 $expectedMakeNsisRuntimeTree = Assert-Sha256 `
   -Value $ExpectedMakeNsisRuntimeTreeSha256 `
   -Description "ExpectedMakeNsisRuntimeTreeSha256"
+
+$visualStudioRootInput = Get-RegularDirectory -Path $VisualStudioRoot `
+  -Description "Approved Visual Studio root"
+$resolvedVisualStudioRoot = Resolve-VisualStudioRoot `
+  -VisualStudioRoot $visualStudioRootInput.FullName
+if (-not $resolvedVisualStudioRoot.Equals(
+    $visualStudioRootInput.FullName,
+    [StringComparison]::OrdinalIgnoreCase
+  )) {
+  throw "VisualStudioRoot did not resolve to the explicitly approved installation."
+}
+$windowsSdkRootInput = Get-RegularDirectory -Path $WindowsSdkRoot `
+  -Description "Approved Windows SDK root"
+$resolvedWindowsSdkRoot = $windowsSdkRootInput.FullName
+$approvedSdkVersion = $script:RequiredWindowsSdkVersion.ToString()
+$approvedResourceCompilerPath = Join-Path $resolvedWindowsSdkRoot `
+  "bin\$approvedSdkVersion\x64\rc.exe"
+$approvedResourceCompiler = Get-RegularFile -Path $approvedResourceCompilerPath `
+  -Description "Approved Windows SDK resource compiler"
+$resourceCompilerVersion = Get-ProductVersion -Path $approvedResourceCompiler.FullName
+if ($null -eq $resourceCompilerVersion -or
+    $resourceCompilerVersion.Major -ne $script:RequiredWindowsSdkVersion.Major -or
+    $resourceCompilerVersion.Minor -ne $script:RequiredWindowsSdkVersion.Minor -or
+    $resourceCompilerVersion.Build -ne $script:RequiredWindowsSdkVersion.Build) {
+  throw "WindowsSdkRoot does not contain the required $approvedSdkVersion x64 resource compiler."
+}
 
 $readyInput = Get-RegularFile -Path $RuntimeReadyPath -Description "Runtime READY file" `
   -MaximumBytes $script:MaximumReadyBytes
@@ -1233,11 +1405,36 @@ Chromium is a trademark of Google LLC.
 
   $iconPath = Join-Path $script:ForkRoot "assets\kwiken.ico"
   [void](Get-RegularFile -Path $iconPath -Description "Kwiken icon")
-  $vsEnvironment = Import-VisualStudioEnvironment -WorkDirectory $launcherRoot
-  $resourceCompiler = Find-ExecutableInPath -Name "rc.exe" `
-    -PathValue ([string]$vsEnvironment["PATH"])
+  $vsEnvironment = Import-VisualStudioEnvironment -WorkDirectory $launcherRoot `
+    -VisualStudioRoot $resolvedVisualStudioRoot `
+    -WindowsSdkRoot $resolvedWindowsSdkRoot
+  $resourceCompiler = $approvedResourceCompiler.FullName
   $compiler = Find-ExecutableInPath -Name "cl.exe" `
     -PathValue ([string]$vsEnvironment["PATH"])
+  Assert-FileWithinRoot -Path $compiler -Root $resolvedVisualStudioRoot `
+    -Description "Visual Studio C++ compiler"
+  $compilerDirectory = Split-Path -Parent $compiler
+  $linker = Join-Path $compilerDirectory "link.exe"
+  [void](Get-RegularFile -Path $linker -Description "Visual Studio linker")
+  Assert-FileWithinRoot -Path $linker -Root $resolvedVisualStudioRoot `
+    -Description "Visual Studio linker"
+  $vsEnvironment["PATH"] = "$compilerDirectory;$($vsEnvironment['PATH'])"
+  $compilerIdentity = Get-PackagingToolIdentity -Path $compiler `
+    -Root $resolvedVisualStudioRoot -Description "Visual Studio C++ compiler"
+  $linkerIdentity = Get-PackagingToolIdentity -Path $linker `
+    -Root $resolvedVisualStudioRoot -Description "Visual Studio linker"
+  $resourceCompilerIdentity = Get-PackagingToolIdentity `
+    -Path $resourceCompiler -Root $resolvedWindowsSdkRoot `
+    -Description "Windows SDK resource compiler"
+  $packagingToolchain = [pscustomobject][ordered]@{
+    schemaVersion = 1
+    visualStudioRoot = $resolvedVisualStudioRoot
+    compiler = $compilerIdentity
+    linker = $linkerIdentity
+    windowsSdkRoot = $resolvedWindowsSdkRoot
+    windowsSdkVersion = $resourceCompilerVersion.ToString()
+    resourceCompiler = $resourceCompilerIdentity
+  }
   Copy-Item -LiteralPath $iconPath -Destination (Join-Path $launcherRoot "kwiken.ico") `
     -ErrorAction Stop
   Copy-Item -LiteralPath (Join-Path $script:ForkRoot "distribution\launcher\KwikenLauncher.manifest") `
@@ -1256,6 +1453,12 @@ Chromium is a trademark of Google LLC.
       "/link", "/SUBSYSTEM:WINDOWS", "/MANIFEST:NO"
     ) -WorkingDirectory $launcherRoot -Description "Kwiken native launcher" `
     -EnvironmentVariables $vsEnvironment)
+  if ((Get-LowerSha256 -Path $compiler) -cne $compilerIdentity.sha256 -or
+      (Get-LowerSha256 -Path $linker) -cne $linkerIdentity.sha256 -or
+      (Get-LowerSha256 -Path $resourceCompiler) -cne
+        $resourceCompilerIdentity.sha256) {
+    throw "The explicitly approved launcher toolchain changed during compilation."
+  }
   [void](Get-RegularFile -Path (Join-Path $packageRoot "Kwiken.exe") `
       -Description "Kwiken launcher")
 
@@ -1292,7 +1495,11 @@ Chromium is a trademark of Google LLC.
       (Get-LowerSha256 -Path $makeNsisInput.FullName) -cne $expectedMakeNsis -or
       (Get-DirectoryTreeSha256 -Root $makeNsisRootInput.FullName) -cne
         $expectedMakeNsisRuntimeTree -or
-      (Get-LowerSha256 -Path $runtimeArchiveToolSource) -cne $runtimeArchiveToolSha256) {
+      (Get-LowerSha256 -Path $runtimeArchiveToolSource) -cne $runtimeArchiveToolSha256 -or
+      (Get-LowerSha256 -Path $compiler) -cne $compilerIdentity.sha256 -or
+      (Get-LowerSha256 -Path $linker) -cne $linkerIdentity.sha256 -or
+      (Get-LowerSha256 -Path $resourceCompiler) -cne
+        $resourceCompilerIdentity.sha256) {
     throw "A distribution input changed while the installer was being built."
   }
 
@@ -1322,6 +1529,7 @@ Chromium is a trademark of Google LLC.
     RuntimeReadySha256 = $expectedReady
     RuntimeArchiveSha256 = $readyArchiveSha256
     RuntimeManifestSha256 = $readyManifestSha256
+    PackagingToolchain = $packagingToolchain
     Signed = $false
   }
 } finally {

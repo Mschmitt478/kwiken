@@ -431,6 +431,7 @@ jobs:
     runs-on: [self-hosted, Windows, X64, kwiken-chromium]
     timeout-minutes: 150
     permissions:
+      actions: read
       contents: read
 
     steps:
@@ -451,6 +452,44 @@ jobs:
           path: ${{ runner.temp }}\kwiken-native-handoff-download
           merge-multiple: true
           digest-mismatch: error
+
+      - name: Verify native artifact metadata
+        shell: pwsh
+        env:
+          ARTIFACT_API_TOKEN: ${{ github.token }}
+          EXPECTED_ARTIFACT_ID: ${{ needs.native-runtime.outputs.artifact-id }}
+          EXPECTED_ARTIFACT_DIGEST: ${{ needs.native-runtime.outputs.artifact-digest }}
+          EXPECTED_SOURCE_REVISION: ${{ needs.native-runtime.outputs.source-revision }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-StrictMode -Version Latest
+
+          if ($env:EXPECTED_SOURCE_REVISION -cnotmatch '^[0-9a-f]{40}$' -or
+              $env:EXPECTED_ARTIFACT_ID -cnotmatch '^[1-9][0-9]*$' -or
+              $env:EXPECTED_ARTIFACT_DIGEST -cnotmatch '^[0-9a-f]{64}$' -or
+              [string]::IsNullOrWhiteSpace($env:ARTIFACT_API_TOKEN) -or
+              $env:ARTIFACT_API_TOKEN.IndexOfAny(
+                @([char]0, [char]10, [char]13)
+              ) -ge 0) {
+            throw "Artifact metadata inputs are missing or malformed."
+          }
+          $artifactUri = (
+            "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/actions/artifacts/" +
+            $env:EXPECTED_ARTIFACT_ID
+          )
+          $artifactMetadata = Invoke-RestMethod -Method Get -Uri $artifactUri -Headers @{
+            Authorization = "Bearer $env:ARTIFACT_API_TOKEN"
+            Accept = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          if ([string]$artifactMetadata.id -cne $env:EXPECTED_ARTIFACT_ID -or
+              [bool]$artifactMetadata.expired -or
+              [string]$artifactMetadata.digest -cne
+                "sha256:$env:EXPECTED_ARTIFACT_DIGEST" -or
+              [string]$artifactMetadata.workflow_run.head_sha -cne
+                $env:EXPECTED_SOURCE_REVISION) {
+            throw "Producer artifact digest does not match GitHub's independent artifact metadata."
+          }
 
       - name: Verify handoff and package unsigned candidate
         id: package
@@ -523,6 +562,75 @@ jobs:
             }
           }
 
+          function Assert-NoReparseAncestors([string]$Path, [string]$Description) {
+            $candidate = [IO.Path]::GetFullPath($Path)
+            while (-not [string]::IsNullOrWhiteSpace($candidate)) {
+              $item = Get-Item -LiteralPath $candidate -Force -ErrorAction Stop
+              if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "$Description uses a reparse-point ancestor."
+              }
+              $parent = Split-Path -Parent $candidate
+              if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $candidate) {
+                break
+              }
+              $candidate = $parent
+            }
+          }
+
+          function Resolve-PackagingToolRecord(
+            [object]$Record,
+            [string]$Root,
+            [string]$ExpectedLeaf,
+            [string]$Description
+          ) {
+            if ($null -eq $Record) {
+              throw "$Description identity is missing."
+            }
+            $expectedProperties = @("relativePath", "sha256", "version") | Sort-Object
+            $actualProperties = @($Record.PSObject.Properties.Name) | Sort-Object
+            if ($expectedProperties.Count -ne $actualProperties.Count -or
+                (Compare-Object -CaseSensitive -ReferenceObject $expectedProperties `
+                  -DifferenceObject $actualProperties)) {
+              throw "$Description identity has an unexpected schema."
+            }
+            $relativePath = [string]$Record.relativePath
+            if ([string]::IsNullOrWhiteSpace($relativePath) -or
+                [IO.Path]::IsPathRooted($relativePath) -or
+                $relativePath -match '(^|[\\/])\.\.?(?:[\\/]|$)' -or
+                $relativePath.IndexOfAny(@([char]0, [char]10, [char]13)) -ge 0 -or
+                [string]$Record.sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+                [string]$Record.version -cnotmatch '^\d+\.\d+\.\d+\.\d+$') {
+              throw "$Description identity is malformed."
+            }
+            $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+            $toolPath = [IO.Path]::GetFullPath(
+              (Join-Path $rootPath $relativePath.Replace('/', '\'))
+            )
+            if (-not $toolPath.StartsWith(
+                $rootPath + '\',
+                [StringComparison]::OrdinalIgnoreCase
+              ) -or
+                (Split-Path -Leaf $toolPath) -cne $ExpectedLeaf -or
+                -not (Test-Path -LiteralPath $toolPath -PathType Leaf)) {
+              throw "$Description is not contained by its approved root."
+            }
+            Assert-NoReparseAncestors -Path $toolPath -Description $Description
+            $tool = Get-Item -LiteralPath $toolPath -Force
+            if (($tool.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                (Get-LowerSha256 -Path $toolPath) -cne [string]$Record.sha256) {
+              throw "$Description does not match its recorded executable."
+            }
+            $versionMatch = [regex]::Match(
+              [string]$tool.VersionInfo.ProductVersion,
+              '\d+\.\d+\.\d+\.\d+'
+            )
+            if (-not $versionMatch.Success -or
+                $versionMatch.Value -cne [string]$Record.version) {
+              throw "$Description does not match its recorded version."
+            }
+            return $toolPath
+          }
+
           if ($env:GITHUB_SHA -cnotmatch '^[0-9a-f]{40}$' -or
               $env:EXPECTED_SOURCE_REVISION -cne $env:GITHUB_SHA -or
               $env:EXPECTED_ARTIFACT_ID -cnotmatch '^[1-9][0-9]*$' -or
@@ -535,6 +643,8 @@ jobs:
             throw "Packaging checkout does not equal the producer commit."
           }
           foreach ($name in @(
+              "KWIKEN_VISUAL_STUDIO_ROOT",
+              "KWIKEN_WINDOWS_SDK_ROOT",
               "KWIKEN_WEB_STORE_ARCHIVE",
               "KWIKEN_NSIS_RUNTIME_ROOT",
               "KWIKEN_NSIS_EXE_SHA256",
@@ -554,6 +664,8 @@ jobs:
           }
           foreach ($path in @(
               $env:HANDOFF_ROOT,
+              $env:KWIKEN_VISUAL_STUDIO_ROOT,
+              $env:KWIKEN_WINDOWS_SDK_ROOT,
               $env:KWIKEN_NSIS_RUNTIME_ROOT
             )) {
             if (-not [IO.Path]::IsPathRooted($path) -or
@@ -643,6 +755,8 @@ jobs:
               -PythonRuntimeRoot $pythonRoot `
               -ExpectedPythonSha256 $pythonSha256 `
               -ExpectedPythonRuntimeTreeSha256 $pythonTreeSha256 `
+              -VisualStudioRoot $env:KWIKEN_VISUAL_STUDIO_ROOT `
+              -WindowsSdkRoot $env:KWIKEN_WINDOWS_SDK_ROOT `
               -MakeNsisPath $makeNsisPath `
               -MakeNsisRuntimeRoot $env:KWIKEN_NSIS_RUNTIME_ROOT `
               -ExpectedMakeNsisSha256 $nsisExeSha256 `
@@ -660,6 +774,71 @@ jobs:
           $installerSha256 = Get-LowerSha256 -Path $candidate.InstallerPath
           if ($installerSha256 -cne $candidate.InstallerSha256) {
             throw "Unsigned installer changed after the distribution bridge returned."
+          }
+          $packagingToolchain = $candidate.PackagingToolchain
+          $expectedVisualStudioRoot = [IO.Path]::GetFullPath(
+            $env:KWIKEN_VISUAL_STUDIO_ROOT
+          ).TrimEnd('\')
+          $expectedWindowsSdkRoot = [IO.Path]::GetFullPath(
+            $env:KWIKEN_WINDOWS_SDK_ROOT
+          ).TrimEnd('\')
+          $expectedToolchainProperties = @(
+            "schemaVersion", "visualStudioRoot", "compiler", "linker",
+            "windowsSdkRoot", "windowsSdkVersion", "resourceCompiler"
+          ) | Sort-Object
+          $actualToolchainProperties = @()
+          if ($null -ne $packagingToolchain) {
+            $actualToolchainProperties = @(
+              $packagingToolchain.PSObject.Properties.Name
+            ) | Sort-Object
+          }
+          if ($null -eq $packagingToolchain -or
+              $expectedToolchainProperties.Count -ne
+                $actualToolchainProperties.Count -or
+              (Compare-Object -CaseSensitive `
+                -ReferenceObject $expectedToolchainProperties `
+                -DifferenceObject $actualToolchainProperties) -or
+              [int]$packagingToolchain.schemaVersion -ne 1 -or
+              -not ([string]$packagingToolchain.visualStudioRoot).Equals(
+                $expectedVisualStudioRoot,
+                [StringComparison]::OrdinalIgnoreCase
+              ) -or
+              -not ([string]$packagingToolchain.windowsSdkRoot).Equals(
+                $expectedWindowsSdkRoot,
+                [StringComparison]::OrdinalIgnoreCase
+              )) {
+            throw "Launcher toolchain does not match the explicitly approved roots."
+          }
+          $compilerPath = Resolve-PackagingToolRecord `
+              -Record $packagingToolchain.compiler `
+              -Root $expectedVisualStudioRoot -ExpectedLeaf "cl.exe" `
+              -Description "Launcher compiler"
+          $linkerPath = Resolve-PackagingToolRecord `
+              -Record $packagingToolchain.linker `
+              -Root $expectedVisualStudioRoot -ExpectedLeaf "link.exe" `
+              -Description "Launcher linker"
+          if (-not (Split-Path -Parent $compilerPath).Equals(
+              (Split-Path -Parent $linkerPath),
+              [StringComparison]::OrdinalIgnoreCase
+            )) {
+            throw "Launcher compiler and linker are not from one approved tool directory."
+          }
+          $resourceCompilerPath = Resolve-PackagingToolRecord `
+            -Record $packagingToolchain.resourceCompiler `
+            -Root $expectedWindowsSdkRoot -ExpectedLeaf "rc.exe" `
+            -Description "Launcher resource compiler"
+          $expectedResourceCompilerPath = Join-Path $expectedWindowsSdkRoot `
+            "bin\10.0.28000.0\x64\rc.exe"
+          if (-not $resourceCompilerPath.Equals(
+              $expectedResourceCompilerPath,
+              [StringComparison]::OrdinalIgnoreCase
+            ) -or
+              [string]$packagingToolchain.windowsSdkVersion -cne
+                [string]$packagingToolchain.resourceCompiler.version -or
+              ([Version]$packagingToolchain.windowsSdkVersion).Major -ne 10 -or
+              ([Version]$packagingToolchain.windowsSdkVersion).Minor -ne 0 -or
+              ([Version]$packagingToolchain.windowsSdkVersion).Build -ne 28000) {
+            throw "Launcher resource compiler is not from the approved extracted SDK."
           }
 
           $unsignedRoot = Join-Path $env:RUNNER_TEMP (
@@ -697,6 +876,7 @@ jobs:
               manifestSha256 = [string]$ready.manifest.sha256
             }
             packagingInputs = [ordered]@{
+              launcherToolchain = $packagingToolchain
               nsisExeSha256 = $nsisExeSha256
               nsisRuntimeTreeSha256 = $nsisTreeSha256
               webStoreArchiveSha256 = $env:KWIKEN_WEB_STORE_SHA256

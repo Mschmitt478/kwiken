@@ -130,6 +130,8 @@ $depotToolsRoot = "C:\src\depot_tools"
 $python = Join-Path $depotToolsRoot `
   $provenance.nativeBuild.toolchain.pythonPath.Replace('/', '\')
 $pythonRoot = Split-Path -Parent $python
+$visualStudioRoot = "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools"
+$windowsSdkRoot = "C:\src\kwiken-winsdk-28000\extracted\Windows Kits\10"
 $nsisRoot = "C:\tools\kwiken-nsis-3.12\nsis-3.12"
 $makensis = Join-Path $nsisRoot "makensis.exe"
 $readySha256 = (Get-FileHash $runtime.ReadyPath -Algorithm SHA256).Hash
@@ -148,6 +150,8 @@ $makensisTreeSha256 = Get-KwikenToolTreeSha256 $nsisRoot
   -PythonRuntimeRoot $pythonRoot `
   -ExpectedPythonSha256 $pythonSha256 `
   -ExpectedPythonRuntimeTreeSha256 $pythonTreeSha256 `
+  -VisualStudioRoot $visualStudioRoot `
+  -WindowsSdkRoot $windowsSdkRoot `
   -MakeNsisPath $makensis `
   -MakeNsisRuntimeRoot $nsisRoot `
   -ExpectedMakeNsisSha256 $makensisSha256 `
@@ -173,10 +177,18 @@ Provision and review these inputs outside the release job; the workflow never
 downloads executable toolchains or accepts a mutable latest-version URL.
 The distribution build does not download or modify browser binaries. It
 requires the same pinned Python runtime recorded by the authenticated native
-build, Visual Studio C++ build tools, and NSIS. The complete Python runtime is
-copied into private staging and tree-hash verified before it runs the archive
-validator. The complete NSIS runtime is handled the same way before it creates
-the installer.
+build, an explicitly approved Visual Studio C++ installation, an explicitly
+approved Windows SDK root, and NSIS. Packaging disables Visual Studio's
+automatic SDK selection, takes `rc.exe` only from the exact
+`10.0.28000.0\x64` directory under that root, and rejects an incomplete
+administratively extracted SDK. It reconstructs include/library paths only
+from those approved roots and clears inherited compiler, linker, and resource
+compiler options before launching tools. The launcher receipt records the
+relative paths, versions, and SHA-256 hashes of the actual `cl.exe`, `link.exe`,
+and `rc.exe`, and packaging fails if any changes while it runs. The complete
+Python runtime is copied into private staging and tree-hash verified before it
+runs the archive validator. The complete NSIS runtime is handled the same way
+before it creates the installer.
 
 The installer is written to `chromium-fork\release\Kwiken-Setup-153.0.8010.28-r1.exe`.
 This artifact is deliberately reported as unsigned. Any public testing release
@@ -219,11 +231,16 @@ default-branch commit and maintains a persistent Chromium checkout.
 The first job checks out the exact workflow commit, runs bootstrap/build
 preflights, exports and smoke-tests the native runtime, and uploads READY, the
 runtime archive, provenance, and the exact provenance-bound Python runtime.
-The second job downloads that exact artifact ID, retains its service digest
-and producer READY hash, verifies every source/tool input, and uploads only an
+The second job downloads that exact artifact ID, compares the producer digest
+with GitHub's artifact metadata, retains the producer READY hash, verifies every
+source/tool input and explicit launcher-toolchain root, and uploads only an
 unsigned installer plus `UNSIGNED.NOT-FOR-PUBLICATION.json`. Both jobs have
-only `contents: read`; the workflow has no release, tag, signing, credential,
-or overwrite path.
+`contents: read`; only the packaging job adds `actions: read` so it can inspect
+that exact artifact ID. Its read-only token is scoped to the metadata step and
+is never inherited by packaging tools. It cannot publish content; the workflow
+has no release, tag, signing, or overwrite path. The unsigned receipt includes
+the actual compiler, linker, and resource-compiler identities used for the
+launcher.
 
 A separate workflow is still required and intentionally not stubbed here. It
 must consume the unsigned artifact by immutable ID/digest behind an approved
