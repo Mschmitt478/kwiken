@@ -190,7 +190,7 @@ index a6c53969ea00adc6c6ca3b6c1f3611003b626650..74610a2d5110b9fc55990090df7d6791
  }
  
  std::unique_ptr<views::Separator> TabGroupEditorBubbleView::BuildSeparator() {
-@@ -717,6 +765,34 @@ TabGroupEditorBubbleView::BuildHomeButton() {
+@@ -717,6 +765,35 @@ TabGroupEditorBubbleView::BuildHomeButton() {
    return menu_item;
  }
  
