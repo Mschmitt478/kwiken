@@ -99,22 +99,25 @@ function Assert-ThemeMixerDoesNotMatch {
 }
 
 $expectedBaseBlobs = [ordered]@{
-  "chrome/browser/ui/color/chrome_color_mixers.cc" = "e33f8a4753b05ac5baa268970d454291497213f0"
-  "chrome/browser/ui/layout_constants.cc" = "b2c1709b4c2ac60dfc9b436ab9c75e4212e92dc2"
-  "chrome/browser/ui/tab_ui_helper.cc" = "ef6e48fcb4d483798bfcc2723b483fea14ead78a"
-  "chrome/browser/ui/tabs/tab_data.cc" = "84682b0f8437b952f7ed8607ab31a2f7f958938c"
-  "chrome/browser/ui/tabs/tab_data_browsertest.cc" = "f05ddcb8be2db09098ad01904d3443f68ae83d09"
-  "chrome/browser/ui/views/tabs/vertical/vertical_pinned_tab_container_view.cc" = "58c8ef10b31d8b8e1baae2bb2f1f72cc6a9ffc32"
-  "chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc" = "1970367feaccf631955d558a8ecc1acda4724ff1"
-  "chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h" = "50f7bbb8e79df391e060e8006459bd82327b9947"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.cc" = "afcfdc886261e044f0d0033086d1e2c87c47685d"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_group_header_view.h" = "060713491fad09c839d6500545af22bac3ec192e"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc" = "32c64e73c5e2ef5ca5561c349381d35754b72d87"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_link_drag_browsertest.cc" = "63a17434753087cc0f0f31ecf3b17fb0264a9b04"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.cc" = "d09396a6077ef46c9f334721af66111800b445c4"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc" = "eb9e13ce3d2dca019b4a9758bcd7ef4dc7846dc8"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_view.h" = "30bddac23a66df179d081a021600b76d82d378a1"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc" = "b007fd08048281088fa7a2af0ae4da4021e1ea51"
+  "chrome/browser/ui/color/chrome_color_mixers.cc" = "8131056e212956decf4831730d1ab513a6c6afa4"
+  "chrome/browser/ui/layout_constants.cc" = "a8b7ef68008b132ec786b91ddcb232c16a0c5750"
+  "chrome/browser/ui/tab_ui_helper.cc" = "17dc6e180456b614c57cd034c34391efbba537d4"
+  "chrome/browser/ui/tabs/tab_data.cc" = "5056be27f3b1fec30597ecbf8eb51fdbc5765dba"
+  "chrome/browser/ui/tabs/tab_data_browsertest.cc" = "bba72e28b519dadad4ad6bbef215f4bea9cfe3be"
+  "chrome/browser/ui/views/tabs/common/BUILD.gn" = "9354e0d5497b85db204ebae5d6adcd41973ea01a"
+  "chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc" = "af4cd825d4c10c6b0802cf4134a902dd7346e9b8"
+  "chrome/browser/ui/views/tabs/common/split_tab_view.cc" = "440a3076e5f80c6b393dba0b311ba15ea808681e"
+  "chrome/browser/ui/views/tabs/common/split_tab_view.h" = "f380ec9050e75093b4380547314103f545fc6a4b"
+  "chrome/browser/ui/views/tabs/common/tab_group_header_view.cc" = "cfaf18f54f721f3f4bf0eb438454e3e41f963728"
+  "chrome/browser/ui/views/tabs/common/tab_group_header_view.h" = "982370f7cdb149a28adf1d5daaf2489741fb2618"
+  "chrome/browser/ui/views/tabs/common/tab_strip_link_drag_browsertest.cc" = "7355525fbfb97dc729232ea8518b2e67eb5e9456"
+  "chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc" = "db53e40e591295311569835fae59eb340ad776a4"
+  "chrome/browser/ui/views/tabs/common/tab_view.cc" = "e8d8cb4facb9428bab15389a8fb137ada0982a21"
+  "chrome/browser/ui/views/tabs/common/tab_view.h" = "04458f07af7f0aba0cd5446383df7074065330f2"
+  "chrome/browser/ui/views/tabs/common/tab_view_browsertest.cc" = "0d800d7afb253c4a0f1dec5e07d33959d7882ced"
+  "chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc" = "6641560e2f254670b98975cfd02c81c3ed5ceea7"
+  "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc" = "08d127e8a47a42a0d2d13f9a9e7cb21769e08d79"
+  "chrome/browser/ui/views/tabs/vertical_tab_style_views.cc" = "cbec9de4fa9c629e50e8c13330f50ad2cca235e4"
 }
 
 $actualFiles = @(
@@ -158,7 +161,7 @@ $themePatchFiles = @(
 )
 $expectedThemeBaseBlobs = [ordered]@{
   "chrome/browser/ui/color/chrome_color_mixers.cc" =
-    "debc414c215aba21b8999a7d399595cdebe114e8"
+    "912072c8e1434a010c4dd9f3caebc0e3866197ae"
   "chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc" =
     "78b3b3716ed1fd99926a09ec9293ff6330066af1"
 }
@@ -224,7 +227,7 @@ Assert-PatchMatch "column math includes the trailing gap" `
 Assert-PatchMatch "preferred and minimum height use pinned geometry" `
   'kVerticalTabPinnedHeight[\s\S]{0,100}kPinnedTabGridGap'
 Assert-PatchMatch "drag hit testing uses the grid gap" `
-  'GetLinkDropIndexForExpanded[\s\S]+kPinnedTabGridGap / 2[\s\S]+kPinnedTabGridGap'
+  'PinnedTabContainerView::GetLinkDropIndexForHorizontal[\s\S]{0,220}const int padding = is_vertical \? kPinnedTabGridGap : 0'
 Assert-PatchDoesNotMatch "split pins do not inflate every grid cell" `
   '(?m)^\+.*contains_split'
 
@@ -286,11 +289,11 @@ if ((Get-PinnedColumnCount -RailWidth 260 -Collapsed $true) -ne 1) {
 
 # Stable surfaces and split-pinned selection treatment.
 Assert-PatchMatch "all pinned tabs paint a calm surface" `
-  'Pinned tabs are persistent destinations[\s\S]+if \(pinned_\)[\s\S]+return true'
+  'Pinned tabs are persistent destinations[\s\S]{0,180}if \(delegate_->IsPinned\(\)\)[\s\S]{0,60}return true'
 Assert-PatchMatch "2 DIP active outline" `
   'kVerticalTabPinnedBorderThickness:[\s\S]{0,80}\+\s+return 2'
 Assert-PatchMatch "outline follows active tab state" `
-  'ShouldPaintActivePinnedOutline\(\) const \{ return pinned_ && active_; \}'
+  'ShouldPaintActivePinnedOutline\(\) const \{\r?\n\+\s+return orientation_ == TabStripOrientation::kVertical && pinned_ && active_;'
 Assert-PatchMatch "inactive tile reserves matching inset" `
   'selection never shifts the favicon[\s\S]+CreateEmptyBorder\(gfx::Insets\(border_thickness\)\)'
 Assert-PatchMatch "split-pinned tile chooses active child surface" `

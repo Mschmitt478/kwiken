@@ -76,7 +76,7 @@ Import-ExportFunction -Name "Set-PublicationAclForAtomicMove"
 Import-ExportFunction -Name "Assert-PublicationAclAfterAtomicMove"
 Import-ExportFunction -Name "Remove-ExportStagingDirectory"
 
-$script:Version = "150.0.7871.186"
+$script:Version = "153.0.8010.28"
 $script:MaximumRuntimeFiles = 10000
 $script:MaximumRuntimeBytes = [Int64]4 * 1024 * 1024 * 1024
 $script:ExpectedPeMachine = 0x8664
@@ -168,8 +168,8 @@ if (Test-SameProfileProcess -Candidate $profileCandidate `
   throw "Profile process identity accepted the wrong command line."
 }
 
-$safe = Test-SafeWindowsArchivePath -Path "Chrome-bin\150.0.7871.186\chrome.dll"
-if ($safe -cne "Chrome-bin/150.0.7871.186/chrome.dll") {
+$safe = Test-SafeWindowsArchivePath -Path "Chrome-bin\153.0.8010.28\chrome.dll"
+if ($safe -cne "Chrome-bin/153.0.8010.28/chrome.dll") {
   throw "Safe 7z path did not normalize as expected: $safe"
 }
 foreach ($unsafe in @(

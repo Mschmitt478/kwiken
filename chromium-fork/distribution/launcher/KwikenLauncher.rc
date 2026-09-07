@@ -4,8 +4,8 @@
 1 RT_MANIFEST "KwikenLauncher.manifest"
 
 1 VERSIONINFO
- FILEVERSION 150,0,7871,186
- PRODUCTVERSION 150,0,7871,186
+ FILEVERSION 153,0,8010,28
+ PRODUCTVERSION 153,0,8010,28
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS VOS_NT_WINDOWS32
@@ -18,12 +18,12 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "Kwiken"
       VALUE "FileDescription", "Kwiken Browser"
-      VALUE "FileVersion", "150.0.7871.186"
+      VALUE "FileVersion", "153.0.8010.28"
       VALUE "InternalName", "Kwiken"
       VALUE "LegalCopyright", "Copyright 2026 Kwiken contributors and The Chromium Authors"
       VALUE "OriginalFilename", "Kwiken.exe"
       VALUE "ProductName", "Kwiken"
-      VALUE "ProductVersion", "150.0.7871.186"
+      VALUE "ProductVersion", "153.0.8010.28"
     END
   END
   BLOCK "VarFileInfo"

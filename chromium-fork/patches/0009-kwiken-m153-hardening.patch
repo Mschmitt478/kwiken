@@ -1,0 +1,1177 @@
+diff --git a/build/toolchain/win/setup_toolchain.py b/build/toolchain/win/setup_toolchain.py
+index 68ad6c4a009bdde1bfc907adedcfb2fdb7f7beb4..d7a8511a7bbb639a0955fc22e7129248cccef362 100644
+--- a/build/toolchain/win/setup_toolchain.py
++++ b/build/toolchain/win/setup_toolchain.py
+@@ -95,12 +95,16 @@ def _DetectVisualStudioPath():
+     return vs_toolchain.DetectVisualStudioPath()
+ 
+ 
+-def _LoadEnvFromBat(args):
++def _LoadEnvFromBat(args, env=None):
+     """Given a bat command, runs it and returns env vars set by it."""
+     args = args[:]
+     args.extend(('&&', 'set'))
+     popen = subprocess.Popen(
+-        args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
++        args,
++        shell=True,
++        stdout=subprocess.PIPE,
++        stderr=subprocess.STDOUT,
++        env=env,
+     )
+     variables, _ = popen.communicate()
+     if popen.returncode != 0:
+@@ -108,6 +112,36 @@ def _LoadEnvFromBat(args):
+     return variables.decode(errors='ignore')
+ 
+ 
++def _WindowsSdkEnvironment(sdk_dir):
++    """Returns the environment used for an explicitly located Windows SDK."""
++    sdk_dir = os.path.normpath(os.path.abspath(sdk_dir))
++    sdk_version = SDK_VERSION.rstrip('\\/')
++    sdk_dir_with_separator = sdk_dir + os.sep
++    sdk_version_with_separator = sdk_version + os.sep
++    sdk_bin_path = os.path.join(sdk_dir, 'bin') + os.sep
++    return {
++        'WindowsSdkDir': sdk_dir_with_separator,
++        'WindowsSDKVersion': sdk_version_with_separator,
++        'WindowsSdkLibVersion': sdk_version_with_separator,
++        'WindowsSdkBinPath': sdk_bin_path,
++        'WindowsSdkVerBinPath': (
++            os.path.join(sdk_bin_path, sdk_version) + os.sep
++        ),
++        'UniversalCRTSdkDir': sdk_dir_with_separator,
++        'UCRTVersion': sdk_version,
++    }
++
++
++def _UsesNonDefaultWindowsSdk(sdk_dir):
++    """Returns whether |sdk_dir| overrides the system Windows Kits path."""
++    if not sdk_dir:
++        return False
++    default_sdk_dir = os.path.expandvars(r'%ProgramFiles(x86)%\Windows Kits\10')
++    return os.path.normcase(os.path.abspath(sdk_dir)) != os.path.normcase(
++        os.path.abspath(default_sdk_dir)
++    )
++
++
+ def _LoadToolchainEnv(cpu, toolchain_root, sdk_dir, target_store):
+     """Returns a dictionary with environment variables that must be set while
+     running binaries from the toolchain (e.g. INCLUDE and PATH for cl.exe)."""
+@@ -196,18 +230,53 @@ def _LoadToolchainEnv(cpu, toolchain_root, sdk_dir, target_store):
+         if cpu != 'x64':
+             # x64 is default target CPU thus any other CPU requires a target set
+             cpu_arg += '_' + cpu
+-        args = [
+-            script_path,
+-            cpu_arg,
+-        ]
+-        # Store target must come before any SDK version declaration
+-        if target_store:
+-            args.append('store')
+-        # Explicitly specifying the SDK version to build with to avoid accidentally
+-        # building with a new and untested SDK. This should stay in sync with the
+-        # packaged toolchain in build/vs_toolchain.py.
+-        args.append(SDK_VERSION)
+-        variables = _LoadEnvFromBat(args)
++        if _UsesNonDefaultWindowsSdk(sdk_dir):
++            # vcvarsall.bat resolves a requested SDK version through the system
++            # KitsRoot registry entry. That cannot find an SDK extracted without
++            # administrative installation. VsDevCmd.bat is vcvarsall's supported
++            # environment entry point and exposes -winsdk=none for this case.
++            vsdevcmd_path = os.path.normpath(
++                os.path.join(
++                    os.environ['GYP_MSVS_OVERRIDE_PATH'],
++                    'Common7/Tools/VsDevCmd.bat',
++                )
++            )
++            if not os.path.exists(vsdevcmd_path):
++                raise Exception(
++                    '%s is missing - make sure Visual Studio is installed.'
++                    % vsdevcmd_path
++                )
++
++            sdk_environment = os.environ.copy()
++            explicit_sdk_environment = _WindowsSdkEnvironment(sdk_dir)
++            for name in explicit_sdk_environment:
++                for existing_name in tuple(sdk_environment):
++                    if existing_name.lower() == name.lower():
++                        del sdk_environment[existing_name]
++            sdk_environment.update(explicit_sdk_environment)
++
++            args = [
++                vsdevcmd_path,
++                '-arch=' + cpu,
++                '-host_arch=x64',
++                '-winsdk=none',
++            ]
++            if target_store:
++                args.append('-app_platform=UWP')
++            variables = _LoadEnvFromBat(args, env=sdk_environment)
++        else:
++            args = [
++                script_path,
++                cpu_arg,
++            ]
++            # Store target must come before any SDK version declaration
++            if target_store:
++                args.append('store')
++            # Explicitly specifying the SDK version to build with to avoid
++            # accidentally building with a new and untested SDK. This should stay
++            # in sync with the packaged toolchain in build/vs_toolchain.py.
++            args.append(SDK_VERSION)
++            variables = _LoadEnvFromBat(args)
+     return _ExtractImportantEnvironment(variables)
+ 
+ 
+diff --git a/chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc b/chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc
+index 12b42f22bf6e3b8b91b2370c3510bd04aac88cce..0aeea0ffb33896d4a21111231944131cb4e5c458 100644
+--- a/chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc
++++ b/chrome/browser/new_tab_page/modules/v2/tab_groups/tab_groups_page_handler_unittest.cc
+@@ -67,6 +67,9 @@ class MockTabGroupSyncService : public TabGroupSyncService {
+   MOCK_METHOD(void,
+               ReorderGroupAfter,
+               (const base::Uuid& sync_id, const base::Uuid& prev_sync_id));
++  MOCK_METHOD(void,
++              ReorderGroupsInCurrentSlots,
++              (const std::vector<base::Uuid>& ordered_group_ids));
+   MOCK_METHOD(void,
+               UpdateBookmarkNodeId,
+               (const base::Uuid&, std::optional<base::Uuid>));
+diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc b/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
+index 19158556db57a2e7fd962a38d1377ee39421d19a..99b3aa5a380c87e93f6819c639e7432f3e34935b 100644
+--- a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
++++ b/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
+@@ -39,7 +39,9 @@
+ #include "components/device_event_log/device_event_log.h"
+ #include "components/performance_manager/public/decorators/page_live_state_decorator.h"
+ #include "components/performance_manager/public/features.h"
++#include "components/performance_manager/public/graph/page_node.h"
+ #include "components/performance_manager/public/mojom/lifecycle.mojom.h"
++#include "components/performance_manager/public/performance_manager.h"
+ #include "components/permissions/permission_manager.h"
+ #include "content/public/browser/browser_thread.h"
+ #include "content/public/browser/navigation_controller.h"
+@@ -206,10 +208,11 @@ bool TabLifecycleUnitSource::TabLifecycleUnit::MaybeLoad() {
+ 
+ void TabLifecycleUnitSource::TabLifecycleUnit::SetRecentlyAudible(
+     bool recently_audible) {
+-  if (recently_audible)
++  if (recently_audible) {
+     recently_audible_time_ = base::TimeTicks::Max();
+-  else if (recently_audible_time_ == base::TimeTicks::Max())
++  } else if (recently_audible_time_ == base::TimeTicks::Max()) {
+     recently_audible_time_ = NowTicks();
++  }
+ }
+ 
+ void TabLifecycleUnitSource::TabLifecycleUnit::UpdateLifecycleState(
+@@ -469,10 +472,30 @@ bool TabLifecycleUnitSource::TabLifecycleUnit::CanUnloadTab() const {
+           contents) ||
+       performance_manager::PageLiveStateDecorator::IsCapturingDisplay(
+           contents) ||
+-      performance_manager::PageLiveStateDecorator::IsDevToolsOpen(contents)) {
++      performance_manager::PageLiveStateDecorator::IsDevToolsOpen(contents) ||
++      performance_manager::PageLiveStateDecorator::IsConnectedToUSBDevice(
++          contents) ||
++      performance_manager::PageLiveStateDecorator::IsConnectedToBluetoothDevice(
++          contents) ||
++      performance_manager::PageLiveStateDecorator::IsConnectedToHidDevice(
++          contents) ||
++      performance_manager::PageLiveStateDecorator::IsConnectedToSerialPort(
++          contents) ||
++      contents->HasPictureInPictureVideo() ||
++      contents->HasPictureInPictureDocument() ||
++      contents->GetContentsMimeType() == "application/pdf") {
+     return false;
+   }
+ 
++  if (performance_manager::PerformanceManager::IsAvailable()) {
++    base::WeakPtr<performance_manager::PageNode> page_node =
++        performance_manager::PerformanceManager::
++            GetPrimaryPageNodeForWebContents(contents);
++    if (page_node && page_node->HadUserEdits()) {
++      return false;
++    }
++  }
++
+   const FormInteractionTabHelper* const form_helper =
+       FormInteractionTabHelper::FromWebContents(contents);
+   return !form_helper || !form_helper->had_form_interaction();
+diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit_unittest.cc b/chrome/browser/resource_coordinator/tab_lifecycle_unit_unittest.cc
+index b41d0d9a9084ca4a9e6483ec68072c200eb5b3e8..f14931c04a3e769239f8c8ae2cc36d97933b91e6 100644
+--- a/chrome/browser/resource_coordinator/tab_lifecycle_unit_unittest.cc
++++ b/chrome/browser/resource_coordinator/tab_lifecycle_unit_unittest.cc
+@@ -39,12 +39,14 @@
+ #include "chrome/test/base/chrome_render_view_host_test_harness.h"
+ #include "chrome/test/base/testing_browser_process.h"
+ #include "chrome/test/base/testing_profile.h"
++#include "components/performance_manager/graph/page_node_impl.h"
+ #include "components/performance_manager/public/decorators/page_live_state_decorator.h"
+ #include "components/performance_manager/public/graph/graph.h"
+ #include "components/performance_manager/public/graph/page_node.h"
+ #include "components/performance_manager/public/performance_manager.h"
+ #include "components/performance_manager/test_support/test_harness_helper.h"
+ #include "content/public/browser/web_contents.h"
++#include "content/public/browser/web_contents_capability_type.h"
+ #include "content/public/common/content_features.h"
+ #include "content/public/common/referrer.h"
+ #include "content/public/test/navigation_simulator.h"
+@@ -348,6 +350,58 @@ TEST_F(TabLifecycleUnitTest, UserUnloadRejectsMediaCaptureAndMirroring) {
+   EXPECT_TRUE(tab_lifecycle_unit.CanUnloadTab());
+ }
+ 
++TEST_F(TabLifecycleUnitTest, UserUnloadRejectsConnectedDevices) {
++  TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(),
++                                      web_contents_, tab_strip_model_.get());
++  ASSERT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  for (content::WebContentsCapabilityType capability : {
++           content::WebContentsCapabilityType::kUSB,
++           content::WebContentsCapabilityType::kBluetoothConnected,
++           content::WebContentsCapabilityType::kHID,
++           content::WebContentsCapabilityType::kSerial,
++       }) {
++    PageLiveStateDecorator::OnCapabilityTypesChanged(web_contents_, capability,
++                                                     true);
++    EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++    PageLiveStateDecorator::OnCapabilityTypesChanged(web_contents_, capability,
++                                                     false);
++  }
++
++  EXPECT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++}
++
++TEST_F(TabLifecycleUnitTest, UserUnloadRejectsPictureInPictureAndPdf) {
++  TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(),
++                                      web_contents_, tab_strip_model_.get());
++  content::WebContentsTester* const tester =
++      content::WebContentsTester::For(web_contents_);
++  ASSERT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  tester->SetHasPictureInPictureDocument(true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  tester->SetHasPictureInPictureDocument(false);
++
++  tester->SetMainFrameMimeType("application/pdf");
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  tester->SetMainFrameMimeType("text/html");
++  EXPECT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++}
++
++TEST_F(TabLifecycleUnitTest, UserUnloadRejectsUserEdits) {
++  TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(),
++                                      web_contents_, tab_strip_model_.get());
++  base::WeakPtr<PageNode> page_node =
++      PerformanceManager::GetPrimaryPageNodeForWebContents(web_contents_);
++  ASSERT_TRUE(page_node);
++  ASSERT_TRUE(tab_lifecycle_unit.CanUnloadTab());
++
++  performance_manager::PageNodeImpl::FromNode(page_node.get())
++      ->SetHadUserEditsForTesting(true);
++  EXPECT_FALSE(tab_lifecycle_unit.CanUnloadTab());
++  EXPECT_FALSE(tab_lifecycle_unit.UnloadTab());
++}
++
+ TEST_F(TabLifecycleUnitTest, UserUnloadRejectsFormInteraction) {
+   FormInteractionTabHelper::CreateForWebContents(web_contents_);
+   FormInteractionTabHelper* const form_helper =
+diff --git a/chrome/browser/ui/startup/infobar_utils.cc b/chrome/browser/ui/startup/infobar_utils.cc
+index 99dd32541ab26f549537b73366cce33f62679748..455d0edd7c27c0dccd7e4cddee6359de9a23fcfc 100644
+--- a/chrome/browser/ui/startup/infobar_utils.cc
++++ b/chrome/browser/ui/startup/infobar_utils.cc
+@@ -19,7 +19,6 @@
+ #include "chrome/browser/ui/session_crashed_bubble.h"
+ #include "chrome/browser/ui/startup/automation_infobar_delegate.h"
+ #include "chrome/browser/ui/startup/bad_flags_prompt.h"
+-#include "chrome/browser/ui/startup/bidding_and_auction_consented_debugging_infobar_delegate.h"
+ #include "chrome/browser/ui/startup/obsolete_system_infobar_delegate.h"
+ #include "chrome/browser/ui/startup/oscryptasync_availability_infobar_delegate.h"
+ #include "chrome/browser/ui/startup/startup_browser_creator.h"
+diff --git a/chrome/browser/ui/tabs/BUILD.gn b/chrome/browser/ui/tabs/BUILD.gn
+index 2e07ee15fe90a3c679d23664ebd02ba22c314f6a..19a91a75ef3acfe50823c6d14916c1673d44a31f 100644
+--- a/chrome/browser/ui/tabs/BUILD.gn
++++ b/chrome/browser/ui/tabs/BUILD.gn
+@@ -735,6 +735,7 @@ if (!is_android) {
+       "//components/commerce/core:feature_list",
+       "//components/commerce/core:shopping_service",
+       "//components/commerce/core:shopping_service_test_support",
++      "//components/javascript_dialogs",
+       "//components/policy:generated",
+       "//components/policy:policy_code_generate",
+       "//components/policy/core/browser",
+diff --git a/chrome/browser/ui/tabs/pinned_tab_service.cc b/chrome/browser/ui/tabs/pinned_tab_service.cc
+index b0f3b3b720e1aaeb228950d7fefa4cd8467a3cea..07ea87b8f0d8fc8fee5f6422a954b3808460077e 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_service.cc
++++ b/chrome/browser/ui/tabs/pinned_tab_service.cc
+@@ -25,6 +25,7 @@
+ #include "chrome/browser/ui/browser_tabstrip.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
++#include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
+ #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+ #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -148,6 +149,7 @@ void PinnedTabService::Shutdown() {
+   TabStripModelObserver::StopObservingAll(this);
+   live_pin_ids_.clear();
+   closing_models_.clear();
++  browser_close_cancelled_subscriptions_.clear();
+   profile_ = nullptr;
+ }
+ 
+@@ -158,10 +160,32 @@ void PinnedTabService::OnClosingAllBrowsersChanged(bool closing) {
+     // records are already current and deliberately survive shutdown.
+     WriteRecords();
+   } else {
++    for (auto it = closing_models_.begin(); it != closing_models_.end();) {
++      BrowserWindowInterface* browser = FindBrowserForModel(*it);
++      if (!browser || !browser->capabilities()->IsAttemptingToCloseBrowser()) {
++        it = closing_models_.erase(it);
++      } else {
++        ++it;
++      }
++    }
+     ScheduleReconcile();
+   }
+ }
+ 
++void PinnedTabService::OnBrowserCloseCancelled(
++    BrowserWindowInterface* browser,
++    BrowserWindowInterface::ClosingStatus closing_status) {
++  if (!ShouldObserve(browser) ||
++      closing_status == BrowserWindowInterface::ClosingStatus::kPermitted ||
++      closing_status == BrowserWindowInterface::ClosingStatus::
++                            kDeniedUnloadHandlersNeedTime) {
++    return;
++  }
++
++  closing_models_.erase(browser->GetTabStripModel());
++  ScheduleReconcile();
++}
++
+ void PinnedTabService::OnSessionRestored(Profile* profile,
+                                          int /*num_tabs_restored*/) {
+   if (profile == profile_) {
+@@ -174,7 +198,13 @@ void PinnedTabService::OnBrowserCreated(BrowserWindowInterface* browser) {
+     return;
+   }
+ 
+-  browser->GetTabStripModel()->AddObserver(this);
++  TabStripModel* const tab_strip_model = browser->GetTabStripModel();
++  tab_strip_model->AddObserver(this);
++  browser_close_cancelled_subscriptions_.insert_or_assign(
++      tab_strip_model,
++      browser->RegisterBrowserCloseCancelled(
++          base::BindRepeating(&PinnedTabService::OnBrowserCloseCancelled,
++                              weak_factory_.GetWeakPtr())));
+   ScheduleReconcile();
+ }
+ 
+@@ -183,6 +213,7 @@ void PinnedTabService::OnBrowserClosed(BrowserWindowInterface* browser) {
+     return;
+   }
+   TabStripModel* tab_strip_model = browser->GetTabStripModel();
++  browser_close_cancelled_subscriptions_.erase(tab_strip_model);
+   closing_models_.erase(tab_strip_model);
+   ForgetTabsInModel(tab_strip_model);
+   ScheduleReconcile();
+@@ -280,13 +311,23 @@ void PinnedTabService::WillCloseAllTabs(TabStripModel* tab_strip_model) {
+ }
+ 
+ void PinnedTabService::CloseAllTabsStopped(TabStripModel* tab_strip_model,
+-                                           CloseAllStoppedReason /*reason*/) {
++                                           CloseAllStoppedReason reason) {
++  if (reason == kCloseAllCompleted) {
++    return;
++  }
++
++  BrowserWindowInterface* browser = FindBrowserForModel(tab_strip_model);
++  if (browser && browser->capabilities()->IsAttemptingToCloseBrowser()) {
++    return;
++  }
++
+   closing_models_.erase(tab_strip_model);
+   ScheduleReconcile();
+ }
+ 
+ void PinnedTabService::OnTabStripModelDestroyed(
+     TabStripModel* tab_strip_model) {
++  browser_close_cancelled_subscriptions_.erase(tab_strip_model);
+   closing_models_.erase(tab_strip_model);
+   ForgetTabsInModel(tab_strip_model);
+   ScheduleReconcile();
+@@ -297,6 +338,31 @@ bool PinnedTabService::ShouldObserve(BrowserWindowInterface* browser) const {
+          browser->GetType() == BrowserWindowInterface::TYPE_NORMAL;
+ }
+ 
++BrowserWindowInterface* PinnedTabService::FindBrowserForModel(
++    TabStripModel* tab_strip_model) const {
++  if (!profile_) {
++    return nullptr;
++  }
++  ProfileBrowserCollection* collection =
++      ProfileBrowserCollection::GetForProfile(profile_);
++  if (!collection) {
++    return nullptr;
++  }
++
++  BrowserWindowInterface* result = nullptr;
++  collection->ForEach(
++      [this, tab_strip_model, &result](BrowserWindowInterface* browser) {
++        if (ShouldObserve(browser) &&
++            browser->GetTabStripModel() == tab_strip_model) {
++          result = browser;
++          return false;
++        }
++        return true;
++      },
++      BrowserCollection::Order::kCreation);
++  return result;
++}
++
+ BrowserWindowInterface* PinnedTabService::FindRestoreTarget() const {
+   if (!profile_) {
+     return nullptr;
+@@ -310,7 +376,9 @@ BrowserWindowInterface* PinnedTabService::FindRestoreTarget() const {
+   BrowserWindowInterface* target = nullptr;
+   collection->ForEach(
+       [this, &target](BrowserWindowInterface* browser) {
+-        if (ShouldObserve(browser) && !browser->IsDeleteScheduled()) {
++        if (ShouldObserve(browser) && !browser->IsDeleteScheduled() &&
++            !closing_models_.contains(browser->GetTabStripModel()) &&
++            !browser->capabilities()->IsAttemptingToCloseBrowser()) {
+           target = browser;
+           return false;
+         }
+@@ -567,7 +635,9 @@ void PinnedTabService::ReconcileAndRestore() {
+       ProfileBrowserCollection::GetForProfile(profile_);
+   collection->ForEach(
+       [this](BrowserWindowInterface* browser) {
+-        if (!ShouldObserve(browser) || browser->IsDeleteScheduled()) {
++        if (!ShouldObserve(browser) || browser->IsDeleteScheduled() ||
++            closing_models_.contains(browser->GetTabStripModel()) ||
++            browser->capabilities()->IsAttemptingToCloseBrowser()) {
+           return true;
+         }
+         for (tabs::TabInterface* tab : *browser->GetTabStripModel()) {
+diff --git a/chrome/browser/ui/tabs/pinned_tab_service.h b/chrome/browser/ui/tabs/pinned_tab_service.h
+index ffb0742c8749c4d5344bda521747df8c808df265..de818e70844c29493cf5a14d8794352795fe2a11 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_service.h
++++ b/chrome/browser/ui/tabs/pinned_tab_service.h
+@@ -17,11 +17,11 @@
+ #include "base/memory/weak_ptr.h"
+ #include "base/scoped_observation.h"
+ #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/tabs/pinned_tab_codec.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+ #include "components/keyed_service/core/keyed_service.h"
+ 
+-class BrowserWindowInterface;
+ class GlobalBrowserCollection;
+ class Profile;
+ 
+@@ -65,6 +65,9 @@ class PinnedTabService : public BrowserCollectionObserver,
+ 
+  private:
+   void OnClosingAllBrowsersChanged(bool closing);
++  void OnBrowserCloseCancelled(
++      BrowserWindowInterface* browser,
++      BrowserWindowInterface::ClosingStatus closing_status);
+   void OnSessionRestored(Profile* profile, int num_tabs_restored);
+ 
+   // BrowserCollectionObserver:
+@@ -85,6 +88,8 @@ class PinnedTabService : public BrowserCollectionObserver,
+   void OnTabStripModelDestroyed(TabStripModel* tab_strip_model) override;
+ 
+   bool ShouldObserve(BrowserWindowInterface* browser) const;
++  BrowserWindowInterface* FindBrowserForModel(
++      TabStripModel* tab_strip_model) const;
+   BrowserWindowInterface* FindRestoreTarget() const;
+   PersistentPinnedTab* FindRecord(std::string_view id);
+   const PersistentPinnedTab* FindRecord(std::string_view id) const;
+@@ -106,6 +111,8 @@ class PinnedTabService : public BrowserCollectionObserver,
+   PersistentPinnedTabs records_;
+   base::flat_map<raw_ptr<tabs::TabInterface>, std::string> live_pin_ids_;
+   base::flat_set<raw_ptr<TabStripModel>> closing_models_;
++  base::flat_map<raw_ptr<TabStripModel>, base::CallbackListSubscription>
++      browser_close_cancelled_subscriptions_;
+ 
+   bool closing_all_browsers_ = false;
+   bool internal_change_ = false;
+diff --git a/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc b/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
+index 69ad85d5699bcc5745fb33e6a7619639f4f9d30d..4f91881c14ae775a4972382136853abfec4c49d8 100644
+--- a/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
++++ b/chrome/browser/ui/tabs/pinned_tab_service_browsertest.cc
+@@ -19,6 +19,7 @@
+ #include "chrome/browser/ui/browser_window.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
++#include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+ #include "chrome/browser/ui/tabs/pinned_tab_codec.h"
+ #include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
+@@ -27,7 +28,9 @@
+ #include "chrome/browser/ui/unload_controller.h"
+ #include "chrome/test/base/in_process_browser_test.h"
+ #include "chrome/test/base/ui_test_utils.h"
++#include "components/javascript_dialogs/app_modal_dialog_controller.h"
+ #include "content/public/test/browser_test.h"
++#include "content/public/test/browser_test_utils.h"
+ #include "content/public/test/test_utils.h"
+ 
+ using PinnedTabServiceBrowserTest = InProcessBrowserTest;
+@@ -101,6 +104,52 @@ IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest, CloseWindow) {
+   EXPECT_EQ("https://www.google.com/:pinned", result);
+ }
+ 
++IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest,
++                       DeferredCloseDoesNotRematerializePinUntilCancelled) {
++  ASSERT_TRUE(embedded_test_server()->Start());
++  Profile* const profile = browser()->GetProfile();
++  ASSERT_TRUE(PinnedTabServiceFactory::GetForProfile(profile));
++  TabStripModel* const model = browser()->tab_strip_model();
++
++  ASSERT_TRUE(ui_test_utils::NavigateToURL(
++      browser(), embedded_test_server()->GetURL("/title1.html")));
++  model->SetTabPinned(0, true);
++  chrome::AddTabAt(browser(), embedded_test_server()->GetURL("/title2.html"),
++                   model->count(), /*foreground=*/true);
++  content::WebContents* const protected_contents =
++      model->GetActiveWebContents();
++  ASSERT_TRUE(content::ExecJs(
++      protected_contents,
++      "window.onbeforeunload = event => { event.preventDefault(); "
++      "event.returnValue = ''; };"));
++  content::PrepContentsForBeforeUnloadTest(protected_contents);
++  base::RunLoop().RunUntilIdle();
++
++  ASSERT_EQ(1u, PinnedTabCodec::ReadPersistentPinnedTabs(profile).size());
++  browser()->GetWindow()->Close();
++  ASSERT_TRUE(browser()->capabilities()->IsAttemptingToCloseBrowser());
++
++  // Model a batched close continuing while the protected tab's beforeunload
++  // decision is pending. The ordinary pin closes synchronously, but must stay
++  // unloaded until the browser close is genuinely cancelled.
++  model->CloseAllTabs();
++  javascript_dialogs::AppModalDialogController* const dialog =
++      ui_test_utils::WaitForAppModalDialog();
++  ASSERT_TRUE(dialog->is_before_unload_dialog());
++  base::RunLoop().RunUntilIdle();
++  ASSERT_EQ(1, model->count());
++  EXPECT_EQ(protected_contents, model->GetWebContentsAt(0));
++
++  dialog->OnCancel(/*suppress_js_messages=*/false);
++  base::RunLoop().RunUntilIdle();
++  ASSERT_EQ(2, model->count());
++  EXPECT_TRUE(model->IsTabPinned(0));
++  EXPECT_EQ(protected_contents, model->GetWebContentsAt(1));
++
++  ASSERT_TRUE(
++      content::ExecJs(protected_contents, "window.onbeforeunload = null;"));
++}
++
+ // Makes sure closing a popup triggers writing pinned tabs.
+ IN_PROC_BROWSER_TEST_F(PinnedTabServiceBrowserTest, Popup) {
+   Profile* profile = browser()->GetProfile();
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.cc b/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.cc
+index fb34f2f35cb5957edfd7fcf22552dbf1c425fae2..66ea0ff5646b2ef39de4358289d4f5a21152a863 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.h"
+ 
+ #include <algorithm>
++#include <vector>
+ 
+ #include "base/check.h"
+ #include "base/memory/raw_ptr.h"
+@@ -130,53 +131,36 @@ void SavedTabGroupModelListener::OnTabGroupChanged(
+     case TabGroupChange::kMoved: {
+       const std::optional<SavedTabGroup> moved_group =
+           service_->GetGroup(change.group);
+-      if (!moved_group.has_value()) {
++      if (!moved_group.has_value() || moved_group->is_shared_tab_group() ||
++          !moved_group->is_pinned()) {
+         return;
+       }
+ 
+-      TabGroup* const local_group =
+-          change.model->group_model()->GetTabGroup(change.group);
+-      if (!local_group) {
+-        return;
+-      }
+-
+-      // The saved-group model owns a profile-wide order while the tab strip
+-      // supplies only the nearest live neighbors. Anchor the moved folder to a
+-      // saved neighbor without disturbing any closed folders unnecessarily.
+-      const gfx::Range range = local_group->ListTabs();
+-      std::optional<SavedTabGroup> previous_saved_group;
+-      for (int index = static_cast<int>(range.start()) - 1; index >= 0;
+-           --index) {
+-        const std::optional<tab_groups::TabGroupId> candidate_id =
++      // Only regular pinned groups participate in the syncable saved-folder
++      // order. The model permutes them across their existing global slots so
++      // that closed folders and all other group types remain exactly where
++      // they were.
++      std::vector<base::Uuid> ordered_group_ids;
++      std::optional<tab_groups::TabGroupId> previous_local_group_id;
++      for (int index = 0; index < change.model->count(); ++index) {
++        const std::optional<tab_groups::TabGroupId> local_group_id =
+             change.model->GetTabGroupForTab(index);
+-        if (candidate_id.has_value()) {
+-          previous_saved_group = service_->GetGroup(candidate_id.value());
+-          if (previous_saved_group.has_value()) {
+-            break;
+-          }
++        if (local_group_id == previous_local_group_id) {
++          continue;
+         }
+-      }
+-
+-      std::optional<SavedTabGroup> next_saved_group;
+-      for (int index = static_cast<int>(range.end());
+-           index < change.model->count(); ++index) {
+-        const std::optional<tab_groups::TabGroupId> candidate_id =
+-            change.model->GetTabGroupForTab(index);
+-        if (candidate_id.has_value()) {
+-          next_saved_group = service_->GetGroup(candidate_id.value());
+-          if (next_saved_group.has_value()) {
+-            break;
+-          }
++        previous_local_group_id = local_group_id;
++        if (!local_group_id.has_value()) {
++          continue;
+         }
+-      }
+ 
+-      if (next_saved_group.has_value()) {
+-        service_->ReorderGroupBefore(moved_group->saved_guid(),
+-                                     next_saved_group->saved_guid());
+-      } else if (previous_saved_group.has_value()) {
+-        service_->ReorderGroupAfter(moved_group->saved_guid(),
+-                                    previous_saved_group->saved_guid());
++        const std::optional<SavedTabGroup> saved_group =
++            service_->GetGroup(local_group_id.value());
++        if (saved_group.has_value() && !saved_group->is_shared_tab_group() &&
++            saved_group->is_pinned()) {
++          ordered_group_ids.push_back(saved_group->saved_guid());
++        }
+       }
++      service_->ReorderGroupsInCurrentSlots(ordered_group_ids);
+       return;
+     }
+   }
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc
+index 908bcc33daccdcaaf6d8ffc03103ce25aef9c4d3..61f87a3c5b161079343798cec9bfd5f736f52fc1 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc
+@@ -1078,6 +1078,53 @@ IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
+   EXPECT_EQ(second_guid, reordered[2].saved_guid());
+ }
+ 
++IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
++                       MovingLiveFolderPreservesClosedFolderSlot) {
++  chrome::AddTabAt(browser(), GURL("about:blank"), 1, false);
++  chrome::AddTabAt(browser(), GURL("about:blank"), 2, false);
++  chrome::AddTabAt(browser(), GURL("about:blank"), 3, false);
++  TabStripModel* const model = browser()->tab_strip_model();
++  const LocalTabGroupID first = model->AddToNewGroup({0});
++  const LocalTabGroupID closed = model->AddToNewGroup({1});
++  const LocalTabGroupID second = model->AddToNewGroup({2});
++  const LocalTabGroupID third = model->AddToNewGroup({3});
++
++  const std::optional<SavedTabGroup> first_group = service_->GetGroup(first);
++  const std::optional<SavedTabGroup> closed_group = service_->GetGroup(closed);
++  const std::optional<SavedTabGroup> second_group = service_->GetGroup(second);
++  const std::optional<SavedTabGroup> third_group = service_->GetGroup(third);
++  ASSERT_TRUE(first_group.has_value());
++  ASSERT_TRUE(closed_group.has_value());
++  ASSERT_TRUE(second_group.has_value());
++  ASSERT_TRUE(third_group.has_value());
++  const base::Uuid first_guid = first_group->saved_guid();
++  const base::Uuid closed_guid = closed_group->saved_guid();
++  const base::Uuid second_guid = second_group->saved_guid();
++  const base::Uuid third_guid = third_group->saved_guid();
++  const std::vector<SavedTabGroup> original_order = service_->GetAllGroups();
++  ASSERT_EQ(4u, original_order.size());
++  ASSERT_EQ(first_guid, original_order[0].saved_guid());
++  ASSERT_EQ(closed_guid, original_order[1].saved_guid());
++  ASSERT_EQ(second_guid, original_order[2].saved_guid());
++  ASSERT_EQ(third_guid, original_order[3].saved_guid());
++
++  model->CloseAllTabsInGroup(closed);
++  ASSERT_TRUE(base::test::RunUntil([&]() {
++    const std::optional<SavedTabGroup> group = service_->GetGroup(closed_guid);
++    return group.has_value() && !group->local_group_id().has_value();
++  }));
++
++  model->MoveGroupTo(third, 0);
++
++  ASSERT_TRUE(base::test::RunUntil([&]() {
++    const std::vector<SavedTabGroup> groups = service_->GetAllGroups();
++    return groups.size() == 4u && groups[0].saved_guid() == third_guid &&
++           groups[1].saved_guid() == closed_guid &&
++           groups[2].saved_guid() == first_guid &&
++           groups[3].saved_guid() == second_guid;
++  }));
++}
++
+ // TODO(crbug.com/438395752): Re-enable this test on Linux.
+ #if BUILDFLAG(IS_LINUX)
+ #define MAYBE_TabRemovalsFromSyncDontCauseZeroTabStateInLocal \
+diff --git a/chrome/browser/ui/tabs/tab_data.cc b/chrome/browser/ui/tabs/tab_data.cc
+index 1f01557a58f63c1f7aefbba2fd5176935b98ef41..66da6c7eb7028031d0b69b520314d77c4865e963 100644
+--- a/chrome/browser/ui/tabs/tab_data.cc
++++ b/chrome/browser/ui/tabs/tab_data.cc
+@@ -48,7 +48,9 @@ TabData TabData::FromTabInterface(tabs::TabInterface* tab_interface) {
+   tab_data.needs_attention = tab_ui_helper->needs_attention();
+   tab_data.is_tab_discarded = tab_ui_helper->IsDiscarded();
+   tab_data.should_show_discard_status =
+-      tab_ui_helper->ShouldShowDiscardStatus() || tab_data.is_tab_discarded;
++      tab_ui_helper->ShouldShowDiscardStatus() ||
++      (tab_data.is_tab_discarded &&
++       (tab_interface->IsPinned() || tab_interface->GetGroup().has_value()));
+   tab_data.discarded_memory_savings =
+       tab_ui_helper->GetDiscardedMemorySavings();
+   tab_data.network_state = tab_ui_helper->GetTabNetworkState();
+diff --git a/chrome/browser/ui/tabs/tab_data_browsertest.cc b/chrome/browser/ui/tabs/tab_data_browsertest.cc
+index c4c3b61ffc24f4b8c4577435c07ac9c97aacf5f2..23ed72e7817b6cc2f76e2fd14e0b29ed2e5edddb 100644
+--- a/chrome/browser/ui/tabs/tab_data_browsertest.cc
++++ b/chrome/browser/ui/tabs/tab_data_browsertest.cc
+@@ -411,9 +411,14 @@ IN_PROC_BROWSER_TEST_F(TabDataObserverBrowserTest, TabLifecycleManagement) {
+   tabs::TabData data_restored_unloaded =
+       tabs::TabData::FromTabInterface(tab_interface);
+   EXPECT_TRUE(data_restored_unloaded.is_tab_discarded);
+-  EXPECT_TRUE(data_restored_unloaded.should_show_discard_status);
++  EXPECT_FALSE(data_restored_unloaded.should_show_discard_status);
+   EXPECT_EQ(original_title, data_restored_unloaded.title);
+   EXPECT_EQ(original_url, data_restored_unloaded.last_committed_url);
++
++  browser()->GetTabStripModel()->SetTabPinned(0, true);
++  tabs::TabData data_pinned_unloaded =
++      tabs::TabData::FromTabInterface(tab_interface);
++  EXPECT_TRUE(data_pinned_unloaded.should_show_discard_status);
+ }
+ 
+ IN_PROC_BROWSER_TEST_F(TabDataObserverBrowserTest,
+diff --git a/chrome/browser/ui/views/tabs/common/split_tab_view.cc b/chrome/browser/ui/views/tabs/common/split_tab_view.cc
+index c65ab3ed4cb7265a93fecc90f6d78e97d0be56ba..3a6c4f7d05d52274128061c6afec4b8e555b90e6 100644
+--- a/chrome/browser/ui/views/tabs/common/split_tab_view.cc
++++ b/chrome/browser/ui/views/tabs/common/split_tab_view.cc
+@@ -29,6 +29,12 @@
+ #include "ui/views/view_utils.h"
+ #include "ui/views/widget/widget.h"
+ 
++namespace {
++
++constexpr int kHorizontalPinnedSplitBorderThickness = 1;
++
++}  // namespace
++
+ SplitTabView::SplitTabView(TabCollectionNode* collection_node)
+     : collection_node_(collection_node),
+       hover_controller_(gfx::Animation::ShouldRenderRichAnimation()
+@@ -236,7 +242,7 @@ void SplitTabView::UpdateBorder() {
+     const bool is_frame_active =
+         GetWidget() ? GetWidget()->ShouldPaintAsActive() : true;
+     SetBorder(views::CreateRoundedRectBorder(
+-        GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness),
++        kHorizontalPinnedSplitBorderThickness,
+         GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius),
+         is_frame_active ? kColorTabDividerFrameActive
+                         : kColorTabDividerFrameInactive));
+diff --git a/chrome/browser/ui/views/tabs/common/split_tab_view_browsertest.cc b/chrome/browser/ui/views/tabs/common/split_tab_view_browsertest.cc
+index 52168531dc2708e6da58bc164fd958ac9446395e..83cf4f95ea62edfd10364ceea2114ab403ecb917 100644
+--- a/chrome/browser/ui/views/tabs/common/split_tab_view_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/common/split_tab_view_browsertest.cc
+@@ -114,3 +114,37 @@ IN_PROC_BROWSER_TEST_F(SplitTabViewTest, ProposedLayout_LimitedBounds) {
+   EXPECT_EQ(available_width, child1_layout->bounds.width());
+   EXPECT_EQ(available_width, child2_layout->bounds.width());
+ }
++
++IN_PROC_BROWSER_TEST_F(SplitTabViewTest,
++                       HorizontalPinnedSplitKeepsUpstreamBorderThickness) {
++  ExitVerticalTabsMode();
++
++  AppendPinnedTab();
++  content::WebContents* const first_contents =
++      tab_strip_model()->GetWebContentsAt(tab_strip_model()->active_index());
++  AppendPinnedTab();
++  content::WebContents* const second_contents =
++      tab_strip_model()->GetWebContentsAt(tab_strip_model()->active_index());
++  const int first_index =
++      tab_strip_model()->GetIndexOfWebContents(first_contents);
++  const int second_index =
++      tab_strip_model()->GetIndexOfWebContents(second_contents);
++
++  tab_strip_model()->ActivateTabAt(
++      first_index, TabStripUserGestureDetails(
++                       TabStripUserGestureDetails::GestureType::kOther));
++  tab_strip_model()->AddToNewSplit(
++      {second_index}, {}, split_tabs::SplitTabCreatedSource::kTabContextMenu);
++
++  TabCollectionNode* const pinned_node = pinned_collection_node();
++  ASSERT_TRUE(pinned_node);
++  TabCollectionNode* const split_node =
++      pinned_node->GetChildNodeOfType(TabCollectionNode::Type::SPLIT);
++  ASSERT_TRUE(split_node);
++  auto* const split = split_node->view();
++  ASSERT_TRUE(views::IsViewClass<SplitTabView>(split));
++  SplitTabView* const split_tab_view = views::AsViewClass<SplitTabView>(split);
++  split_tab_view->UpdateBorder();
++
++  EXPECT_EQ(gfx::Insets(1), split_tab_view->GetInsets());
++}
+diff --git a/components/saved_tab_groups/internal/saved_tab_group_model.cc b/components/saved_tab_groups/internal/saved_tab_group_model.cc
+index 0f8b402887879806107bca42996a1abd752d35dc..9c9441f48405655e291f008e18f44453eb77333f 100644
+--- a/components/saved_tab_groups/internal/saved_tab_group_model.cc
++++ b/components/saved_tab_groups/internal/saved_tab_group_model.cc
+@@ -813,6 +813,53 @@ void SavedTabGroupModel::ReorderGroupAfter(const base::Uuid& id,
+   ReorderGroupLocally(id, new_index);
+ }
+ 
++void SavedTabGroupModel::ReorderGroupsInCurrentSlots(
++    const std::vector<base::Uuid>& ordered_group_ids) {
++  if (ordered_group_ids.size() < 2u) {
++    return;
++  }
++
++  std::vector<int> source_indices;
++  source_indices.reserve(ordered_group_ids.size());
++  for (size_t i = 0; i < ordered_group_ids.size(); ++i) {
++    if (std::find(ordered_group_ids.begin(), ordered_group_ids.begin() + i,
++                  ordered_group_ids[i]) != ordered_group_ids.begin() + i) {
++      return;
++    }
++
++    const std::optional<int> index = GetIndexOf(ordered_group_ids[i]);
++    if (!index.has_value()) {
++      return;
++    }
++
++    const SavedTabGroup& group = saved_tab_groups_[index.value()];
++    if (group.is_shared_tab_group() || !group.is_pinned()) {
++      return;
++    }
++    source_indices.push_back(index.value());
++  }
++
++  std::vector<int> target_indices = source_indices;
++  std::ranges::sort(target_indices);
++  if (source_indices == target_indices) {
++    return;
++  }
++
++  std::vector<SavedTabGroup> ordered_groups;
++  ordered_groups.reserve(source_indices.size());
++  for (int source_index : source_indices) {
++    ordered_groups.push_back(std::move(saved_tab_groups_[source_index]));
++  }
++  for (size_t i = 0; i < target_indices.size(); ++i) {
++    saved_tab_groups_[target_indices[i]] = std::move(ordered_groups[i]);
++  }
++
++  UpdateGroupPositionsImpl();
++  for (SavedTabGroupModelObserver& observer : observers_) {
++    observer.SavedTabGroupReorderedLocally();
++  }
++}
++
+ std::pair<std::set<base::Uuid>, std::set<base::Uuid>>
+ SavedTabGroupModel::UpdateLocalCacheGuid(
+     std::optional<std::string> old_cache_guid,
+diff --git a/components/saved_tab_groups/internal/saved_tab_group_model.h b/components/saved_tab_groups/internal/saved_tab_group_model.h
+index cc1c870748d9956b1e2a4eb715415189a8b118b0..223449b92329727486c5e6ed7bdff8faed94fa29 100644
+--- a/components/saved_tab_groups/internal/saved_tab_group_model.h
++++ b/components/saved_tab_groups/internal/saved_tab_group_model.h
+@@ -198,6 +198,11 @@ class SavedTabGroupModel {
+   void ReorderGroupBefore(const base::Uuid& id, const base::Uuid& next_id);
+   void ReorderGroupAfter(const base::Uuid& id, const base::Uuid& prev_id);
+ 
++  // Permutes the given regular pinned groups across only the model slots they
++  // currently occupy. Invalid input and already ordered input are no-ops.
++  void ReorderGroupsInCurrentSlots(
++      const std::vector<base::Uuid>& ordered_group_ids);
++
+   // Update the creator cache guid for all saved groups that have
+   // `old_cache_guid`, to `new_cache_guid`.
+   std::pair<std::set<base::Uuid>, std::set<base::Uuid>> UpdateLocalCacheGuid(
+diff --git a/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc b/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc
+index b1554ec6c6fba30497ccdd88b82fd0ad216e3f96..23ae5ff5cdef3d9164afe207bdd53e023c3f0eed 100644
+--- a/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc
++++ b/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc
+@@ -100,7 +100,10 @@ class SavedTabGroupModelObserverTest : public ::testing::Test,
+         saved_tab_group_model_->GetIndexOf(group_guid).value_or(-1);
+   }
+ 
+-  void SavedTabGroupReorderedLocally() override { reordered_called_ = true; }
++  void SavedTabGroupReorderedLocally() override {
++    reordered_called_ = true;
++    ++reordered_call_count_;
++  }
+   void SavedTabGroupTabMovedLocally(const base::Uuid& group_guid,
+                                     const base::Uuid& tab_guid) override {
+     tabs_reodered_called_ = true;
+@@ -117,6 +120,7 @@ class SavedTabGroupModelObserverTest : public ::testing::Test,
+     retrieved_old_index_ = -1;
+     retrieved_new_index_ = -1;
+     reordered_called_ = false;
++    reordered_call_count_ = 0;
+     tabs_reodered_called_ = false;
+     retrieved_guid_ = base::Uuid::GenerateRandomV4();
+     last_seen_tab_id_ = base::Uuid::GenerateRandomV4();
+@@ -128,6 +132,7 @@ class SavedTabGroupModelObserverTest : public ::testing::Test,
+   int retrieved_old_index_ = -1;
+   int retrieved_new_index_ = -1;
+   bool reordered_called_ = false;
++  int reordered_call_count_ = 0;
+   bool tabs_reodered_called_ = false;
+ 
+   base::Uuid retrieved_guid_ = base::Uuid::GenerateRandomV4();
+@@ -659,6 +664,59 @@ TEST_F(SavedTabGroupModelTest, ReorderGroupAfter) {
+               testing::ElementsAre(id_3_, id_1_, id_2_, id_4));
+ }
+ 
++TEST_F(SavedTabGroupModelTest,
++       ReorderGroupsInCurrentSlotsPreservesExcludedGroupSlots) {
++  RemoveTestData();
++  const base::Uuid first_id = base::Uuid::GenerateRandomV4();
++  const base::Uuid closed_id = base::Uuid::GenerateRandomV4();
++  const base::Uuid second_id = base::Uuid::GenerateRandomV4();
++  const base::Uuid third_id = base::Uuid::GenerateRandomV4();
++  const base::Uuid shared_id = base::Uuid::GenerateRandomV4();
++  const base::Uuid unpinned_id = base::Uuid::GenerateRandomV4();
++
++  saved_tab_group_model_->AddedLocally(SavedTabGroup(
++      u"First", TabGroupColorId::kRed, {}, /*position=*/0, first_id));
++  saved_tab_group_model_->AddedLocally(SavedTabGroup(
++      u"Closed", TabGroupColorId::kOrange, {}, /*position=*/1, closed_id));
++  saved_tab_group_model_->AddedLocally(SavedTabGroup(
++      u"Second", TabGroupColorId::kYellow, {}, /*position=*/2, second_id));
++  saved_tab_group_model_->AddedLocally(SavedTabGroup(
++      u"Third", TabGroupColorId::kGreen, {}, /*position=*/3, third_id));
++  SavedTabGroup shared_group(u"Shared", TabGroupColorId::kBlue, {},
++                             /*position=*/4, shared_id);
++  shared_group.SetCollaborationId(syncer::CollaborationId("collaboration"));
++  saved_tab_group_model_->AddedLocally(std::move(shared_group));
++  saved_tab_group_model_->AddedLocally(
++      SavedTabGroup(u"Unpinned", TabGroupColorId::kGrey, {},
++                    /*position=*/std::nullopt, unpinned_id));
++
++  ASSERT_THAT(GetSavedTabGroupIds(),
++              testing::ElementsAre(first_id, closed_id, second_id, third_id,
++                                   shared_id, unpinned_id));
++
++  saved_tab_group_model_->ReorderGroupsInCurrentSlots(
++      {third_id, first_id, second_id});
++
++  EXPECT_THAT(GetSavedTabGroupIds(),
++              testing::ElementsAre(third_id, closed_id, first_id, second_id,
++                                   shared_id, unpinned_id));
++  EXPECT_EQ(0u, saved_tab_group_model_->Get(third_id)->position());
++  EXPECT_EQ(1u, saved_tab_group_model_->Get(closed_id)->position());
++  EXPECT_EQ(2u, saved_tab_group_model_->Get(first_id)->position());
++  EXPECT_EQ(3u, saved_tab_group_model_->Get(second_id)->position());
++
++  const std::vector<base::Uuid> expected_order = GetSavedTabGroupIds();
++  saved_tab_group_model_->ReorderGroupsInCurrentSlots(
++      {third_id, shared_id, first_id});
++  EXPECT_EQ(GetSavedTabGroupIds(), expected_order);
++  saved_tab_group_model_->ReorderGroupsInCurrentSlots(
++      {third_id, unpinned_id, first_id});
++  EXPECT_EQ(GetSavedTabGroupIds(), expected_order);
++  saved_tab_group_model_->ReorderGroupsInCurrentSlots(
++      {third_id, first_id, first_id});
++  EXPECT_EQ(GetSavedTabGroupIds(), expected_order);
++}
++
+ TEST_F(SavedTabGroupModelTest, MoveElement) {
+   ASSERT_EQ(0, saved_tab_group_model_->GetIndexOf(id_3_));
+   ASSERT_EQ(1, saved_tab_group_model_->GetIndexOf(id_2_));
+@@ -1287,6 +1345,26 @@ TEST_F(SavedTabGroupModelObserverTest, MoveElement) {
+   EXPECT_EQ(2, saved_tab_group_model_->GetIndexOf(stg_2.saved_guid()));
+ }
+ 
++TEST_F(SavedTabGroupModelObserverTest,
++       ReorderGroupsInCurrentSlotsNotifiesOnce) {
++  SavedTabGroup first(u"First", TabGroupColorId::kGrey, {}, /*position=*/0);
++  SavedTabGroup second(u"Second", TabGroupColorId::kGrey, {},
++                       /*position=*/1);
++  SavedTabGroup third(u"Third", TabGroupColorId::kGrey, {}, /*position=*/2);
++  saved_tab_group_model_->AddedLocally(first);
++  saved_tab_group_model_->AddedLocally(second);
++  saved_tab_group_model_->AddedLocally(third);
++
++  saved_tab_group_model_->ReorderGroupsInCurrentSlots(
++      {third.saved_guid(), first.saved_guid(), second.saved_guid()});
++
++  EXPECT_EQ(1, reordered_call_count_);
++  ClearSignals();
++  saved_tab_group_model_->ReorderGroupsInCurrentSlots(
++      {third.saved_guid(), first.saved_guid(), second.saved_guid()});
++  EXPECT_EQ(0, reordered_call_count_);
++}
++
+ TEST_F(SavedTabGroupModelObserverTest, ReordedTabsUpdatePositions) {
+   SavedTabGroup group = test::CreateTestSavedTabGroup();
+   base::Uuid group_id = group.saved_guid();
+diff --git a/components/saved_tab_groups/internal/shared_tab_group_data_sync_bridge.cc b/components/saved_tab_groups/internal/shared_tab_group_data_sync_bridge.cc
+index 5f15f4ea34310069f302cbdb30f7d205f0472dfd..2022292a05023926eec887158462d2325fe29f6f 100644
+--- a/components/saved_tab_groups/internal/shared_tab_group_data_sync_bridge.cc
++++ b/components/saved_tab_groups/internal/shared_tab_group_data_sync_bridge.cc
+@@ -375,6 +375,9 @@ LoadStoredEntries(std::vector<proto::SharedTabGroupData> stored_entries,
+     if (proto.local_group_data().has_is_group_hidden()) {
+       group.SetIsHidden(proto.local_group_data().is_group_hidden());
+     }
++    if (proto.local_group_data().has_is_collapsed()) {
++      group.SetIsCollapsed(proto.local_group_data().is_collapsed());
++    }
+     stats::RecordSharedTabGroupDataLoadFromDiskResult(
+         stats::SharedTabGroupDataLoadFromDiskResult::kSuccess);
+     groups.emplace_back(std::move(group));
+@@ -479,6 +482,7 @@ proto::LocalSharedTabGroupData GroupToLocalOnlyData(
+   local_group_data.set_is_group_hidden(group.is_hidden());
+   local_group_data.set_use_originating_tab_group_guid(
+       group.use_originating_tab_group_guid());
++  local_group_data.set_is_collapsed(group.is_collapsed());
+   return local_group_data;
+ }
+ 
+diff --git a/components/saved_tab_groups/internal/shared_tab_group_data_sync_bridge_unittest.cc b/components/saved_tab_groups/internal/shared_tab_group_data_sync_bridge_unittest.cc
+index 8737352d79901dbb43a324a431926a0c04bfa085..ea18cdec029b970007d08f8775f191f660835962 100644
+--- a/components/saved_tab_groups/internal/shared_tab_group_data_sync_bridge_unittest.cc
++++ b/components/saved_tab_groups/internal/shared_tab_group_data_sync_bridge_unittest.cc
+@@ -1315,6 +1315,7 @@ TEST_F(SharedTabGroupDataSyncBridgeTest, ShouldReloadDataOnBrowserRestart) {
+   SavedTabGroup group(u"title", tab_groups::TabGroupColorId::kGrey,
+                       /*urls=*/{}, /*position=*/std::nullopt);
+   group.SetCollaborationId(kCollaborationId);
++  group.SetIsCollapsed(true);
+   group.SetUpdatedByAttribution(kDefaultGaiaId);
+   SavedTabGroupTab tab1 = test::CreateSavedTabGroupTab(
+       "http://google.com/1", u"tab 1", group.saved_guid(), /*position=*/0);
+@@ -1349,6 +1350,7 @@ TEST_F(SharedTabGroupDataSyncBridgeTest, ShouldReloadDataOnBrowserRestart) {
+                           HasTabMetadata("tab 2", "http://google.com/2")));
+   EXPECT_THAT(model()->saved_tab_groups().front().saved_tabs(),
+               Each(HasSharedAttribution(kDefaultGaiaId, kDefaultGaiaId)));
++  EXPECT_TRUE(model()->saved_tab_groups().front().is_collapsed());
+ }
+ 
+ TEST_F(SharedTabGroupDataSyncBridgeTest,
+diff --git a/components/saved_tab_groups/internal/tab_group_sync_service_impl.cc b/components/saved_tab_groups/internal/tab_group_sync_service_impl.cc
+index b86cb48d446676b75af90d529920e8e857889f09..c2b8c4c886e1fff2c84c3a380611e947bcd245d7 100644
+--- a/components/saved_tab_groups/internal/tab_group_sync_service_impl.cc
++++ b/components/saved_tab_groups/internal/tab_group_sync_service_impl.cc
+@@ -520,6 +520,13 @@ void TabGroupSyncServiceImpl::ReorderGroupAfter(
+   model_->ReorderGroupAfter(sync_id, prev_sync_id);
+ }
+ 
++void TabGroupSyncServiceImpl::ReorderGroupsInCurrentSlots(
++    const std::vector<base::Uuid>& ordered_group_ids) {
++  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
++  VLOG(2) << __func__;
++  model_->ReorderGroupsInCurrentSlots(ordered_group_ids);
++}
++
+ void TabGroupSyncServiceImpl::UpdateBookmarkNodeId(
+     const base::Uuid& sync_id,
+     std::optional<base::Uuid> bookmark_node_id) {
+@@ -1537,7 +1544,7 @@ void TabGroupSyncServiceImpl::HandleTabGroupRemoved(
+ 
+   if (removed_group.GetOriginatingTabGroupGuid().has_value()) {
+     const SavedTabGroup* originating_group =
+-            model_->Get(removed_group.GetOriginatingTabGroupGuid().value());
++        model_->Get(removed_group.GetOriginatingTabGroupGuid().value());
+     if (originating_group && originating_group->is_hidden()) {
+       // It's possible that the originating saved tab group still exists when
+       // the shared tab group is removed. This can happen if the sharing
+diff --git a/components/saved_tab_groups/internal/tab_group_sync_service_impl.h b/components/saved_tab_groups/internal/tab_group_sync_service_impl.h
+index 206d02acdd81e9edc1e9ade4bbeac06e05fdb5fd..01ca40a1ffa56c78c27282cec24946855f617e41 100644
+--- a/components/saved_tab_groups/internal/tab_group_sync_service_impl.h
++++ b/components/saved_tab_groups/internal/tab_group_sync_service_impl.h
+@@ -95,6 +95,9 @@ class TabGroupSyncServiceImpl : public TabGroupSyncService,
+   void ReorderGroupAfter(const base::Uuid& sync_id,
+                          const base::Uuid& prev_sync_id) override;
+ 
++  void ReorderGroupsInCurrentSlots(
++      const std::vector<base::Uuid>& ordered_group_ids) override;
++
+   void UpdateBookmarkNodeId(
+       const base::Uuid& sync_id,
+       std::optional<base::Uuid> bookmark_node_id) override;
+diff --git a/components/saved_tab_groups/proto/shared_tab_group_data.proto b/components/saved_tab_groups/proto/shared_tab_group_data.proto
+index 50acea92aa1ef1adcefd81edc2e7b73a55ca7666..b816e43ff03fc1eae031326d05e9f4cac81bed2d 100644
+--- a/components/saved_tab_groups/proto/shared_tab_group_data.proto
++++ b/components/saved_tab_groups/proto/shared_tab_group_data.proto
+@@ -28,6 +28,11 @@ message LocalSharedTabGroupData {
+   // Whether the originating tab group should be used by the signed in user (or
+   // whether the user is the owner of the originating tab group).
+   optional bool use_originating_tab_group_guid = 4;
++
++  // Whether the local folder is collapsed in the tab strip. This is
++  // presentation state for this profile/device and must never be uploaded
++  // through sync.
++  optional bool is_collapsed = 9 [default = false];
+ }
+ 
+ // Message to store shared tab groups in DataTypeStore.
+diff --git a/components/saved_tab_groups/public/tab_group_sync_service.h b/components/saved_tab_groups/public/tab_group_sync_service.h
+index 3f55d362d60cbc9743f8020946c5d3b9e639f2d1..120858ef841497627d01f917820e2ae47aae99b4 100644
+--- a/components/saved_tab_groups/public/tab_group_sync_service.h
++++ b/components/saved_tab_groups/public/tab_group_sync_service.h
+@@ -189,6 +189,11 @@ class TabGroupSyncService : public KeyedService, public base::SupportsUserData {
+   virtual void ReorderGroupAfter(const base::Uuid& sync_id,
+                                  const base::Uuid& prev_sync_id) = 0;
+ 
++  // Reorders the given regular pinned groups in `ordered_group_ids` order
++  // while keeping every other group in its current model slot.
++  virtual void ReorderGroupsInCurrentSlots(
++      const std::vector<base::Uuid>& ordered_group_ids) = 0;
++
+   // Update bookmark node id of the tab group.
+   // This is used to connect/disconnect bookmark folder with a saved tab group.
+   virtual void UpdateBookmarkNodeId(
+diff --git a/components/saved_tab_groups/test_support/fake_tab_group_sync_service.cc b/components/saved_tab_groups/test_support/fake_tab_group_sync_service.cc
+index 77e6f2bd95560fc4a717e019c811ae4da66f5f03..e1a1efc48d0fe8e5d088339c3c1dc758624c8449 100644
+--- a/components/saved_tab_groups/test_support/fake_tab_group_sync_service.cc
++++ b/components/saved_tab_groups/test_support/fake_tab_group_sync_service.cc
+@@ -129,6 +129,11 @@ void FakeTabGroupSyncService::ReorderGroupAfter(
+   // No op.
+ }
+ 
++void FakeTabGroupSyncService::ReorderGroupsInCurrentSlots(
++    const std::vector<base::Uuid>& ordered_group_ids) {
++  // No op.
++}
++
+ void FakeTabGroupSyncService::UpdateBookmarkNodeId(
+     const base::Uuid& sync_id,
+     std::optional<base::Uuid> bookmark_node_id) {
+diff --git a/components/saved_tab_groups/test_support/fake_tab_group_sync_service.h b/components/saved_tab_groups/test_support/fake_tab_group_sync_service.h
+index 7849657a48d5c99ba675cf3c11a9384c9a0860b6..d15c943847dd97bdcaee2fd76e6c36b949b56e66 100644
+--- a/components/saved_tab_groups/test_support/fake_tab_group_sync_service.h
++++ b/components/saved_tab_groups/test_support/fake_tab_group_sync_service.h
+@@ -37,6 +37,8 @@ class FakeTabGroupSyncService : public TabGroupSyncService {
+                           const base::Uuid& next_sync_id) override;
+   void ReorderGroupAfter(const base::Uuid& sync_id,
+                          const base::Uuid& prev_sync_id) override;
++  void ReorderGroupsInCurrentSlots(
++      const std::vector<base::Uuid>& ordered_group_ids) override;
+   void UpdateBookmarkNodeId(
+       const base::Uuid& sync_id,
+       std::optional<base::Uuid> bookmark_node_id) override;
+diff --git a/components/saved_tab_groups/test_support/mock_tab_group_sync_service.h b/components/saved_tab_groups/test_support/mock_tab_group_sync_service.h
+index 90c62f24d0914bd4736322009fef01293a4d4263..9a1af18d395a5fc93b46060667d498679edc0647 100644
+--- a/components/saved_tab_groups/test_support/mock_tab_group_sync_service.h
++++ b/components/saved_tab_groups/test_support/mock_tab_group_sync_service.h
+@@ -39,6 +39,9 @@ class MockTabGroupSyncService : public TabGroupSyncService {
+   MOCK_METHOD(void,
+               ReorderGroupAfter,
+               (const base::Uuid& sync_id, const base::Uuid& prev_sync_id));
++  MOCK_METHOD(void,
++              ReorderGroupsInCurrentSlots,
++              (const std::vector<base::Uuid>& ordered_group_ids));
+   MOCK_METHOD(void,
+               UpdateBookmarkNodeId,
+               (const base::Uuid&, std::optional<base::Uuid>));

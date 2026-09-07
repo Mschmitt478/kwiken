@@ -1,22 +1,16 @@
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index debc414c215aba21b8999a7d399595cdebe114e8..5b1c091623c3919feb2cc9a77efa7af57dcdbafc 100644
+index 912072c8e1434a010c4dd9f3caebc0e3866197ae..055be815799831b1926965fd73a4bc98e622db13 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
-@@ -23,13 +23,12 @@
+@@ -22,7 +22,6 @@
+ #include "chrome/browser/ui/color/omnibox_color_mixer.h"
  #include "chrome/browser/ui/color/product_specifications_color_mixer.h"
- #include "chrome/browser/ui/color/projects_panel_color_mixer.h"
  #include "chrome/browser/ui/color/tab_strip_color_mixer.h"
 -#include "third_party/skia/include/core/SkColor.h"
  #include "ui/color/color_id.h"
  #include "ui/color/color_mixer.h"
  #include "ui/color/color_provider.h"
- #include "ui/color/color_provider_key.h"
- #include "ui/color/color_provider_utils.h"
- #include "ui/color/color_recipe.h"
- 
- namespace {
- 
-@@ -41,173 +39,15 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
+@@ -40,173 +39,15 @@ void AddKwikenColorMixer(ui::ColorProvider* provider,
      return;
    }
  
@@ -199,7 +193,7 @@ index debc414c215aba21b8999a7d399595cdebe114e8..5b1c091623c3919feb2cc9a77efa7af5
  
  class ChromeColorProviderUtilsCallbacks
 diff --git a/chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc b/chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc
-index 78b3b3716ed1fd99926a09ec9293ff6330066af1..6e6a168153a33c8e4c463d6e83c33c828cf91826 100644
+index 78b3b3716ed1fd99926a09ec9293ff6330066af1..913c0e44984e8830c90334e7248d65867a5a46e6 100644
 --- a/chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc
 +++ b/chrome/browser/ui/color/material_new_tab_page_color_mixer_unittest.cc
 @@ -7,6 +7,7 @@
@@ -246,13 +240,12 @@ index 78b3b3716ed1fd99926a09ec9293ff6330066af1..6e6a168153a33c8e4c463d6e83c33c82
  TEST_F(MaterialNewTabPageColorMixerTest, NtpModulesRedesignedEnabled) {
    AddMaterialColorMixers();
  
-@@ -38,4 +68,17 @@ TEST_F(MaterialNewTabPageColorMixerTest, NtpModulesRedesignedEnabled) {
+@@ -38,4 +68,16 @@ TEST_F(MaterialNewTabPageColorMixerTest, NtpModulesRedesignedEnabled) {
              color_provider().GetColor(ui::kColorSysSurface));
  }
  
 +TEST(KwikenThemeColorMixerTest, ZenRailFollowsSelectedTheme) {
-+  const ZenRailColors olive =
-+      GetZenRailColors(SkColorSetRGB(0xB7, 0xD4, 0x55));
++  const ZenRailColors olive = GetZenRailColors(SkColorSetRGB(0xB7, 0xD4, 0x55));
 +  const ZenRailColors blue = GetZenRailColors(SK_ColorBLUE);
 +
 +  EXPECT_EQ(olive.tile, olive.header_container);

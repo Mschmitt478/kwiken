@@ -39,17 +39,17 @@ function Assert-PatchDoesNotMatch {
 
 $expectedBaseBlobs = [ordered]@{
   "chrome/app/generated_resources.grd" =
-    "960819159d07c65bab2845b130a6bbcb8baebd86"
+    "8e771c64683fc0cfd0861f603efca1385c8ed40b"
   "chrome/browser/ui/tabs/tab_menu_model.cc" =
-    "aac534e5d86f2d81b9e5252d6dd9afa039110f5a"
+    "2c39030db7a43c0d4ef0f985fe5b1bdca7c66cd0"
   "chrome/browser/ui/tabs/tab_menu_model_browsertest.cc" =
-    "d8d38a39b2b59ad6a61aed33b770fe281ef13184"
-  "chrome/browser/ui/views/tabs/vertical/BUILD.gn" =
-    "670ca28e949e9c77596dd5212503a1cf65465901"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_view.cc" =
-    "432164fcad0acd75b598c00eecb99b28815c577e"
-  "chrome/browser/ui/views/tabs/vertical/vertical_tab_view_browsertest.cc" =
-    "12f991733acba7daa8716fec2812d86f548ab8e2"
+    "fb317ccd288dafecce4feb524413f4f3d2a24f52"
+  "chrome/browser/ui/views/tabs/common/BUILD.gn" =
+    "205cea6fe98595b7975bdcb82df33d4f4f6feb6c"
+  "chrome/browser/ui/views/tabs/common/tab_view_browsertest.cc" =
+    "ac9e68133224396d7a7440d49e30255ac529b723"
+  "chrome/browser/ui/views/tabs/vertical_tab_style_views.cc" =
+    "9c19954f20cc1985bd0f1e9f473cfc5b22c61e08"
 }
 
 $actualFiles = @(
@@ -96,11 +96,11 @@ Assert-PatchDoesNotMatch "no Git diagnostics" `
 # The fill, not only the active outline, owns the rounded geometry. Theme
 # images use the same path so switching themes cannot bring the square bug back.
 Assert-PatchMatch "content-bounds rounded fill path" `
-  'SkPath::RRect\(SkRRect::MakeRectXY\([\s\S]{0,160}GetContentsBounds\(\)[\s\S]{0,120}corner_radius'
-Assert-PatchMatch "solid fill uses rounded path" `
-  '(?m)^\+\s+canvas->DrawPath\(fill_path, flags\);$'
-Assert-PatchMatch "theme image is clipped to rounded path" `
-  'ScopedCanvas scoped_canvas\(canvas\)[\s\S]{0,100}ClipPath\(fill_path'
+  'gfx::RectF fill_bounds\(view->GetContentsBounds\(\)\)[\s\S]{0,260}SkPath::RRect\(SkRRect::MakeRectXY\([\s\S]{0,120}gfx::RectFToSkRect\(fill_bounds\)'
+Assert-PatchMatch "fill geometry scales with the paint canvas" `
+  'const float image_scale = canvas->image_scale\(\)[\s\S]{0,120}fill_bounds\.Scale\(image_scale\)'
+Assert-PatchMatch "rounded fill preserves the shared clipped paint pipeline" `
+  'SkPath::RRect\(SkRRect::MakeRectXY\([\s\S]{0,180}corner_radius\)\)[\s\S]{0,120}ScopedCanvas scoped_canvas\(canvas\)'
 Assert-PatchDoesNotMatch "square fill is not reintroduced" `
   '(?m)^\+\s+canvas->DrawRect\(GetContentsBounds\(\), flags\);$'
 

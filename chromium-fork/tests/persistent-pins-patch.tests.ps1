@@ -97,6 +97,8 @@ Assert-PatchMatch "actual restore identity coverage" `
   'PersistentPinIdentityRestoresBeforeTabInsertion'
 Assert-PatchMatch "discard identity coverage" `
   'DiscardPreservesIdentityAndSessionExtraData'
+Assert-PatchMatch "persistent pin browser tests use M153 profile accessor" `
+  'PinnedTabServiceFactory::GetForProfile\(browser\(\)->GetProfile\(\)\)[\s\S]+WritePersistentPinnedTabs\(browser\(\)->GetProfile\(\)'
 
 Assert-PatchMatch "incognito excluded by factory" `
   'WithRegular\(ProfileSelection::kOriginalOnly\)'
@@ -126,6 +128,8 @@ Assert-PatchDoesNotMatch "must not overlap tab-lifecycle command patch" `
   '(?m)^diff --git a/chrome/browser/ui/tabs/(tab_menu_model|tab_strip_model)\.(cc|h) b/'
 Assert-PatchDoesNotMatch "must not carry raw favicon image data" `
   '(favicon_bytes|PNGCodec|SkBitmap)'
+Assert-PatchDoesNotMatch "must not use removed Browser profile accessor" `
+  'browser\(\)->profile\(\)'
 Assert-PatchDoesNotMatch "must not contain machine-specific source paths" `
   'C:\\src\\kwiken-chromium'
 Assert-PatchDoesNotMatch "must not contain Git diagnostic output" `

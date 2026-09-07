@@ -38,17 +38,17 @@ function Assert-PatchDoesNotMatch {
 }
 
 $expectedBaseBlobs = [ordered]@{
-  "chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc" = "ac697c533405b018bd352296b14ca45b67b690b9"
+  "chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc" = "486efad8e1211db65850ca0cc010cd1b0ab89747"
   "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.cc" = "cdd4a4be2be426942dc682e8a3c5da8b9128033f"
-  "chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc" = "8dbfeb49c909dbcff0ca5d02fac5766167aaa047"
-  "chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc" = "e7495c5e7d72f162b628b3984dca00e64f7deff3"
-  "components/saved_tab_groups/internal/saved_tab_group_model.cc" = "57299c1a0441acb26b4c7710efb39d1fadd4e11c"
-  "components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc" = "f34b465c6fd8ddf8b61978df5aea692bc6495189"
-  "components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc" = "965f9330f355e8afd870b619efdb9e8fd324049c"
-  "components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc" = "5479150419cccbe14013e28dfd2ef8ec79a8350d"
+  "chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc" = "42bf4ae5dfd7e62aa6600d4506444bd95098e5c4"
+  "chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc" = "b6d016cd685aa312bc2a9f5f598d81a9daa64bb6"
+  "components/saved_tab_groups/internal/saved_tab_group_model.cc" = "8194ab45383a1c9cac2ce6ccbcc3842329c90efd"
+  "components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc" = "d0c60a89f62e090c3367b99109d0bb20610215d9"
+  "components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc" = "d74599ee64216267b4f5957c311f504e2bfe8ac7"
+  "components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc" = "d1144d68ac7c699e98d451b71980d26a0220621e"
   "components/saved_tab_groups/proto/local_tab_group_data.proto" = "5ebd5a4f44232f8e925850bddfd8e1ca1b54296a"
-  "components/saved_tab_groups/public/saved_tab_group.cc" = "9f4dce4ab968145a5f5fa768ead4333fff973f35"
-  "components/saved_tab_groups/public/saved_tab_group.h" = "a52ccb116c12ca060a81ad36ccba3a1dcccb5d1c"
+  "components/saved_tab_groups/public/saved_tab_group.cc" = "8d2c9222f6d9713c8b50b72393584191664482f0"
+  "components/saved_tab_groups/public/saved_tab_group.h" = "62e6ecd089dabb939be72634be120ae204777cba"
 }
 
 $actualFiles = @(

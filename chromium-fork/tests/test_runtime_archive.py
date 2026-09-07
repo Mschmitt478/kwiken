@@ -25,12 +25,12 @@ SPEC.loader.exec_module(runtime_archive)
 HASH_A = "a" * 64
 HASH_B = "b" * 64
 HASH_C = "c" * 64
-VERSION = "150.0.7871.186"
-RELEASE_VERSION = f"{VERSION}-r6"
+VERSION = "153.0.8010.28"
+RELEASE_VERSION = f"{VERSION}-r1"
 ARCHIVE_ROOT = f"Kwiken-runtime-{RELEASE_VERSION}"
 CHROME_CONTENTS = b"fake kwiken executable\n"
 CHROME_SHA256 = hashlib.sha256(CHROME_CONTENTS).hexdigest()
-CHROMIUM_REVISION = "0fcdce5f4fdec8d442d7df760cb541f1ca6e446d"
+CHROMIUM_REVISION = "0d2c13517efd9ba53ef5e94431fef13556fcbe0a"
 
 
 def dependency_state() -> dict:
@@ -75,7 +75,7 @@ def provenance(*, dirty: bool = False) -> dict:
             "sourceBinding": {
                 "appliedSourceTreeSha256": HASH_C,
                 "chromiumRevision": CHROMIUM_REVISION,
-                "depotToolsRevision": "5b785272f9c776789167b4a8e32eab34352e6f20",
+                "depotToolsRevision": "81577f19a8497ba7e41afac322e8f03553a863ec",
                 "dependencyStateTreeSha256": state["treeSha256"],
                 "gnArgsSha256": HASH_B,
             },
@@ -93,7 +93,7 @@ def provenance(*, dirty: bool = False) -> dict:
                 "sevenZipSha256": HASH_A,
                 "visualStudio": "18.8.1234.1",
                 "windowsDebugger": "10.0.26100.7705",
-                "windowsSdk": "10.0.26100.8249",
+                "windowsSdk": "10.0.28000.2114",
             },
         }
     )
@@ -101,7 +101,7 @@ def provenance(*, dirty: bool = False) -> dict:
         "nativeBuild": native_build,
         "product": {
             "name": "Kwiken",
-            "packageRevision": "6",
+            "packageRevision": "1",
             "releaseVersion": RELEASE_VERSION,
             "version": VERSION,
         },
@@ -112,7 +112,7 @@ def provenance(*, dirty: bool = False) -> dict:
                 "revision": CHROMIUM_REVISION,
                 "version": VERSION,
             },
-            "depotToolsRevision": "5b785272f9c776789167b4a8e32eab34352e6f20",
+            "depotToolsRevision": "81577f19a8497ba7e41afac322e8f03553a863ec",
             "dependencyState": state,
             "gnArgs": {
                 "path": "chromium-fork/args.gn",
@@ -384,15 +384,15 @@ class RuntimeArchiveTests(unittest.TestCase):
                     "--version",
                     VERSION,
                     "--package-revision",
-                    "6",
+                    "1",
                     "--release-version",
                     RELEASE_VERSION,
                     "--kwiken-revision",
                     "0975bf8c688086d390604471b25aa6ad90b6ea8d",
                     "--chromium-revision",
-                    "0fcdce5f4fdec8d442d7df760cb541f1ca6e446d",
+                    "0d2c13517efd9ba53ef5e94431fef13556fcbe0a",
                     "--depot-tools-revision",
-                    "5b785272f9c776789167b4a8e32eab34352e6f20",
+                    "81577f19a8497ba7e41afac322e8f03553a863ec",
                     "--source-delta-sha256",
                     HASH_C,
                     "--dependency-state-manifest",
@@ -412,7 +412,7 @@ class RuntimeArchiveTests(unittest.TestCase):
                     "--visual-studio-version",
                     "18.8.1234.1",
                     "--windows-sdk-version",
-                    "10.0.26100.8249",
+                    "10.0.28000.2114",
                     "--windows-debugger-version",
                     "10.0.26100.7705",
                     "--python-version",
@@ -459,15 +459,15 @@ class RuntimeArchiveTests(unittest.TestCase):
                     "--expect-version",
                     VERSION,
                     "--expect-package-revision",
-                    "6",
+                    "1",
                     "--expect-release-version",
                     RELEASE_VERSION,
                     "--expect-kwiken-revision",
                     "0975bf8c688086d390604471b25aa6ad90b6ea8d",
                     "--expect-chromium-revision",
-                    "0fcdce5f4fdec8d442d7df760cb541f1ca6e446d",
+                    "0d2c13517efd9ba53ef5e94431fef13556fcbe0a",
                     "--expect-depot-tools-revision",
-                    "5b785272f9c776789167b4a8e32eab34352e6f20",
+                    "81577f19a8497ba7e41afac322e8f03553a863ec",
                     "--expect-source-delta-sha256",
                     HASH_C,
                     "--expect-dependency-state-tree-sha256",
@@ -493,7 +493,7 @@ class RuntimeArchiveTests(unittest.TestCase):
                     "--expect-visual-studio-version",
                     "18.8.1234.1",
                     "--expect-windows-sdk-version",
-                    "10.0.26100.8249",
+                    "10.0.28000.2114",
                     "--expect-windows-debugger-version",
                     "10.0.26100.7705",
                     "--expect-python-version",

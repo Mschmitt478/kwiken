@@ -65,6 +65,8 @@ $explicitInputs = @(
   "PythonRuntimeRoot",
   "ExpectedPythonSha256",
   "ExpectedPythonRuntimeTreeSha256",
+  "VisualStudioRoot",
+  "WindowsSdkRoot",
   "MakeNsisPath",
   "MakeNsisRuntimeRoot",
   "ExpectedMakeNsisSha256",
@@ -82,6 +84,169 @@ foreach ($name in $explicitInputs) {
   $parameterText = $parameters[$name].Extent.Text
   Assert-True -Condition ($parameterText -match 'Mandatory\s*=\s*\$true') `
     -Message "$name must be mandatory."
+}
+
+Assert-NotContains -Needle '"-latest"' `
+  -Message "The distribution bridge still selects an implicit latest Visual Studio."
+Assert-Contains -Needle '-VisualStudioRoot $visualStudioRootInput.FullName' `
+  -Message "The explicitly approved Visual Studio root is not validated."
+Assert-Contains -Needle '"bin\$approvedSdkVersion\x64\rc.exe"' `
+  -Message "The resource compiler is not selected from the explicit Windows SDK root."
+Assert-Contains -Needle '-winsdk=none' `
+  -Message "VsDevCmd may still inject an unapproved installed Windows SDK."
+Assert-Contains -Needle 'The explicitly approved launcher toolchain changed during compilation.' `
+  -Message "Launcher compiler/linker/resource tools are not protected against replacement."
+Assert-Contains -Needle 'PackagingToolchain = $packagingToolchain' `
+  -Message "The distribution result does not expose launcher toolchain provenance."
+
+$fixtureFunctions = @(
+  "Assert-NoReparsePath",
+  "Get-RegularFile",
+  "Get-RegularDirectory",
+  "Assert-FileWithinRoot",
+  "Get-ApprovedVisualStudioDirectories",
+  "Import-VisualStudioEnvironment"
+)
+$fixtureFunctionSource = foreach ($functionName in $fixtureFunctions) {
+  $definition = $ast.Find(
+    {
+      param($node)
+      $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -ceq $functionName
+    },
+    $true
+  )
+  Assert-True -Condition ($null -ne $definition) `
+    -Message "Could not inspect distribution function $functionName."
+  $definition.Extent.Text
+}
+. ([scriptblock]::Create(($fixtureFunctionSource -join "`n`n")))
+
+function Invoke-BoundedProcess {
+  return [pscustomobject]@{
+    StandardOutput = @(
+      "PATH=$script:FixtureVisualStudio\bin;C:\Windows\System32",
+      "INCLUDE=$script:FixtureVisualStudio\include",
+      "EXTERNAL_INCLUDE=$script:FixtureVisualStudio\external-include",
+      "LIB=$script:FixtureVisualStudio\lib",
+      "LIBPATH=$script:FixtureVisualStudio\libpath;C:\Windows\Microsoft.NET\Framework64\v4.0.30319",
+      "CL=/FI C:\UNAPPROVED-SDK\forced.h",
+      "_CL_=/DUNAPPROVED=1",
+      "LINK=/LIBPATH:C:\UNAPPROVED-SDK",
+      "_LINK_=/OUT:C:\UNAPPROVED-SDK\Kwiken.exe"
+    ) -join "`r`n"
+    StandardError = ""
+    ExitCode = 0
+  }
+}
+
+$script:RequiredWindowsSdkVersion = [Version]"10.0.28000.0"
+$toolchainFixture = Join-Path ([IO.Path]::GetTempPath()) `
+  ("Kwiken-Distribution-Toolchain-Test-" + [Guid]::NewGuid().ToString("N"))
+try {
+  $fixtureVisualStudio = Join-Path $toolchainFixture "vs"
+  $script:FixtureVisualStudio = $fixtureVisualStudio
+  $fixtureSdk = Join-Path $toolchainFixture "sdk"
+  $fixtureWork = Join-Path $toolchainFixture "work"
+  foreach ($directory in @(
+      (Join-Path $fixtureVisualStudio "Common7\Tools"),
+      (Join-Path $fixtureVisualStudio "bin"),
+      (Join-Path $fixtureVisualStudio "include"),
+      (Join-Path $fixtureVisualStudio "external-include"),
+      (Join-Path $fixtureVisualStudio "lib"),
+      (Join-Path $fixtureVisualStudio "libpath"),
+      (Join-Path $fixtureSdk "bin\10.0.28000.0\x64"),
+      (Join-Path $fixtureSdk "Include\10.0.28000.0\ucrt"),
+      (Join-Path $fixtureSdk "Include\10.0.28000.0\shared"),
+      (Join-Path $fixtureSdk "Include\10.0.28000.0\um"),
+      (Join-Path $fixtureSdk "Include\10.0.28000.0\winrt"),
+      (Join-Path $fixtureSdk "Include\10.0.28000.0\cppwinrt"),
+      (Join-Path $fixtureSdk "Lib\10.0.28000.0\ucrt\x64"),
+      (Join-Path $fixtureSdk "Lib\10.0.28000.0\um\x64"),
+      $fixtureWork
+    )) {
+    [void][IO.Directory]::CreateDirectory($directory)
+  }
+  [IO.File]::WriteAllText(
+    (Join-Path $fixtureVisualStudio "Common7\Tools\VsDevCmd.bat"),
+    "@exit /b 0`r`n",
+    [Text.Encoding]::ASCII
+  )
+  $fixtureEnvironment = Import-VisualStudioEnvironment `
+    -WorkDirectory $fixtureWork -VisualStudioRoot $fixtureVisualStudio `
+    -WindowsSdkRoot $fixtureSdk
+  Assert-True -Condition ($fixtureEnvironment["WINDOWSSDKDIR"] -ceq
+      $fixtureSdk.TrimEnd('\') + '\') `
+    -Message "Extracted SDK root was not installed into the launcher environment."
+  Assert-True -Condition ($fixtureEnvironment["WindowsSDKVersion"] -ceq
+      "10.0.28000.0\") `
+    -Message "Launcher environment does not pin the exact SDK version."
+  Assert-True -Condition ($fixtureEnvironment["PATH"].StartsWith(
+      (Join-Path $fixtureSdk "bin\10.0.28000.0\x64") + ';',
+      [StringComparison]::OrdinalIgnoreCase
+    )) -Message "Extracted SDK tools are not first in the launcher PATH."
+  Assert-True -Condition ($fixtureEnvironment["INCLUDE"].Contains(
+      (Join-Path $fixtureSdk "Include\10.0.28000.0\winrt")
+    ) -and $fixtureEnvironment["INCLUDE"].Contains(
+      (Join-Path $fixtureSdk "Include\10.0.28000.0\cppwinrt")
+    )) -Message "Extracted SDK WinRT headers are missing from launcher INCLUDE."
+  Assert-True -Condition ($fixtureEnvironment["LIBPATH"].IndexOf(
+      "C:\Windows\Microsoft.NET",
+      [StringComparison]::OrdinalIgnoreCase
+    ) -lt 0) -Message "Launcher LIBPATH retained a directory outside the approved VS root."
+  foreach ($optionName in @("CL", "_CL_", "LINK", "_LINK_", "RC", "_RC_")) {
+    Assert-True -Condition ([string]$fixtureEnvironment[$optionName] -ceq "") `
+      -Message "Launcher environment retained inherited $optionName options."
+  }
+  $environmentLoader = Get-Content `
+    (Join-Path $fixtureWork "load-vs-environment.cmd") -Raw
+  Assert-True -Condition $environmentLoader.Contains("-winsdk=none") `
+    -Message "Launcher environment did not disable VsDevCmd SDK auto-selection."
+  foreach ($clearedName in @(
+      "CL", "_CL_", "LINK", "_LINK_", "RC", "_RC_",
+      "INCLUDE", "EXTERNAL_INCLUDE", "LIB", "LIBPATH"
+    )) {
+    Assert-True -Condition $environmentLoader.Contains("set $clearedName=") `
+      -Message "VsDevCmd inherits unapproved $clearedName from the runner."
+  }
+  $unapprovedIncludeRejected = $false
+  try {
+    [void](Get-ApprovedVisualStudioDirectories -Environment @{
+        INCLUDE = "$fixtureVisualStudio\include;C:\UNAPPROVED-SDK\include"
+      } -Name "INCLUDE" -VisualStudioRoot $fixtureVisualStudio)
+  } catch {
+    $unapprovedIncludeRejected = $true
+  }
+  Assert-True -Condition $unapprovedIncludeRejected `
+    -Message "Launcher INCLUDE accepted a directory outside the approved VS root."
+
+  [IO.Directory]::Delete(
+    (Join-Path $fixtureSdk "Lib\10.0.28000.0\um\x64")
+  )
+  $missingSdkComponentRejected = $false
+  try {
+    [void](Import-VisualStudioEnvironment `
+        -WorkDirectory $fixtureWork -VisualStudioRoot $fixtureVisualStudio `
+        -WindowsSdkRoot $fixtureSdk)
+  } catch {
+    $missingSdkComponentRejected = $true
+  }
+  Assert-True -Condition $missingSdkComponentRejected `
+    -Message "Launcher packaging did not fail closed for an incomplete extracted SDK."
+} finally {
+  $script:FixtureVisualStudio = $null
+  $resolvedFixture = [IO.Path]::GetFullPath($toolchainFixture)
+  $fixturePrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') +
+    '\Kwiken-Distribution-Toolchain-Test-'
+  if (-not $resolvedFixture.StartsWith(
+      $fixturePrefix,
+      [StringComparison]::OrdinalIgnoreCase
+    )) {
+    throw "Refusing to clean an unexpected toolchain fixture path."
+  }
+  if (Test-Path -LiteralPath $resolvedFixture) {
+    Remove-Item -LiteralPath $resolvedFixture -Recurse -Force
+  }
 }
 
 foreach ($legacy in @(

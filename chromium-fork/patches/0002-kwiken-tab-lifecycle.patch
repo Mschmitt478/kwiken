@@ -1,8 +1,8 @@
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
-index 86731fd1704bc75fd021db98f13e655466579c6b..4fda0f0a011d4e417372763962e116eea230aa7f 100644
+index 8df3f66084dc0ad34dce22a07aaf8a69331a08c5..d7c80fc5965a14a814fd3d0d80584382287598d0 100644
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -11910,6 +11910,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+@@ -12035,6 +12035,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
          <message name="IDS_TAB_CXMENU_RELOAD" desc="The label of the 'Reload' Tab context menu item.">
            Reload
          </message>
@@ -15,7 +15,7 @@ index 86731fd1704bc75fd021db98f13e655466579c6b..4fda0f0a011d4e417372763962e116ee
          <message name="IDS_TAB_CXMENU_DUPLICATE" desc="The label of the 'Duplicate' Tab context menu item.">
            Duplicate
          </message>
-@@ -12026,6 +12032,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+@@ -12151,6 +12157,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
          <message name="IDS_TAB_CXMENU_RELOAD" desc="In Title Case: The label of the 'Reload' Tab context menu item.">
            Reload
          </message>
@@ -29,7 +29,7 @@ index 86731fd1704bc75fd021db98f13e655466579c6b..4fda0f0a011d4e417372763962e116ee
            Duplicate
          </message>
 diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc b/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
-index f4c33684dab4db760253063c9fd5fb71ee944666..537cb1b68fb1f97ed4c12f8bad1c97c127bcac97 100644
+index 54d3f209f0744805f4fe5c9a4c7ed68b88829a4f..19158556db57a2e7fd962a38d1377ee39421d19a 100644
 --- a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
 +++ b/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
 @@ -20,6 +20,7 @@
@@ -40,7 +40,7 @@ index f4c33684dab4db760253063c9fd5fb71ee944666..537cb1b68fb1f97ed4c12f8bad1c97c1
  #include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
  #include "chrome/browser/permissions/permission_manager_factory.h"
  #include "chrome/browser/profiles/profile.h"
-@@ -39,8 +40,10 @@
+@@ -40,8 +41,10 @@
  #include "components/performance_manager/public/features.h"
  #include "components/performance_manager/public/mojom/lifecycle.mojom.h"
  #include "components/permissions/permission_manager.h"
@@ -51,7 +51,7 @@ index f4c33684dab4db760253063c9fd5fb71ee944666..537cb1b68fb1f97ed4c12f8bad1c97c1
  #include "content/public/browser/web_contents.h"
  #include "content/public/common/content_features.h"
  #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
-@@ -416,6 +419,73 @@ bool TabLifecycleUnitSource::TabLifecycleUnit::DiscardTab(
+@@ -429,6 +432,73 @@ bool TabLifecycleUnitSource::TabLifecycleUnit::DiscardTab(
    return Discard(reason, memory_footprint_estimate);
  }
  
@@ -126,10 +126,10 @@ index f4c33684dab4db760253063c9fd5fb71ee944666..537cb1b68fb1f97ed4c12f8bad1c97c1
  TabLifecycleUnitSource::TabLifecycleUnit::GetTabState() const {
    return GetState();
 diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit.h b/chrome/browser/resource_coordinator/tab_lifecycle_unit.h
-index b5c7b329fee36ad7d30e86d006a003477e4d31a0..297c29203c6faf8b3c7e900b087e28797f2cd957 100644
+index 7e1c12da99c89d7163e4ca2d901f8c111ba19412..daacc70a805b469b669f757c0cdee564243c87cc 100644
 --- a/chrome/browser/resource_coordinator/tab_lifecycle_unit.h
 +++ b/chrome/browser/resource_coordinator/tab_lifecycle_unit.h
-@@ -85,6 +85,9 @@ class TabLifecycleUnitSource::TabLifecycleUnit
+@@ -86,6 +86,9 @@ class TabLifecycleUnitSource::TabLifecycleUnit
    void SetAutoDiscardable(bool auto_discardable) override;
    bool DiscardTab(mojom::LifecycleUnitDiscardReason reason,
                    uint64_t memory_footprint_estimate) override;
@@ -349,18 +349,18 @@ index 614dfb70193f2c0eee92b601aed3dda8488c9de8..b41d0d9a9084ca4a9e6483ec68072c20
    content::WebContents* web_contents = AddNewHiddenWebContentsToTabStrip();
    TabLifecycleUnit tab_lifecycle_unit(GetTabLifecycleUnitSource(), web_contents,
 diff --git a/chrome/browser/ui/tabs/tab_menu_model.cc b/chrome/browser/ui/tabs/tab_menu_model.cc
-index 6fcbab81cc34b2c40ea6f5b6c0b8bacbcf3da49f..aac534e5d86f2d81b9e5252d6dd9afa039110f5a 100644
+index 85b8f3eb6302b20fdff79970c96f56e4b0c20364..2c39030db7a43c0d4ef0f985fe5b1bdca7c66cd0 100644
 --- a/chrome/browser/ui/tabs/tab_menu_model.cc
 +++ b/chrome/browser/ui/tabs/tab_menu_model.cc
 @@ -28,6 +28,7 @@
- #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
  #include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/immersive/immersive_mode_controller.h"
  #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_context_menu_delegate.h"
 +#include "chrome/browser/ui/tab_ui_helper.h"
  #include "chrome/browser/ui/tabs/existing_tab_group_sub_menu_model.h"
  #include "chrome/browser/ui/tabs/existing_window_sub_menu_model.h"
  #include "chrome/browser/ui/tabs/features.h"
-@@ -72,7 +73,24 @@ using base::UserMetricsAction;
+@@ -71,7 +72,24 @@ using base::UserMetricsAction;
  
  namespace {
  constexpr int kTabMenuIconSize = 16;
@@ -385,7 +385,7 @@ index 6fcbab81cc34b2c40ea6f5b6c0b8bacbcf3da49f..aac534e5d86f2d81b9e5252d6dd9afa0
  
  DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(TabMenuModel, kAddANoteTabMenuItem);
  DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(TabMenuModel, kSplitTabsMenuItem);
-@@ -414,6 +432,32 @@ void TabMenuModel::Build(int index) {
+@@ -413,6 +431,32 @@ void TabMenuModel::Build(int index) {
    AddSeparator(ui::NORMAL_SEPARATOR);
    AddItemWithStringId(TabStripModel::CommandReload, IDS_TAB_CXMENU_RELOAD);
  
@@ -419,10 +419,11 @@ index 6fcbab81cc34b2c40ea6f5b6c0b8bacbcf3da49f..aac534e5d86f2d81b9e5252d6dd9afa0
                        IDS_TAB_CXMENU_DUPLICATE);
    SetElementIdentifierAt(GetItemCount() - 1, kDuplicateMenuItem);
 diff --git a/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc b/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
-index 60704c8a323c85febcc0fe4d375739604726e2c5..d8d38a39b2b59ad6a61aed33b770fe281ef13184 100644
+index cd78b9de660862aa1225f884e332d6dcf5227ada..fb317ccd288dafecce4feb524413f4f3d2a24f52 100644
 --- a/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
 +++ b/chrome/browser/ui/tabs/tab_menu_model_browsertest.cc
-@@ -20,6 +20,8 @@
+@@ -22,7 +22,9 @@
+ #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
  #include "chrome/browser/ui/browser.h"
  #include "chrome/browser/ui/browser_commands.h"
 +#include "chrome/browser/ui/browser_tabstrip.h"
@@ -431,18 +432,19 @@ index 60704c8a323c85febcc0fe4d375739604726e2c5..d8d38a39b2b59ad6a61aed33b770fe28
  #include "chrome/browser/ui/tabs/existing_base_sub_menu_model.h"
  #include "chrome/browser/ui/tabs/features.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
-@@ -46,7 +48,10 @@
+@@ -56,8 +58,11 @@
  #include "components/tabs/public/split_tab_data.h"
  #include "content/public/browser/web_contents.h"
  #include "content/public/test/browser_test.h"
 +#include "content/public/test/browser_test_utils.h"
 +#include "content/public/test/test_navigation_observer.h"
  #include "testing/gtest/include/gtest/gtest.h"
+ #include "ui/base/l10n/l10n_util.h"
 +#include "ui/base/models/list_selection_model.h"
  #include "ui/base/models/menu_model.h"
  #include "ui/base/mojom/window_show_state.mojom.h"
  #include "ui/base/ui_base_features.h"
-@@ -93,6 +98,197 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, Basics) {
+@@ -104,6 +109,197 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, Basics) {
    EXPECT_EQ(item_count, delegate_.enable_count_);
  }
  
@@ -638,10 +640,10 @@ index 60704c8a323c85febcc0fe4d375739604726e2c5..d8d38a39b2b59ad6a61aed33b770fe28
 +}
 +
  IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, MoveToNewWindow) {
-   chrome::NewTab(browser());
+   chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
    TabMenuModel model(&delegate_,
 diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
-index 3326a79d2ba317df34fbecfb576f67f2b3bd7e6e..57c7ad74cc1efae25f2e36ce1315a94c0da6273d 100644
+index 48140cb488e51ca30e55afcd492861b94dec6278..14292594737acf00028cc17abe7e7d408b7518bf 100644
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
 @@ -47,6 +47,7 @@
@@ -652,7 +654,7 @@ index 3326a79d2ba317df34fbecfb576f67f2b3bd7e6e..57c7ad74cc1efae25f2e36ce1315a94c
  #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
  #include "chrome/browser/ui/bookmarks/bookmark_utils.h"
  #include "chrome/browser/ui/browser.h"
-@@ -162,6 +163,35 @@ bool ShouldForgetOpenersForTransition(ui::PageTransition transition) {
+@@ -163,6 +164,35 @@ bool ShouldForgetOpenersForTransition(ui::PageTransition transition) {
                                        ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
  }
  
@@ -688,7 +690,7 @@ index 3326a79d2ba317df34fbecfb576f67f2b3bd7e6e..57c7ad74cc1efae25f2e36ce1315a94c
  }  // namespace
  
  TabGroupModelFactory::TabGroupModelFactory() {
-@@ -2423,6 +2453,37 @@ bool TabStripModel::IsContextMenuCommandEnabled(
+@@ -2579,6 +2609,37 @@ bool TabStripModel::IsContextMenuCommandEnabled(
      case CommandReload:
        return delegate_->CanReload();
  
@@ -726,7 +728,7 @@ index 3326a79d2ba317df34fbecfb576f67f2b3bd7e6e..57c7ad74cc1efae25f2e36ce1315a94c
      case CommandCloseOtherTabs:
      case CommandCloseTabsToRight: {
        return !GetIndicesClosedByCommand(context_index, command_id).empty();
-@@ -2561,6 +2622,69 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
+@@ -2711,6 +2772,69 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
        break;
      }
  
@@ -797,10 +799,10 @@ index 3326a79d2ba317df34fbecfb576f67f2b3bd7e6e..57c7ad74cc1efae25f2e36ce1315a94c
        base::UmaHistogramCounts1000(
            "Tab.ContextMenu.Duplicate.SelectedTabsCount",
 diff --git a/chrome/browser/ui/tabs/tab_strip_model.h b/chrome/browser/ui/tabs/tab_strip_model.h
-index ef083215f22dbadb5d5af40608d15bb579e250cc..b740186a2d38c936bb8c3a3f6fc4265c4e451986 100644
+index eb02a95efe49df7b96d89eb395ed518293ce6bbc..1b6514546c4dcd31aa7f5195f4cd0069f6df7cdc 100644
 --- a/chrome/browser/ui/tabs/tab_strip_model.h
 +++ b/chrome/browser/ui/tabs/tab_strip_model.h
-@@ -783,6 +783,9 @@ class TabStripModel {
+@@ -791,6 +791,9 @@ class TabStripModel {
      CommandGlicCreateNewChat,
      CommandGlicSwitchToRecentConversation,
      CommandGlicUnshare,
@@ -810,31 +812,11 @@ index ef083215f22dbadb5d5af40608d15bb579e250cc..b740186a2d38c936bb8c3a3f6fc4265c
      CommandLast
    };
    // LINT.ThenChange(//tools/metrics/histograms/metadata/tab/histograms.xml:TabContextMenuCommand)
-diff --git a/tools/metrics/histograms/metadata/tab/histograms.xml b/tools/metrics/histograms/metadata/tab/histograms.xml
-index f79ac1f6cd73c0b7c86f043dc3da15e4251f05b0..348f8fef97f2832dba7e5d109c95e1514f9cbc15 100644
---- a/tools/metrics/histograms/metadata/tab/histograms.xml
-+++ b/tools/metrics/histograms/metadata/tab/histograms.xml
-@@ -77,6 +77,7 @@ chromium-metrics-reviews@google.com.
-       summary="the Switch to Recent Conversation command"/>
-   <variant name="GlicUnshare" summary="the Unshare with Gemini command"/>
-   <variant name="GoBack" summary="the Go Back command"/>
-+  <variant name="LoadTab" summary="the Load Tab command"/>
-   <variant name="MoveToExistingWindow"
-       summary="the Move to existing window command"/>
-   <variant name="MoveToNewWindow" summary="the Move to new window command"/>
-@@ -90,6 +91,7 @@ chromium-metrics-reviews@google.com.
-   <variant name="ToggleMuted" summary="the Toggle muted command"/>
-   <variant name="TogglePinned" summary="the Toggle Pinned command"/>
-   <variant name="ToggleVertical" summary="the Toggle Vertical tabs command"/>
-+  <variant name="UnloadTab" summary="the Unload Tab command"/>
- </variants>
- 
- <!-- LINT.ThenChange(//chrome/browser/ui/tabs/tab_strip_model.h:TabContextMenuCommand) -->
 diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
-index 5c017592c729fc031602297cbff9ff09d36533e7..4c9c64d02e32e44290fca894db317f8643938b86 100644
+index 20db2b9f40df0e5e66a871f901b30d526d9efad2..da99c14760624d0c4efc2fe64ce8433ecbca3481 100644
 --- a/tools/metrics/actions/actions.xml
 +++ b/tools/metrics/actions/actions.xml
-@@ -51007,6 +51007,15 @@ should be able to be added at any place in this file.
+@@ -52600,6 +52600,15 @@ should be able to be added at any place in this file.
    </description>
  </action>
  
@@ -850,7 +832,7 @@ index 5c017592c729fc031602297cbff9ff09d36533e7..4c9c64d02e32e44290fca894db317f86
  <action name="TabContextMenu_MoveTabToNewWindow">
    <owner>lgrey@chromium.org</owner>
    <owner>top-chrome-desktop-ui@google.com</owner>
-@@ -51123,6 +51132,15 @@ should be able to be added at any place in this file.
+@@ -52716,6 +52725,15 @@ should be able to be added at any place in this file.
    <description>User selected Pin/Unpin from tab context menu.</description>
  </action>
  
@@ -866,3 +848,23 @@ index 5c017592c729fc031602297cbff9ff09d36533e7..4c9c64d02e32e44290fca894db317f86
  <action name="TabContextMenu_UnmuteTabs">
    <owner>miu@chromium.org</owner>
    <description>
+diff --git a/tools/metrics/histograms/metadata/tab/histograms.xml b/tools/metrics/histograms/metadata/tab/histograms.xml
+index 6611e9ab39296016b5125b783d86820b8ae5a019..c95f06f4b3738f6c9e087d3ae4a979ef88069fad 100644
+--- a/tools/metrics/histograms/metadata/tab/histograms.xml
++++ b/tools/metrics/histograms/metadata/tab/histograms.xml
+@@ -90,6 +90,7 @@ chromium-metrics-reviews@google.com.
+       summary="the Switch to Recent Conversation command"/>
+   <variant name="GlicUnshare" summary="the Unshare with Gemini command"/>
+   <variant name="GoBack" summary="the Go Back command"/>
++  <variant name="LoadTab" summary="the Load Tab command"/>
+   <variant name="MoveToExistingWindow"
+       summary="the Move to existing window command"/>
+   <variant name="MoveToNewWindow" summary="the Move to new window command"/>
+@@ -103,6 +104,7 @@ chromium-metrics-reviews@google.com.
+   <variant name="ToggleMuted" summary="the Toggle muted command"/>
+   <variant name="TogglePinned" summary="the Toggle Pinned command"/>
+   <variant name="ToggleVertical" summary="the Toggle Vertical tabs command"/>
++  <variant name="UnloadTab" summary="the Unload Tab command"/>
+ </variants>
+ 
+ <!-- LINT.ThenChange(//chrome/browser/ui/tabs/tab_strip_model.h:TabContextMenuCommand) -->

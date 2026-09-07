@@ -4,9 +4,9 @@ Kwiken is a standalone Chromium browser, not an Electron shell. It keeps Chromiu
 
 ## Pinned upstream
 
-- Chromium `150.0.7871.186`
-- Revision `0fcdce5f4fdec8d442d7df760cb541f1ca6e446d`
-- depot_tools revision `5b785272f9c776789167b4a8e32eab34352e6f20`
+- Chromium `153.0.8010.28`
+- Revision `0d2c13517efd9ba53ef5e94431fef13556fcbe0a`
+- depot_tools revision `81577f19a8497ba7e41afac322e8f03553a863ec`
 - Source checkout: `C:\src\kwiken-chromium\src`
 
 The large Chromium checkout stays outside this repository. This directory contains only the reproducible patch set, build configuration, and packaging scripts.
@@ -26,9 +26,11 @@ permissions to perform those installs and can be disabled with
 
 ## Build
 
-Chromium 150 requires Visual Studio 2026 with Desktop development with C++,
-ATL/MFC, Windows 11 SDK 10.0.26100.7705 or newer, and Windows SDK Debugging
-Tools 10.0.26100.3323 or newer. Check the host before downloading Chromium:
+Chromium 153 requires Visual Studio 2026 with Desktop development with C++,
+ATL/MFC, Windows 11 SDK 10.0.28000.0 or newer, and Windows SDK Debugging
+Tools 10.0.26100.3323 or newer. Set `KWIKEN_WINDOWS_SDK_ROOT` when using an
+administratively extracted SDK instead of the system-wide Windows Kits path.
+Check the host before downloading Chromium:
 
 ```powershell
 .\chromium-fork\scripts\preflight.ps1
@@ -84,6 +86,7 @@ The no-dependency script checks can be run in Windows PowerShell or PowerShell
 .\chromium-fork\tests\build-distribution.tests.ps1
 .\chromium-fork\tests\release-workflow.tests.ps1
 .\chromium-fork\tests\rounded-essentials-patch.tests.ps1
+.\chromium-fork\tests\m153-hardening-patch.tests.ps1
 ```
 
 First export a clean, fully validated native runtime. The export is published
@@ -127,6 +130,8 @@ $depotToolsRoot = "C:\src\depot_tools"
 $python = Join-Path $depotToolsRoot `
   $provenance.nativeBuild.toolchain.pythonPath.Replace('/', '\')
 $pythonRoot = Split-Path -Parent $python
+$visualStudioRoot = "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools"
+$windowsSdkRoot = "C:\src\kwiken-winsdk-28000\extracted\Windows Kits\10"
 $nsisRoot = "C:\tools\kwiken-nsis-3.12\nsis-3.12"
 $makensis = Join-Path $nsisRoot "makensis.exe"
 $readySha256 = (Get-FileHash $runtime.ReadyPath -Algorithm SHA256).Hash
@@ -145,6 +150,8 @@ $makensisTreeSha256 = Get-KwikenToolTreeSha256 $nsisRoot
   -PythonRuntimeRoot $pythonRoot `
   -ExpectedPythonSha256 $pythonSha256 `
   -ExpectedPythonRuntimeTreeSha256 $pythonTreeSha256 `
+  -VisualStudioRoot $visualStudioRoot `
+  -WindowsSdkRoot $windowsSdkRoot `
   -MakeNsisPath $makensis `
   -MakeNsisRuntimeRoot $nsisRoot `
   -ExpectedMakeNsisSha256 $makensisSha256 `
@@ -170,12 +177,20 @@ Provision and review these inputs outside the release job; the workflow never
 downloads executable toolchains or accepts a mutable latest-version URL.
 The distribution build does not download or modify browser binaries. It
 requires the same pinned Python runtime recorded by the authenticated native
-build, Visual Studio C++ build tools, and NSIS. The complete Python runtime is
-copied into private staging and tree-hash verified before it runs the archive
-validator. The complete NSIS runtime is handled the same way before it creates
-the installer.
+build, an explicitly approved Visual Studio C++ installation, an explicitly
+approved Windows SDK root, and NSIS. Packaging disables Visual Studio's
+automatic SDK selection, takes `rc.exe` only from the exact
+`10.0.28000.0\x64` directory under that root, and rejects an incomplete
+administratively extracted SDK. It reconstructs include/library paths only
+from those approved roots and clears inherited compiler, linker, and resource
+compiler options before launching tools. The launcher receipt records the
+relative paths, versions, and SHA-256 hashes of the actual `cl.exe`, `link.exe`,
+and `rc.exe`, and packaging fails if any changes while it runs. The complete
+Python runtime is copied into private staging and tree-hash verified before it
+runs the archive validator. The complete NSIS runtime is handled the same way
+before it creates the installer.
 
-The installer is written to `chromium-fork\release\Kwiken-Setup-150.0.7871.186-r7.exe`.
+The installer is written to `chromium-fork\release\Kwiken-Setup-153.0.8010.28-r1.exe`.
 This artifact is deliberately reported as unsigned. Any public testing release
 must retain that warning and ship the generated verification manifest and
 SHA-256 checksums; trusted distribution still requires Authenticode signing and
@@ -198,6 +213,8 @@ repository variables:
 - `KWIKEN_CHROMIUM_ROOT`: persistent dedicated Chromium checkout root.
 - `KWIKEN_DEPOT_TOOLS_ROOT`: persistent pinned depot_tools root.
 - `KWIKEN_VISUAL_STUDIO_ROOT`: approved Visual Studio 18 installation.
+- `KWIKEN_WINDOWS_SDK_ROOT`: approved Windows 11 SDK 10.0.28000.0 root;
+  required when the SDK is administratively extracted rather than installed.
 - `KWIKEN_WEB_STORE_ARCHIVE`: pre-provisioned `v1.5.5.3` source ZIP; its
   fixed SHA-256 is verified by both the workflow and distribution bridge.
 - `KWIKEN_NSIS_RUNTIME_ROOT`: pre-provisioned approved NSIS directory.
@@ -214,11 +231,16 @@ default-branch commit and maintains a persistent Chromium checkout.
 The first job checks out the exact workflow commit, runs bootstrap/build
 preflights, exports and smoke-tests the native runtime, and uploads READY, the
 runtime archive, provenance, and the exact provenance-bound Python runtime.
-The second job downloads that exact artifact ID, retains its service digest
-and producer READY hash, verifies every source/tool input, and uploads only an
+The second job downloads that exact artifact ID, compares the producer digest
+with GitHub's artifact metadata, retains the producer READY hash, verifies every
+source/tool input and explicit launcher-toolchain root, and uploads only an
 unsigned installer plus `UNSIGNED.NOT-FOR-PUBLICATION.json`. Both jobs have
-only `contents: read`; the workflow has no release, tag, signing, credential,
-or overwrite path.
+`contents: read`; only the packaging job adds `actions: read` so it can inspect
+that exact artifact ID. Its read-only token is scoped to the metadata step and
+is never inherited by packaging tools. It cannot publish content; the workflow
+has no release, tag, signing, or overwrite path. The unsigned receipt includes
+the actual compiler, linker, and resource-compiler identities used for the
+launcher.
 
 A separate workflow is still required and intentionally not stubbed here. It
 must consume the unsigned artifact by immutable ID/digest behind an approved

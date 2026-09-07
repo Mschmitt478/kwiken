@@ -60,10 +60,10 @@ index f11db47c92ff8bc14da47d494f6a14cd64832d41..bf766b11310399ae8a6a6a90b835f354
  
  // static
 diff --git a/chrome/browser/ui/browser_ui_prefs.cc b/chrome/browser/ui/browser_ui_prefs.cc
-index c5d48d196da2f7b9dcad76d09bf66adf06bad9ce..8dff7daca02f8f66ea083f6a7766efc344060301 100644
+index 6997bb36d901fdeb10c035ed015e3a8945c183cf..335ba424a4c0a62cae2bb9dc8af4c26c576ab98a 100644
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -146,7 +146,7 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -151,7 +151,7 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacementPopup);
    registry->RegisterDictionaryPref(prefs::kAppWindowPlacement);
    registry->RegisterBooleanPref(
@@ -73,12 +73,12 @@ index c5d48d196da2f7b9dcad76d09bf66adf06bad9ce..8dff7daca02f8f66ea083f6a7766efc3
  #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
    registry->RegisterBooleanPref(prefs::kPrintPreviewUseSystemDefaultPrinter,
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index 9dfe5e7cd531dda152988c6b0ba89098a18cf53a..e33f8a4753b05ac5baa268970d454291497213f0 100644
+index 9698e807b11df1414c5fbed3b153a06e6b96c5aa..8131056e212956decf4831730d1ab513a6c6afa4 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
-@@ -23,10 +23,139 @@
+@@ -22,10 +22,139 @@
+ #include "chrome/browser/ui/color/omnibox_color_mixer.h"
  #include "chrome/browser/ui/color/product_specifications_color_mixer.h"
- #include "chrome/browser/ui/color/projects_panel_color_mixer.h"
  #include "chrome/browser/ui/color/tab_strip_color_mixer.h"
 +#include "third_party/skia/include/core/SkColor.h"
 +#include "ui/color/color_id.h"
@@ -216,7 +216,7 @@ index 9dfe5e7cd531dda152988c6b0ba89098a18cf53a..e33f8a4753b05ac5baa268970d454291
  class ChromeColorProviderUtilsCallbacks
      : public ui::ColorProviderUtilsCallbacks {
   public:
-@@ -83,4 +212,6 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
+@@ -81,4 +210,6 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
    if (key.app_controller) {
      key.app_controller->AddColorMixers(provider, key);
    }
@@ -224,57 +224,88 @@ index 9dfe5e7cd531dda152988c6b0ba89098a18cf53a..e33f8a4753b05ac5baa268970d454291
 +  AddKwikenColorMixer(provider, key);
  }
 diff --git a/chrome/browser/ui/startup/infobar_utils.cc b/chrome/browser/ui/startup/infobar_utils.cc
-index 4907b9a951040624eab323061636a222315194e5..7603f04a4829dd35fdcfe64d8334a36caea35ba2 100644
+index d7ebcfb01b316351d8fe0ee962710d482eb47314..99dd32541ab26f549537b73366cce33f62679748 100644
 --- a/chrome/browser/ui/startup/infobar_utils.cc
 +++ b/chrome/browser/ui/startup/infobar_utils.cc
-@@ -18,7 +18,6 @@
+@@ -19,7 +19,7 @@
+ #include "chrome/browser/ui/session_crashed_bubble.h"
  #include "chrome/browser/ui/startup/automation_infobar_delegate.h"
  #include "chrome/browser/ui/startup/bad_flags_prompt.h"
- #include "chrome/browser/ui/startup/bidding_and_auction_consented_debugging_infobar_delegate.h"
 -#include "chrome/browser/ui/startup/google_api_keys_infobar_delegate.h"
++#include "chrome/browser/ui/startup/bidding_and_auction_consented_debugging_infobar_delegate.h"
  #include "chrome/browser/ui/startup/obsolete_system_infobar_delegate.h"
  #include "chrome/browser/ui/startup/oscryptasync_availability_infobar_delegate.h"
  #include "chrome/browser/ui/startup/startup_browser_creator.h"
-@@ -29,7 +28,6 @@
- #include "components/infobars/content/content_infobar_manager.h"
+@@ -31,7 +31,6 @@
  #include "components/prefs/pref_service.h"
+ #include "components/tabs/public/tab_interface.h"
  #include "content/public/common/content_switches.h"
 -#include "google_apis/google_api_keys.h"
  
  #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
  #include "chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt.h"
-@@ -185,10 +183,6 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
+@@ -194,20 +193,6 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
    infobars::ContentInfoBarManager* infobar_manager =
        infobars::ContentInfoBarManager::FromWebContents(web_contents);
  
 -  if (!google_apis::HasAPIKeyConfigured()) {
--    GoogleApiKeysInfoBarDelegate::Create(infobar_manager);
+-    if (infobars::IsInfoBarMigrated(
+-            infobars::InfoBarDelegate::GOOGLE_API_KEYS_INFOBAR_DELEGATE)) {
+-      if (auto* manager =
+-              infobars::BrowserInfoBarManager::From(g_browser_process)) {
+-        manager->Show(
+-            tabs::TabInterface::GetFromContents(web_contents),
+-            infobars::InfoBarDelegate::GOOGLE_API_KEYS_INFOBAR_DELEGATE);
+-      }
+-    } else {
+-      GoogleApiKeysInfoBarDelegate::Create(infobar_manager);
+-    }
 -  }
 -
    if (ObsoleteSystem::IsObsoleteNowOrSoon()) {
      PrefService* local_state = g_browser_process->local_state();
      if (!local_state ||
+diff --git a/chrome/browser/ui/startup/startup_browser_creator_impl.cc b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+index 332a48ebee92fde32f995f387230cb8b6c780e9c..5b9ef064425d614fbac00710c6784d2b9d9acaa7 100644
+--- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+@@ -561,6 +561,15 @@ void StartupBrowserCreatorImpl::DetermineURLsAndLaunch(
+       StartupBrowserCreator::GetSessionStartupPref(*command_line_, profile_),
+       behavior_options);
+ 
++  // Headless commands are dispatched by OpenTabsInBrowser(). Kwiken defaults
++  // regular profiles to restoring the previous session, but synchronous
++  // restore opens the command-line URL directly and bypasses that dispatcher.
++  // Keep session restore as the interactive default while ensuring automation
++  // commands execute through Chromium's dedicated headless command processor.
++  if (headless::ShouldProcessHeadlessCommands()) {
++    behavior = BrowserOpenBehavior::NEW;
++  }
++
+   SessionRestore::BehaviorBitmask restore_options =
+       restore_tabbed_browser ? SessionRestore::RESTORE_BROWSER : 0;
+   if (behavior == BrowserOpenBehavior::SYNCHRONOUS_RESTORE) {
 diff --git a/chrome/browser/ui/tabs/features.cc b/chrome/browser/ui/tabs/features.cc
-index df3758a6a88c44c9a50eeb6077c87d2b99f31a33..3b9e312ea1787bccb5bda3bbdb07b26bf18ac189 100644
+index 9f151cf8e346533f5528b7d60e9c8f04d93b2988..550e7593e9c797329cff7d7ac7c7b61521e361a8 100644
 --- a/chrome/browser/ui/tabs/features.cc
 +++ b/chrome/browser/ui/tabs/features.cc
-@@ -24,7 +24,7 @@ BASE_FEATURE_PARAM(bool,
+@@ -26,7 +26,7 @@ BASE_FEATURE(kSplitViewTabRestore, base::FEATURE_ENABLED_BY_DEFAULT);
  
- BASE_FEATURE(kSplitViewTabRestore, base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kTabSearchCjkWordBoundary, base::FEATURE_DISABLED_BY_DEFAULT);
  
 -BASE_FEATURE(kVerticalTabs, base::FEATURE_DISABLED_BY_DEFAULT);
 +BASE_FEATURE(kVerticalTabs, base::FEATURE_ENABLED_BY_DEFAULT);
  
- BASE_FEATURE(kVerticalTabsLaunch, base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kVerticalTabsLaunch, base::FEATURE_ENABLED_BY_DEFAULT);
  BASE_FEATURE_PARAM(bool,
 diff --git a/chrome/browser/ui/tabs/tab_strip_prefs.cc b/chrome/browser/ui/tabs/tab_strip_prefs.cc
-index b0d357c347745dc16244d9bb1a4b30360abd55b3..ad7aabeffe5d8b283d81fff1b87058fc7fb54723 100644
+index 24873dd76bd280dd9e4acf1ac48966ff70aea9df..c4fd5bab320f0ce996b7fc9352ce248a7ac92a8d 100644
 --- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
-@@ -46,7 +46,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
-       prefs::kTabSearchPinnedToTabstripMigrationComplete2, false);
-   registry->RegisterBooleanPref(prefs::kProjectsPanelPinnedToTabstrip, true);
-   registry->RegisterBooleanPref(prefs::kEverythingMenuPinnedToTabstrip, true);
+@@ -29,7 +29,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+           tabs::kMigrateEverythingMenuPinnedToTabstrip));
+   registry->RegisterBooleanPref(
+       prefs::kEverythingMenuPinnedToTabstripMigrationComplete, false);
 -  registry->RegisterBooleanPref(prefs::kVerticalTabsEnabled, false);
 +  registry->RegisterBooleanPref(prefs::kVerticalTabsEnabled, true);
    registry->RegisterBooleanPref(
@@ -294,10 +325,10 @@ index b46ad7ecdfff7f3cf106d6bdfe72230245f4aba1..cc236842acb86c56fe86b81a2505300c
  // Per-window state for the vertical tab strip.
  struct VerticalTabStripState {
 diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
-index 5de1dce2f4ec8f4ba9bf0e83a3d74d544833eb3c..329e68ee4f14baa2b724072d8403f1c3ecdaffcd 100644
+index 6b2e98a16cc019bf36ab7e8a70e17b176968284b..c3f96027c77c356032284ebb3da1dd3556c6c3f8 100644
 --- a/chrome/browser/ui/ui_features.cc
 +++ b/chrome/browser/ui/ui_features.cc
-@@ -424,7 +424,7 @@ BASE_FEATURE_PARAM(bool,
+@@ -344,7 +344,7 @@ BASE_FEATURE_PARAM(bool,
                     kSetDefaultToContinueSession,
                     &kSessionRestoreInfobar,
                     "continue_session",
@@ -403,10 +434,10 @@ index c2a03ccbb64608add5c92e12da8985ea6fc4963d..e328ba0284b34fae5308337794cb2960
  
  }  // namespace mini_installer
 diff --git a/chrome/installer/setup/setup_util.cc b/chrome/installer/setup/setup_util.cc
-index 623618d3b784bea7811942ef602f9408d893b95c..c0cfb70db4689bd039ede01d4727ff4b5e83a34b 100644
+index d7de1033840613d7f72282db2f2cff9bc2134404..8f9d9d416167eb244bd69a2cb4fb516c10a0ff7a 100644
 --- a/chrome/installer/setup/setup_util.cc
 +++ b/chrome/installer/setup/setup_util.cc
-@@ -76,7 +76,7 @@ void RemoveBinariesVersionKey(const InstallerState& installer_state) {
+@@ -75,7 +75,7 @@ void RemoveBinariesVersionKey(const InstallerState& installer_state) {
        L"{4DC8B4CA-1BDA-483e-B5FA-D3C12E15B62D}"));
  #else
    // Assume that non-Google is Chromium branding.
@@ -455,10 +486,10 @@ index 7c350fb469b1a918ae7f58de19b0816dc5765785..6779eb6608a5837c70a63e4ada643210
        pref_service_.FindPreference(kMemorySaverModeState)->IsDefaultValue());
  
 diff --git a/components/search_engines/default_search_manager_unittest.cc b/components/search_engines/default_search_manager_unittest.cc
-index 132813d0ef5b20e31267cdbf9c8abba6dd91fed3..977c8d7502f310c949cde877724ca7c2209b5a12 100644
+index b0ee3bb4064a493bc6a5a7c717d89a92af51a20e..a4315162388a53e659993f1863f89bf4cb44e9fb 100644
 --- a/components/search_engines/default_search_manager_unittest.cc
 +++ b/components/search_engines/default_search_manager_unittest.cc
-@@ -178,9 +178,9 @@ TEST_F(DefaultSearchManagerTest, DefaultSearchSetByUserPref) {
+@@ -179,9 +179,9 @@ TEST_F(DefaultSearchManagerTest, DefaultSearchSetByUserPref) {
    std::unique_ptr<TemplateURLData> fallback_t_url_data =
        prepopulate_data_resolver().GetFallbackSearch();
    EXPECT_EQ(fallback_t_url_data->keyword(),
@@ -470,7 +501,7 @@ index 132813d0ef5b20e31267cdbf9c8abba6dd91fed3..977c8d7502f310c949cde877724ca7c2
    DefaultSearchManager::Source source = DefaultSearchManager::FROM_POLICY;
    // If no user pref is set, we should use the pre-populated values.
    ExpectSimilar(fallback_t_url_data.get(),
-@@ -233,19 +233,19 @@ TEST_F(DefaultSearchManagerTest, DefaultSearchOverridesIgnoredWhenFlagEnabled) {
+@@ -234,19 +234,19 @@ TEST_F(DefaultSearchManagerTest, DefaultSearchOverridesIgnoredWhenFlagEnabled) {
    SetOverrides(pref_service(), false);
    auto manager = create_manager();
  
@@ -495,11 +526,11 @@ index 132813d0ef5b20e31267cdbf9c8abba6dd91fed3..977c8d7502f310c949cde877724ca7c2
  }
  
 diff --git a/components/search_engines/template_url_prepopulate_data.cc b/components/search_engines/template_url_prepopulate_data.cc
-index 23c3c13f2f0ec7b9c1e38fd75b8e8dd139700c00..482727afa4aa3eadb90f320d081ff93484dbf25a 100644
+index fbc685a198ab89cb2281143237bcd66e2ba1ac26..1cc75e3c0d6ac282e0804f39e8572e6056ff5c7e 100644
 --- a/components/search_engines/template_url_prepopulate_data.cc
 +++ b/components/search_engines/template_url_prepopulate_data.cc
-@@ -276,7 +276,7 @@ std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(
-     const std::vector<const PrepopulatedEngine*>&
+@@ -308,7 +308,7 @@ std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(
+     const std::vector<raw_ptr<const PrepopulatedEngine>>&
          regional_prepopulated_engines) {
    return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,
 -                                        google.id,
@@ -508,10 +539,10 @@ index 23c3c13f2f0ec7b9c1e38fd75b8e8dd139700c00..482727afa4aa3eadb90f320d081ff934
  }
  
 diff --git a/components/search_engines/template_url_prepopulate_data.h b/components/search_engines/template_url_prepopulate_data.h
-index 898ab232ec631ac7e676097e86129113f4a8bb49..ce620e93bbd33d56e2d594fe2312dc5f282a1a53 100644
+index 251414cfe27c079cda5dc946f97c53f39cdb1c51..2dfb512be00433fcb06dddc8d9484ba79b80d828 100644
 --- a/components/search_engines/template_url_prepopulate_data.h
 +++ b/components/search_engines/template_url_prepopulate_data.h
-@@ -112,7 +112,7 @@ std::vector<std::unique_ptr<TemplateURLData>> GetLocalPrepopulatedEngines(
+@@ -126,7 +126,7 @@ std::vector<std::unique_ptr<TemplateURLData>> GetLocalPrepopulatedEngines(
  void ClearPrepopulatedEnginesInPrefs(PrefService* prefs);
  
  // Returns the fallback default search provider, currently hardcoded to be
@@ -521,10 +552,10 @@ index 898ab232ec631ac7e676097e86129113f4a8bb49..ce620e93bbd33d56e2d594fe2312dc5f
  // Search provider overrides are read from `prefs`.
  // The region-specific list is used to ensure we prioritise returning a search
 diff --git a/components/search_engines/template_url_prepopulate_data_unittest.cc b/components/search_engines/template_url_prepopulate_data_unittest.cc
-index 74e14a9110766ccdf371c348584f20e3635f99b4..09d242183ac85ed482e71d981d77313ddbcb7af3 100644
+index f04f0b20e1078ceb3b817b2d0a7bb4ebf4674d02..806b5e2b9c68719564c4baa64bc9796e36cd32e5 100644
 --- a/components/search_engines/template_url_prepopulate_data_unittest.cc
 +++ b/components/search_engines/template_url_prepopulate_data_unittest.cc
-@@ -481,16 +481,13 @@ TEST_F(TemplateURLPrepopulateDataTest, ClearProvidersFromPrefs) {
+@@ -480,16 +480,13 @@ TEST_F(TemplateURLPrepopulateDataTest, ClearProvidersFromPrefs) {
      EXPECT_NE(1001, t_urls[i]->prepopulate_id);
    }
  
@@ -544,7 +575,7 @@ index 74e14a9110766ccdf371c348584f20e3635f99b4..09d242183ac85ed482e71d981d77313d
              TemplateURL(*fallback_t_url).GetEngineType(SearchTermsData()));
  }
  
-@@ -515,22 +512,13 @@ TEST_F(TemplateURLPrepopulateDataTest, ProvidersFromPrepopulated) {
+@@ -514,22 +511,13 @@ TEST_F(TemplateURLPrepopulateDataTest, ProvidersFromPrepopulated) {
      EXPECT_TRUE(t_urls[0]->last_modified.is_null());
    }
  
@@ -570,7 +601,7 @@ index 74e14a9110766ccdf371c348584f20e3635f99b4..09d242183ac85ed482e71d981d77313d
              TemplateURL(*fallback_t_url).GetEngineType(SearchTermsData()));
  }
  
-@@ -770,35 +758,28 @@ TEST_F(TemplateURLPrepopulateDataTest, HttpsUrls) {
+@@ -769,35 +757,28 @@ TEST_F(TemplateURLPrepopulateDataTest, HttpsUrls) {
    }
  }
  
@@ -614,10 +645,10 @@ index 74e14a9110766ccdf371c348584f20e3635f99b4..09d242183ac85ed482e71d981d77313d
  
  // Regression test for https://crbug.com/1500526.
 diff --git a/components/signin/internal/identity_manager/primary_account_manager.cc b/components/signin/internal/identity_manager/primary_account_manager.cc
-index e6ef4ee147774c1915a947622535ebc5659fd372..24f0041a1205bd56416dae06ebe08be106cb505b 100644
+index 3f8997799d3139a0cdd148857589888c8bfc71c4..95d555a4b6c0919da7c983e788184a8cb6a514d9 100644
 --- a/components/signin/internal/identity_manager/primary_account_manager.cc
 +++ b/components/signin/internal/identity_manager/primary_account_manager.cc
-@@ -368,7 +368,7 @@ void PrimaryAccountManager::RegisterProfilePrefs(PrefRegistrySimple* registry) {
+@@ -391,7 +391,7 @@ void PrimaryAccountManager::RegisterProfilePrefs(PrefRegistrySimple* registry) {
        prefs::kGoogleServicesSyncingUsernameMigratedToSignedIn, std::string());
    registry->RegisterIntegerPref(prefs::kGoogleServicesSyncingUserMigrationType,
                                  /*SyncToSigninMigrationType::kUnknown=*/0);
@@ -627,10 +658,10 @@ index e6ef4ee147774c1915a947622535ebc5659fd372..24f0041a1205bd56416dae06ebe08be1
    registry->RegisterBooleanPref(prefs::kExplicitBrowserSignin, false);
    registry->RegisterBooleanPref(
 diff --git a/content/public/common/content_features.cc b/content/public/common/content_features.cc
-index 060453a7150693e1e7742299c9ce24a8f9781193..a439cac55aa94952fdce3fd3f562b1d921995bdb 100644
+index e10c1604546cd287cbe50eff0be125f569f4098b..f854d9ed28bb77272b784b2831b842f2f0182624 100644
 --- a/content/public/common/content_features.cc
 +++ b/content/public/common/content_features.cc
-@@ -1096,7 +1096,8 @@ BASE_FEATURE(kDisableProcessReuse, base::FEATURE_DISABLED_BY_DEFAULT);
+@@ -1143,7 +1143,8 @@ BASE_FEATURE(kDisableProcessReuse, base::FEATURE_DISABLED_BY_DEFAULT);
  // Controls whether SpareRenderProcessHostManager tries to always have a warm
  // spare renderer process around for the most recently requested BrowserContext.
  // This feature is only consulted in site-per-process mode.
@@ -640,23 +671,3 @@ index 060453a7150693e1e7742299c9ce24a8f9781193..a439cac55aa94952fdce3fd3f562b1d9
  
  // Controls whether site isolation should use origins instead of scheme and
  // eTLD+1.
-diff --git a/chrome/browser/ui/startup/startup_browser_creator_impl.cc b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-index a93e7d7e7be59b3be27b33cd6098edb37f62bf44..dd3fd47e0b2c45ba146d7493225b7f724b988d74 100644
---- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-+++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-@@ -531,6 +531,15 @@ void StartupBrowserCreatorImpl::DetermineURLsAndLaunch(
-       StartupBrowserCreator::GetSessionStartupPref(*command_line_, profile_),
-       behavior_options);
- 
-+  // Headless commands are dispatched by OpenTabsInBrowser(). Kwiken defaults
-+  // regular profiles to restoring the previous session, but synchronous
-+  // restore opens the command-line URL directly and bypasses that dispatcher.
-+  // Keep session restore as the interactive default while ensuring automation
-+  // commands execute through Chromium's dedicated headless command processor.
-+  if (headless::ShouldProcessHeadlessCommands()) {
-+    behavior = BrowserOpenBehavior::NEW;
-+  }
-+
-   SessionRestore::BehaviorBitmask restore_options =
-       restore_tabbed_browser ? SessionRestore::RESTORE_BROWSER : 0;
-   if (behavior == BrowserOpenBehavior::SYNCHRONOUS_RESTORE) {

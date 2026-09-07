@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc b/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
-index ac697c533405b018bd352296b14ca45b67b690b9..3896f7105ba17bde8a73e760e9bf4115f29525d5 100644
+index 486efad8e1211db65850ca0cc010cd1b0ab89747..9c231bbfab80f6242ea9c2c1d79146905380a4b9 100644
 --- a/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
 +++ b/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
-@@ -277,11 +277,10 @@ LocalTabGroupListener::Liveness LocalTabGroupListener::UpdateFromSync() {
+@@ -278,11 +278,10 @@ LocalTabGroupListener::Liveness LocalTabGroupListener::UpdateFromSync() {
    TabGroup* local_tab_group =
        tab_strip_model->group_model()->GetTabGroup(local_id_);
    CHECK(local_tab_group);
@@ -90,10 +90,10 @@ index cdd4a4be2be426942dc682e8a3c5da8b9128033f..fb34f2f35cb5957edfd7fcf22552dbf1
        /*pinned=*/tab_groups::SavedTabGroupUtils::ShouldAutoPinNewTabGroups(
            profile_));
 diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc
-index 8dbfeb49c909dbcff0ca5d02fac5766167aaa047..87e4657582c7a06680c6e3d9c0170ed98d2bfbf4 100644
+index 42bf4ae5dfd7e62aa6600d4506444bd95098e5c4..908bcc33daccdcaaf6d8ffc03103ce25aef9c4d3 100644
 --- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc
 +++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_browsertest.cc
-@@ -897,6 +897,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
+@@ -982,6 +982,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
    // Verify that the group is saved.
    std::optional<SavedTabGroup> saved_group = service_->GetGroup(local_id);
    ASSERT_TRUE(saved_group.has_value());
@@ -101,7 +101,7 @@ index 8dbfeb49c909dbcff0ca5d02fac5766167aaa047..87e4657582c7a06680c6e3d9c0170ed9
  
    // Simulate a remote update to the group.
    model_->MergeRemoteGroupMetadata(
-@@ -914,6 +915,82 @@ IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
+@@ -999,6 +1000,82 @@ IN_PROC_BROWSER_TEST_F(TabGroupSyncDelegateBrowserTest,
  
    // The local group should still be collapsed.
    EXPECT_TRUE(local_group->visual_data()->is_collapsed());
@@ -185,10 +185,10 @@ index 8dbfeb49c909dbcff0ca5d02fac5766167aaa047..87e4657582c7a06680c6e3d9c0170ed9
  
  // TODO(crbug.com/438395752): Re-enable this test on Linux.
 diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
-index e7495c5e7d72f162b628b3984dca00e64f7deff3..38ae533fb077b58e84b371bac55eb9dab4b08d79 100644
+index b6d016cd685aa312bc2a9f5f598d81a9daa64bb6..f958445569249294f2089464be69def49fcfcefb 100644
 --- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
 +++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
-@@ -390,7 +390,7 @@ TabGroupId TabGroupSyncDelegateDesktop::AddOpenedTabsToGroup(
+@@ -399,7 +399,7 @@ TabGroupId TabGroupSyncDelegateDesktop::AddOpenedTabsToGroup(
  
    // Update the group to use the saved title and color.
    TabGroupVisualData visual_data(saved_group.title(), saved_group.color(),
@@ -198,10 +198,10 @@ index e7495c5e7d72f162b628b3984dca00e64f7deff3..38ae533fb077b58e84b371bac55eb9da
  
    const std::optional<SavedTabGroup> saved_group2 =
 diff --git a/components/saved_tab_groups/internal/saved_tab_group_model.cc b/components/saved_tab_groups/internal/saved_tab_group_model.cc
-index 57299c1a0441acb26b4c7710efb39d1fadd4e11c..67f17d699f8007837fa19f99b70d2085a299e021 100644
+index 8194ab45383a1c9cac2ce6ccbcc3842329c90efd..0f8b402887879806107bca42996a1abd752d35dc 100644
 --- a/components/saved_tab_groups/internal/saved_tab_group_model.cc
 +++ b/components/saved_tab_groups/internal/saved_tab_group_model.cc
-@@ -219,6 +219,9 @@ void SavedTabGroupModel::UpdateVisualDataLocally(
+@@ -210,6 +210,9 @@ void SavedTabGroupModel::UpdateVisualDataLocally(
    }
  
    const std::optional<int> index = GetIndexOf(tab_group_id);
@@ -212,10 +212,10 @@ index 57299c1a0441acb26b4c7710efb39d1fadd4e11c..67f17d699f8007837fa19f99b70d2085
    base::Uuid updated_guid = Get(tab_group_id)->saved_guid();
    for (auto& observer : observers_) {
 diff --git a/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc b/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc
-index f34b465c6fd8ddf8b61978df5aea692bc6495189..c7c8fcc63edf35aa75bc689c4f230e6d73a96ce2 100644
+index d0c60a89f62e090c3367b99109d0bb20610215d9..b1554ec6c6fba30497ccdd88b82fd0ad216e3f96 100644
 --- a/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc
 +++ b/components/saved_tab_groups/internal/saved_tab_group_model_unittest.cc
-@@ -356,6 +356,21 @@ TEST_F(SavedTabGroupModelTest, UpdateElement) {
+@@ -352,6 +352,21 @@ TEST_F(SavedTabGroupModelTest, UpdateElement) {
        group->local_group_id().value(), &change_color_visual_data);
    EXPECT_EQ(group->title(), original_title);
    EXPECT_EQ(group->color(), random_color);
@@ -238,7 +238,7 @@ index f34b465c6fd8ddf8b61978df5aea692bc6495189..c7c8fcc63edf35aa75bc689c4f230e6d
  
  // Tests that the correct tabs are added to the correct position in group 1.
 diff --git a/components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc b/components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc
-index 965f9330f355e8afd870b619efdb9e8fd324049c..0c5c0d1ad2de34b3e395d2bf25254001041cb4a1 100644
+index d74599ee64216267b4f5957c311f504e2bfe8ac7..c68262bae948d41559417d0c02fd8de5b8e0e444 100644
 --- a/components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc
 +++ b/components/saved_tab_groups/internal/saved_tab_group_proto_conversion_unittest.cc
 @@ -74,6 +74,8 @@ class SavedTabGroupConversionTest : public testing::Test {
@@ -250,7 +250,7 @@ index 965f9330f355e8afd870b619efdb9e8fd324049c..0c5c0d1ad2de34b3e395d2bf25254001
    }
  
    // Compare SavedTabGroups
-@@ -95,6 +97,7 @@ class SavedTabGroupConversionTest : public testing::Test {
+@@ -93,6 +95,7 @@ class SavedTabGroupConversionTest : public testing::Test {
                group2.created_before_syncing_tab_groups());
      EXPECT_EQ(group1.archival_time(), group2.archival_time());
      EXPECT_EQ(group1.bookmark_node_id(), group2.bookmark_node_id());
@@ -258,7 +258,7 @@ index 965f9330f355e8afd870b619efdb9e8fd324049c..0c5c0d1ad2de34b3e395d2bf25254001
    }
  
    void CompareTabs(const SavedTabGroupTab& tab1, const SavedTabGroupTab& tab2) {
-@@ -128,6 +131,7 @@ TEST_F(SavedTabGroupConversionTest, GroupToDataRetainsData) {
+@@ -126,6 +129,7 @@ TEST_F(SavedTabGroupConversionTest, GroupToDataRetainsData) {
    group.SetOriginatingTabGroupGuid(kOriginatingSavedTabGroupGuid,
                                     /*use_originating_tab_group_guid=*/true);
    group.SetIsHidden(true);
@@ -266,7 +266,7 @@ index 965f9330f355e8afd870b619efdb9e8fd324049c..0c5c0d1ad2de34b3e395d2bf25254001
    group.SetArchivalTime(time_);
  
    group.SetBookmarkNodeId(base::Uuid::GenerateRandomV4());
-@@ -140,6 +144,19 @@ TEST_F(SavedTabGroupConversionTest, GroupToDataRetainsData) {
+@@ -138,6 +142,19 @@ TEST_F(SavedTabGroupConversionTest, GroupToDataRetainsData) {
  
    CompareGroups(group,
                  SavedTabGroupSyncBridge::DataToSavedTabGroupForTest(proto));
@@ -287,10 +287,10 @@ index 965f9330f355e8afd870b619efdb9e8fd324049c..0c5c0d1ad2de34b3e395d2bf25254001
  
  TEST_F(SavedTabGroupConversionTest, TabToDataRetainsData) {
 diff --git a/components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc b/components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc
-index 5479150419cccbe14013e28dfd2ef8ec79a8350d..d7906c617dc5b09f1c64ee9dc0ded6810108dc7b 100644
+index d1144d68ac7c699e98d451b71980d26a0220621e..c4ac062e9c65acb24303c4f88b650d3a22e506fe 100644
 --- a/components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc
 +++ b/components/saved_tab_groups/internal/saved_tab_group_proto_conversions.cc
-@@ -173,6 +173,7 @@ SavedTabGroup DataToSavedTabGroup(const proto::SavedTabGroupData& data) {
+@@ -166,6 +166,7 @@ SavedTabGroup DataToSavedTabGroup(const proto::SavedTabGroupData& data) {
    base::Time last_user_interaction_time;
    base::Uuid originating_tab_group_guid;
    bool is_hidden = false;
@@ -298,7 +298,7 @@ index 5479150419cccbe14013e28dfd2ef8ec79a8350d..d7906c617dc5b09f1c64ee9dc0ded681
    std::optional<base::Time> archival_time;
    if (data.has_local_tab_group_data()) {
      created_before_syncing_tab_groups =
-@@ -185,6 +186,7 @@ SavedTabGroup DataToSavedTabGroup(const proto::SavedTabGroupData& data) {
+@@ -178,6 +179,7 @@ SavedTabGroup DataToSavedTabGroup(const proto::SavedTabGroupData& data) {
            data.local_tab_group_data().originating_tab_group_guid());
      }
      is_hidden = data.local_tab_group_data().is_group_hidden();
@@ -306,7 +306,7 @@ index 5479150419cccbe14013e28dfd2ef8ec79a8350d..d7906c617dc5b09f1c64ee9dc0ded681
      if (data.local_tab_group_data().has_archival_time_windows_epoch_micros()) {
        archival_time = TimeFromWindowsEpochMicros(
            data.local_tab_group_data().archival_time_windows_epoch_micros());
-@@ -209,6 +211,7 @@ SavedTabGroup DataToSavedTabGroup(const proto::SavedTabGroupData& data) {
+@@ -197,6 +199,7 @@ SavedTabGroup DataToSavedTabGroup(const proto::SavedTabGroupData& data) {
                                       /*use_originating_tab_group_guid=*/true);
    }
    group.SetIsHidden(is_hidden);
@@ -314,7 +314,7 @@ index 5479150419cccbe14013e28dfd2ef8ec79a8350d..d7906c617dc5b09f1c64ee9dc0ded681
    group.SetArchivalTime(archival_time);
  
    if (specific.group().has_bookmark_node_id()) {
-@@ -319,6 +322,7 @@ proto::SavedTabGroupData SavedTabGroupToData(
+@@ -294,6 +297,7 @@ proto::SavedTabGroupData SavedTabGroupToData(
          group.GetOriginatingTabGroupGuid().value().AsLowercaseString());
    }
    local_data->set_is_group_hidden(group.is_hidden());
@@ -337,7 +337,7 @@ index 5ebd5a4f44232f8e925850bddfd8e1ca1b54296a..37c53e6fb12dbef82873f160c6f48a17
 +  optional bool is_collapsed = 9 [default = false];
  }
 diff --git a/components/saved_tab_groups/public/saved_tab_group.cc b/components/saved_tab_groups/public/saved_tab_group.cc
-index 9f4dce4ab968145a5f5fa768ead4333fff973f35..393fdb65823c43b06a9c27bd724dfa9fb9a41d06 100644
+index 8d2c9222f6d9713c8b50b72393584191664482f0..7161ea250d31c263b6a28478ba1a7d4f5d25c5da 100644
 --- a/components/saved_tab_groups/public/saved_tab_group.cc
 +++ b/components/saved_tab_groups/public/saved_tab_group.cc
 @@ -174,6 +174,11 @@ SavedTabGroup& SavedTabGroup::SetColor(tab_groups::TabGroupColorId color) {
@@ -352,7 +352,7 @@ index 9f4dce4ab968145a5f5fa768ead4333fff973f35..393fdb65823c43b06a9c27bd724dfa9f
  SavedTabGroup& SavedTabGroup::SetLocalGroupId(
      std::optional<LocalTabGroupID> tab_group_id) {
    local_group_id_ = tab_group_id;
-@@ -509,6 +514,7 @@ void SavedTabGroup::RemoveTabImpl(const base::Uuid& saved_tab_guid,
+@@ -503,6 +508,7 @@ void SavedTabGroup::RemoveTabImpl(const base::Uuid& saved_tab_guid,
  
  SavedTabGroup SavedTabGroup::CopyBaseFieldsWithTabs() const {
    SavedTabGroup cloned_group(title(), color(), /*urls=*/{}, position_);
@@ -361,7 +361,7 @@ index 9f4dce4ab968145a5f5fa768ead4333fff973f35..393fdb65823c43b06a9c27bd724dfa9f
    for (size_t i = 0; i < saved_tabs().size(); ++i) {
      const SavedTabGroupTab& tab = saved_tabs()[i];
 diff --git a/components/saved_tab_groups/public/saved_tab_group.h b/components/saved_tab_groups/public/saved_tab_group.h
-index a52ccb116c12ca060a81ad36ccba3a1dcccb5d1c..d3e833e21f58eb28769e8ecc3572ce2b320ee07d 100644
+index 62e6ecd089dabb939be72634be120ae204777cba..a820debdb6c457c2e2cea3953672ba8a430c4f83 100644
 --- a/components/saved_tab_groups/public/saved_tab_group.h
 +++ b/components/saved_tab_groups/public/saved_tab_group.h
 @@ -89,6 +89,7 @@ class SavedTabGroup {
@@ -372,7 +372,7 @@ index a52ccb116c12ca060a81ad36ccba3a1dcccb5d1c..d3e833e21f58eb28769e8ecc3572ce2b
    const std::vector<SavedTabGroupTab>& saved_tabs() const {
      return saved_tabs_;
    }
-@@ -158,6 +159,7 @@ class SavedTabGroup {
+@@ -152,6 +153,7 @@ class SavedTabGroup {
    // Metadata mutators.
    SavedTabGroup& SetTitle(std::u16string title);
    SavedTabGroup& SetColor(tab_groups::TabGroupColorId color);
@@ -380,7 +380,7 @@ index a52ccb116c12ca060a81ad36ccba3a1dcccb5d1c..d3e833e21f58eb28769e8ecc3572ce2b
    SavedTabGroup& SetLocalGroupId(std::optional<LocalTabGroupID> tab_group_id);
    SavedTabGroup& SetCreatorCacheGuid(std::optional<std::string> new_cache_guid);
    SavedTabGroup& SetLastUpdaterCacheGuid(std::optional<std::string> cache_guid);
-@@ -312,6 +314,10 @@ class SavedTabGroup {
+@@ -304,6 +306,10 @@ class SavedTabGroup {
    // The color of the saved tab group.
    tab_groups::TabGroupColorId color_;
  
