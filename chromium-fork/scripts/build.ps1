@@ -36,6 +36,7 @@ if (-not $SkipPatch) {
 $outputRoot = Join-Path $sourceRoot "out\Kwiken"
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
 Copy-Item (Join-Path $script:ForkRoot "args.gn") (Join-Path $outputRoot "args.gn") -Force
+Assert-KwikenReleaseGnArgs -Path (Join-Path $outputRoot "args.gn")
 
 Push-Location $sourceRoot
 try {

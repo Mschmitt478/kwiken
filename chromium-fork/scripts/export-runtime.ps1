@@ -2025,6 +2025,7 @@ $gnArgsSha256 = Get-LowerSha256 -Path $repoArgsPath
 if ((Get-LowerSha256 -Path $outputArgsPath) -ne $gnArgsSha256) {
   throw "out\Kwiken\args.gn does not match the reviewed Kwiken build configuration."
 }
+Assert-KwikenReleaseGnArgs -Path $outputArgsPath
 
 $buildArguments = @("-C", "out/Kwiken", "chrome", "mini_installer", "-j", [string]$Jobs)
 $buildCommandLine = "autoninja -C out/Kwiken chrome mini_installer -j $Jobs"

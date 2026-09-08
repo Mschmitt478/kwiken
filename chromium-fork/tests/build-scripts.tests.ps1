@@ -93,6 +93,27 @@ Invoke-Test "environment-backed build roots" {
   }
 }
 
+Invoke-Test "production GN args disable fatal DCHECKs" {
+  $productionArgs = Join-Path (Split-Path -Parent $PSScriptRoot) "args.gn"
+  Assert-KwikenReleaseGnArgs -Path $productionArgs
+
+  $temporaryArgs = Join-Path ([IO.Path]::GetTempPath()) `
+    ("Kwiken-Release-Gn-Args-" + [Guid]::NewGuid().ToString("N") + ".gn")
+  try {
+    Set-Content -LiteralPath $temporaryArgs -NoNewline -Value @'
+is_official_build = false
+dcheck_always_on = true
+enable_expensive_dchecks = true
+chrome_pgo_phase = 2
+'@
+    Assert-Throws -Body {
+      Assert-KwikenReleaseGnArgs -Path $temporaryArgs
+    } -Pattern "is_official_build = true"
+  } finally {
+    Remove-Item -LiteralPath $temporaryArgs -Force -ErrorAction SilentlyContinue
+  }
+}
+
 Invoke-Test "build-root safety" {
   $resolved = Resolve-KwikenBuildRoot -Value "C:\src\kwiken-test" `
     -DefaultValue "C:\unused" -Name "TestRoot"

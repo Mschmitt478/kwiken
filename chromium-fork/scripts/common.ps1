@@ -609,6 +609,31 @@ function Assert-KwikenSourceDelta {
   return $actualHash
 }
 
+function Assert-KwikenReleaseGnArgs {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    throw "Kwiken release GN args were not found: $Path"
+  }
+
+  $contents = Get-Content -LiteralPath $Path -Raw
+  $requiredValues = [ordered]@{
+    "is_official_build" = "true"
+    "dcheck_always_on" = "false"
+    "enable_expensive_dchecks" = "false"
+    "chrome_pgo_phase" = "0"
+  }
+  foreach ($entry in $requiredValues.GetEnumerator()) {
+    $expression = "(?m)^\s*$([Regex]::Escape($entry.Key))\s*=\s*$($entry.Value)\s*(?:#.*)?$"
+    if ($contents -notmatch $expression) {
+      throw "Kwiken release GN args must set $($entry.Key) = $($entry.Value)."
+    }
+  }
+}
+
 function Invoke-BatchFile {
   param(
     [Parameter(Mandatory = $true)]
