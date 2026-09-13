@@ -126,9 +126,9 @@ function Invoke-BoundedProcess {
   return [pscustomobject]@{
     StandardOutput = @(
       "PATH=$script:FixtureVisualStudio\bin;C:\Windows\System32",
-      "INCLUDE=$script:FixtureVisualStudio\include",
-      "EXTERNAL_INCLUDE=$script:FixtureVisualStudio\external-include",
-      "LIB=$script:FixtureVisualStudio\lib",
+      "INCLUDE=$script:FixtureVisualStudio\include;C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8.1\include\um",
+      "EXTERNAL_INCLUDE=$script:FixtureVisualStudio\external-include;C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8.1\include\um",
+      "LIB=$script:FixtureVisualStudio\lib;C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8.1\lib\um\x64",
       "LIBPATH=$script:FixtureVisualStudio\libpath;C:\Windows\Microsoft.NET\Framework64\v4.0.30319",
       "CL=/FI C:\UNAPPROVED-SDK\forced.h",
       "_CL_=/DUNAPPROVED=1",
@@ -194,6 +194,13 @@ try {
       "C:\Windows\Microsoft.NET",
       [StringComparison]::OrdinalIgnoreCase
     ) -lt 0) -Message "Launcher LIBPATH retained a directory outside the approved VS root."
+  foreach ($environmentName in @("INCLUDE", "EXTERNAL_INCLUDE", "LIB")) {
+    Assert-True -Condition ($fixtureEnvironment[$environmentName].IndexOf(
+        "C:\Program Files (x86)\Windows Kits\NETFXSDK",
+        [StringComparison]::OrdinalIgnoreCase
+      ) -lt 0) `
+      -Message "Launcher $environmentName retained the external .NET Framework SDK."
+  }
   foreach ($optionName in @("CL", "_CL_", "LINK", "_LINK_", "RC", "_RC_")) {
     Assert-True -Condition ([string]$fixtureEnvironment[$optionName] -ceq "") `
       -Message "Launcher environment retained inherited $optionName options."

@@ -832,13 +832,18 @@ function Import-VisualStudioEnvironment {
     throw "Visual Studio did not return a PATH environment."
   }
 
+  # Newer VsDevCmd releases can retain the separately installed .NET Framework
+  # SDK even with -winsdk=none. The launcher is native-only, so keep only the
+  # Visual Studio directories here and add the authenticated SDK below.
   $vsInclude = @(Get-ApprovedVisualStudioDirectories -Environment $environment `
-      -Name "INCLUDE" -VisualStudioRoot $visualStudio.FullName)
+      -Name "INCLUDE" -VisualStudioRoot $visualStudio.FullName `
+      -DiscardOutsideRoot)
   $vsExternalInclude = @(Get-ApprovedVisualStudioDirectories `
       -Environment $environment -Name "EXTERNAL_INCLUDE" `
-      -VisualStudioRoot $visualStudio.FullName)
+      -VisualStudioRoot $visualStudio.FullName -DiscardOutsideRoot)
   $vsLib = @(Get-ApprovedVisualStudioDirectories -Environment $environment `
-      -Name "LIB" -VisualStudioRoot $visualStudio.FullName)
+      -Name "LIB" -VisualStudioRoot $visualStudio.FullName `
+      -DiscardOutsideRoot)
   # VsDevCmd also adds the system .NET Framework to LIBPATH. The launcher is
   # native-only, so retain only explicitly approved Visual Studio directories.
   $vsLibPath = @(Get-ApprovedVisualStudioDirectories -Environment $environment `
