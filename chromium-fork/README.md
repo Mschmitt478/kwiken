@@ -190,7 +190,7 @@ Python runtime is copied into private staging and tree-hash verified before it
 runs the archive validator. The complete NSIS runtime is handled the same way
 before it creates the installer.
 
-The installer is written to `chromium-fork\release\Kwiken-Setup-153.0.8010.28-r1.exe`.
+The installer is written to `chromium-fork\release\Kwiken-Setup-153.0.8010.28-r2.exe`.
 This artifact is deliberately reported as unsigned. Any public testing release
 must retain that warning and ship the generated verification manifest and
 SHA-256 checksums; trusted distribution still requires Authenticode signing and
